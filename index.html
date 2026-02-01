@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sushi Top Delivery</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <header class="app-header sticky">
+        <div class="header-content">
+            <div class="logo-area">
+                <img src="img/logo.jpg" alt="Logo">
+                <div class="store-details">
+                    <h1>Sushi Top</h1>
+                    <span class="badge-status">Aberto</span>
+                </div>
+            </div>
+            <div class="header-info">
+                <p><i class="fas fa-star" style="color:#fc0;"></i> 4.8</p>
+                <p>30-45 min</p>
+            </div>
+        </div>
+    </header>
+
+    <div class="banner-area">
+        <div class="banner-track">
+            <img src="https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=800&q=80" alt="Banner 1">
+            <img src="https://images.unsplash.com/photo-1553621042-f6e147245754?w=800&q=80" alt="Banner 2">
+        </div>
+    </div>
+
+    <nav class="category-nav" id="category-nav"></nav>
+
+    <div id="buy-again-container" class="buy-again-card" style="display: none;">
+        <div class="icon-box"><i class="fas fa-redo"></i></div>
+        <div class="text-box">
+            <h4>Pedir novamente?</h4>
+            <p id="last-order-desc">Seu último pedido...</p>
+        </div>
+        <button onclick="repetirPedido()">Adicionar</button>
+    </div>
+
+    <main class="menu-container" id="menu-content"></main>
+
+    <div class="cart-float" id="cart-bar" onclick="abrirCheckout()">
+        <div class="cart-count" id="cart-count">0</div>
+        <div class="cart-text">Ver meu pedido</div>
+        <div class="cart-total" id="cart-total">Gs 0</div>
+    </div>
+
+    <div id="product-modal" class="modal-overlay">
+        <div class="modal-bottom-sheet">
+            <button class="close-modal" onclick="fecharModalProduto()">&times;</button>
+            <div class="modal-header-prod">
+                <h3 id="modal-title">Nome do Produto</h3>
+                <p id="modal-desc">Descrição...</p>
+            </div>
+            <div id="modal-options" class="options-list"></div>
+            <div class="modal-actions">
+                <div class="stepper">
+                    <button onclick="mudarQtd(-1)">-</button>
+                    <span id="modal-qty">1</span>
+                    <button onclick="mudarQtd(1)">+</button>
+                </div>
+                <button class="btn-add" onclick="adicionarDoModal()">
+                    Adicionar <span id="modal-price">Gs 0</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="checkout-modal" class="modal-overlay" style="z-index: 200;">
+        <div class="modal-bottom-sheet full-height">
+            <div class="checkout-header">
+                <button onclick="fecharCheckout()"><i class="fas fa-chevron-down"></i></button>
+                <h3>Seu Pedido</h3>
+                <button onclick="limparCarrinho()" style="font-size:0.8rem; color:red;">Limpar</button>
+            </div>
+            
+            <div class="checkout-body">
+                
+                <div id="carrinho-lista" class="cart-items-list">
+                    </div>
+
+                <div class="delivery-toggle mt-20">
+                    <button id="btn-delivery" class="active" onclick="mudarModoEntrega('delivery')">
+                        <i class="fas fa-motorcycle"></i> Delivery
+                    </button>
+                    <button id="btn-retirada" onclick="mudarModoEntrega('retirada')">
+                        <i class="fas fa-store"></i> Retirada
+                    </button>
+                </div>
+
+                <div class="upsell-section">
+                    <h4>Adicionar Bebida ou Extra? 🥤</h4>
+                    <div id="upsell-list" class="upsell-scroller"></div>
+                </div>
+
+                <div class="form-section">
+                    <h4>Seus Dados</h4>
+                    <input type="text" id="cli-nome" placeholder="Nome Completo" class="input-field">
+                    <div class="row">
+                        <select id="cli-ddi" class="input-field small">
+                            <option value="+595">🇵🇾 +595</option>
+                            <option value="+55">🇧🇷 +55</option>
+                        </select>
+                        <input type="tel" id="cli-tel" placeholder="WhatsApp" class="input-field">
+                    </div>
+                </div>
+
+                <div class="form-section" id="box-endereco">
+                    <h4>Entrega</h4>
+                    <button id="btn-gps" onclick="calcularFrete()" class="btn-gps">
+                        <i class="fas fa-map-marker-alt"></i> Calcular Frete (Obrigatório)
+                    </button>
+                    <div id="frete-msg" class="frete-info"></div>
+                    <input type="text" id="cli-ref" placeholder="Ponto de Referência" class="input-field mt-10">
+                </div>
+
+                <div class="form-section">
+                    <h4>Pagamento</h4>
+                    <select id="forma-pag" class="input-field" onchange="verificarPagamento()">
+                        <option value="">Forma de Pagamento...</option>
+                        <option value="Efetivo">Dinheiro (Guaranis)</option>
+                        <option value="Pix">Pix (Reais)</option>
+                        <option value="Cartao">Cartão</option>
+                        <option value="Transferencia">Transferência</option>
+                    </select>
+                    
+                    <div id="box-troco" class="hidden mt-10">
+                        <input type="text" id="troco-valor" placeholder="Troco para quanto?" class="input-field">
+                    </div>
+
+                    <div class="row-check mt-10">
+                        <input type="checkbox" id="check-factura" onchange="toggleFactura()">
+                        <label for="check-factura">Quero Factura</label>
+                    </div>
+                    <div id="box-ruc" class="hidden mt-10">
+                        <input type="text" id="cli-ruc" placeholder="RUC / CI" class="input-field">
+                        <input type="text" id="cli-zao" placeholder="Razão Social" class="input-field mt-10">
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="checkout-footer">
+                <div class="row-total">
+                    <span>Total Final:</span>
+                    <strong id="total-final-checkout">Gs 0</strong>
+                </div>
+                <button class="btn-finish" onclick="enviarZap()">
+                    Fazer Pedido <i class="fab fa-whatsapp"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="dados.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
