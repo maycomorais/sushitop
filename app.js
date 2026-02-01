@@ -254,18 +254,18 @@ function calcularFrete() {
         const dist = getDistancia(COORD_LOJA.lat, COORD_LOJA.lng, localCliente.lat, localCliente.lng);
         
         // REGRA DE NEGÓCIO:
-        // Até 3km = 5.000
-        // 3km a 5km = 15.000
+        // Até 3,3km = 5.000
+        // 3,4km a 5km = 15.000
         // Acima de 5km = 15.000 + 5.000 a cada 2km
         
-        if (dist <= 3.0) {
-            freteCalculado = 5000;
+        if (dist <= 3.3) {
+            freteCalculado = 6000;
         } else if (dist <= 5.0) {
-            freteCalculado = 15000;
+            freteCalculado = 12000;
         } else {
-            const kmExtra = dist - 5.0;
+            const kmExtra = dist - 6.0;
             const faixasExtras = Math.ceil(kmExtra / 2.0); // A cada 2km
-            freteCalculado = 15000 + (faixasExtras * 5000);
+            freteCalculado = 12000 + (faixasExtras * 6000);
         }
         
         document.getElementById('frete-msg').innerHTML = `Distância: ${dist.toFixed(1)}km <br> Frete: Gs ${freteCalculado.toLocaleString('es-PY')}`;

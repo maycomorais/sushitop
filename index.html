@@ -75,72 +75,90 @@
 
     <div id="checkout-modal" class="modal-overlay" style="z-index: 200;">
         <div class="modal-bottom-sheet full-height">
+            
             <div class="checkout-header">
-                <button onclick="fecharCheckout()"><i class="fas fa-chevron-down"></i></button>
-                <h3>Seu Pedido</h3>
-                <button onclick="limparCarrinho()" style="font-size:0.8rem; color:red;">Limpar</button>
+                <button class="btn-limpar" onclick="limparCarrinho()">Limpar</button>
+                <h3>Finalizar Pedido</h3>
+                <button class="btn-fechar" onclick="fecharCheckout()">&times;</button>
             </div>
             
             <div class="checkout-body">
                 
-                <div id="carrinho-lista" class="cart-items-list">
-                    </div>
+                <div id="carrinho-lista" class="cart-items-list"></div>
 
-                <div class="delivery-toggle mt-20">
-                    <button id="btn-delivery" class="active" onclick="mudarModoEntrega('delivery')">
-                        <i class="fas fa-motorcycle"></i> Delivery
-                    </button>
-                    <button id="btn-retirada" onclick="mudarModoEntrega('retirada')">
-                        <i class="fas fa-store"></i> Retirada
-                    </button>
+                <div class="form-section mt-20">
+                    <h4 style="font-size: 1.1rem; color: #2D5A27; margin-bottom: 10px; text-align: center;">
+                        <i class="fas fa-hand-point-down"></i> Como deseja receber?
+                    </h4>
+                    <div class="delivery-toggle">
+                        <button id="btn-delivery" class="active" onclick="mudarModoEntrega('delivery')">
+                            <i class="fas fa-motorcycle"></i> Entrega
+                        </button>
+                        <button id="btn-retirada" onclick="mudarModoEntrega('retirada')">
+                            <i class="fas fa-store"></i> Retirada
+                        </button>
+                    </div>
                 </div>
 
                 <div class="upsell-section">
-                    <h4>Adicionar Bebida ou Extra? 🥤</h4>
+                    <h4>Turbine seu pedido 🥤</h4>
                     <div id="upsell-list" class="upsell-scroller"></div>
                 </div>
 
                 <div class="form-section">
                     <h4>Seus Dados</h4>
-                    <input type="text" id="cli-nome" placeholder="Nome Completo" class="input-field">
+                    <label style="font-size: 0.8rem; color: #666;">Nome Completo</label>
+                    <input type="text" id="cli-nome" placeholder="Ex: João da Silva" class="input-field">
+                    
+                    <label style="font-size: 0.8rem; color: #666;">WhatsApp</label>
                     <div class="row">
                         <select id="cli-ddi" class="input-field small">
-                            <option value="+595">🇵🇾 +595</option>
-                            <option value="+55">🇧🇷 +55</option>
+                            <option value="+595">🇵🇾 +595 (PY)</option>
+                            <option value="+55">🇧🇷 +55 (BR)</option>
+                            <option value="+54">🇦🇷 +54 (AR)</option>
+                            <option value="+591">🇧🇴 +591 (BO)</option>
+                            <option value="+56">🇨🇱 +56 (CL)</option>
+                            <option value="+57">🇨🇴 +57 (CO)</option>
+                            <option value="+593">🇪🇨 +593 (EC)</option>
+                            <option value="+592">🇬🇾 +592 (GY)</option>
+                            <option value="+51">🇵🇪 +51 (PE)</option>
+                            <option value="+598">🇺🇾 +598 (UY)</option>
+                            <option value="+58">🇻🇪 +58 (VE)</option>
                         </select>
-                        <input type="tel" id="cli-tel" placeholder="WhatsApp" class="input-field">
+                        <input type="tel" id="cli-tel" placeholder="99123-4567" class="input-field">
                     </div>
                 </div>
 
                 <div class="form-section" id="box-endereco">
-                    <h4>Entrega</h4>
+                    <h4>Endereço de Entrega</h4>
                     <button id="btn-gps" onclick="calcularFrete()" class="btn-gps">
                         <i class="fas fa-map-marker-alt"></i> Calcular Frete (Obrigatório)
                     </button>
                     <div id="frete-msg" class="frete-info"></div>
-                    <input type="text" id="cli-ref" placeholder="Ponto de Referência" class="input-field mt-10">
+                    <input type="text" id="cli-ref" placeholder="Ponto de Referência (Ex: Casa azul, portão preto)" class="input-field mt-10">
                 </div>
 
                 <div class="form-section">
                     <h4>Pagamento</h4>
                     <select id="forma-pag" class="input-field" onchange="verificarPagamento()">
-                        <option value="">Forma de Pagamento...</option>
+                        <option value="">Selecione a forma de pagamento...</option>
                         <option value="Efetivo">Dinheiro (Guaranis)</option>
                         <option value="Pix">Pix (Reais)</option>
-                        <option value="Cartao">Cartão</option>
-                        <option value="Transferencia">Transferência</option>
+                        <option value="Cartao">Cartão de Crédito/Débito</option>
+                        <option value="Transferencia">Transferência Bancária</option>
                     </select>
                     
                     <div id="box-troco" class="hidden mt-10">
-                        <input type="text" id="troco-valor" placeholder="Troco para quanto?" class="input-field">
+                        <label style="font-size: 0.8rem;">Precisa de troco para quanto?</label>
+                        <input type="text" id="troco-valor" placeholder="Ex: 100.000" class="input-field">
                     </div>
 
-                    <div class="row-check mt-10">
-                        <input type="checkbox" id="check-factura" onchange="toggleFactura()">
-                        <label for="check-factura">Quero Factura</label>
+                    <div class="row-check mt-10" style="display:flex; align-items:center; gap:10px; padding: 10px; background: #f9f9f9; border-radius: 8px;">
+                        <input type="checkbox" id="check-factura" onchange="toggleFactura()" style="width: 20px; height: 20px;">
+                        <label for="check-factura" style="font-weight: 600;">Preciso de Factura</label>
                     </div>
                     <div id="box-ruc" class="hidden mt-10">
-                        <input type="text" id="cli-ruc" placeholder="RUC / CI" class="input-field">
+                        <input type="text" id="cli-ruc" placeholder="RUC ou CI" class="input-field">
                         <input type="text" id="cli-zao" placeholder="Razão Social" class="input-field mt-10">
                     </div>
                 </div>
@@ -153,7 +171,7 @@
                     <strong id="total-final-checkout">Gs 0</strong>
                 </div>
                 <button class="btn-finish" onclick="enviarZap()">
-                    Fazer Pedido <i class="fab fa-whatsapp"></i>
+                    Confirmar Pedido <i class="fab fa-whatsapp"></i>
                 </button>
             </div>
         </div>

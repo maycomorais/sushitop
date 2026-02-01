@@ -10,7 +10,12 @@
 body { background: var(--bg); padding-bottom: 100px; }
 
 /* Header */
-.app-header { background: #fff; padding: 10px 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 90; }
+.app-header {
+    position: relative; 
+    background: #fff;
+    padding: 15px 20px;
+    z-index: 80;
+}
 .header-content { display: flex; justify-content: space-between; align-items: center; }
 .logo-area { display: flex; align-items: center; gap: 10px; }
 .logo-area img { width: 40px; height: 40px; border-radius: 50%; }
@@ -24,13 +29,109 @@ body { background: var(--bg); padding-bottom: 100px; }
 .banner-track img { width: 50%; height: 160px; object-fit: cover; }
 @keyframes slide { 0%, 45% { transform: translateX(0); } 55%, 100% { transform: translateX(-50%); } }
 
-/* Nav Categorias */
-.category-nav { display: flex; gap: 10px; overflow-x: auto; padding: 0 20px 10px; scrollbar-width: none; }
-.cat-pill {
-    background: #fff; padding: 8px 16px; border-radius: 50px; border: 1px solid var(--border);
-    font-size: 0.9rem; white-space: nowrap; color: var(--dark); cursor: pointer; transition: 0.2s;
+/* --- CSS PARA O CARD DE REPETIR PEDIDO --- */
+#buy-again-container {
+    background: #fff8e1; /* Fundo amarelinho suave */
+    border: 1px solid #ffe082; /* Borda dourada */
+    border-radius: 12px;
+    padding: 15px 20px;
+    margin: 20px; /* Afastamento das laterais */
+    
+    /* Layout interno */
+    display: flex; /* Para alinhar texto e botão lado a lado */
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
 }
-.cat-pill:hover, .cat-pill.active { background: var(--dark); color: #fff; border-color: var(--dark); }
+
+#buy-again-container h3 {
+    font-size: 0.95rem;
+    color: #f57f17; /* Laranja escuro */
+    margin-bottom: 4px;
+    display: flex; 
+    align-items: center; 
+    gap: 8px;
+}
+
+/* O texto do último pedido */
+.last-order-text {
+    font-size: 0.85rem;
+    color: #666;
+    max-width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis; /* Coloca ... se for mto grande */
+}
+
+/* O botão de "Adicionar" */
+.repeat-btn {
+    background: #f57f17;
+    color: #fff;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(245, 127, 23, 0.3);
+}
+
+/* Nav Categorias */
+.category-nav {
+    /* 1. Fixar no topo */
+    position: -webkit-sticky;
+    position: sticky;
+    top: 0;
+    z-index: 95;
+    background: #fff;
+    padding: 15px 20px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+
+    /* 2. Habilitar Scroll Lateral */
+    display: flex;
+    flex-wrap: nowrap;       /* Importante: Não deixa cair para a linha de baixo */
+    overflow-x: auto;        /* Importante: Habilita o scroll */
+    gap: 10px;               /* Espaço entre os botões */
+    white-space: nowrap;     /* Garante que o texto não quebre */
+    
+    /* 3. Estética da Rolagem */
+    -webkit-overflow-scrolling: touch; /* Rolagem macia no iPhone */
+    scrollbar-width: none;             /* Esconde barra no Firefox */
+}
+
+/* Esconde a barra de rolagem no Chrome/Android */
+.category-nav::-webkit-scrollbar {
+    display: none;
+}
+
+/* --- ESTILO DOS BOTÕES (PILLS) --- */
+.cat-pill {
+    /* O SEGREDO ESTÁ AQUI: */
+    flex: 0 0 auto;  /* Não cresce, não encolhe, tamanho automático */
+    flex-shrink: 0;  /* Garante que o botão não vai ser esmagado */
+    
+    background: #fff;
+    padding: 10px 20px;
+    border-radius: 50px;
+    border: 1px solid #eee;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #444;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.cat-pill:hover {
+    border-color: #ccc;
+}
+
+.cat-pill.active {
+    background: #333; /* Ou var(--primary) se preferir colorido */
+    color: #fff;
+    border-color: #333;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
 
 /* Menu */
 .menu-container { padding: 0 20px; }
@@ -70,6 +171,29 @@ body { background: var(--bg); padding-bottom: 100px; }
 .full-height { height: 95vh; }
 @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 
+.close-btn, .close-modal {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: #f0f0f0;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: none;
+    font-size: 1.2rem;
+    color: #333;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 10;
+    transition: 0.2s;
+}
+.close-btn:hover {
+    background: #ff441f; /* Cor da marca */
+    color: white;
+}
+
 /* Elementos Internos Modal */
 .options-list { flex: 1; overflow-y: auto; margin: 15px 0; }
 .option-item {
@@ -87,21 +211,132 @@ body { background: var(--bg); padding-bottom: 100px; }
 }
 
 /* Checkout Específico */
-.checkout-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-.checkout-header button { border: none; background: none; font-weight: 600; color: var(--gray); cursor: pointer; }
+.checkout-header {
+    display: flex;
+    justify-content: space-between; /* Joga um pra cada canto e um no meio */
+    align-items: center;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #eee;
+    margin-bottom: 15px;
+}
+
+.checkout-header h3 {
+    font-size: 1.1rem;
+    margin: 0;
+    color: #333;
+}
+
+.btn-limpar {
+    background: none;
+    border: none;
+    color: #e74c3c; /* Vermelho bonito */
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-fechar {
+    background: #f0f0f0;
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%; /* Bolinha */
+    font-size: 1.2rem;
+    color: #333;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
 .checkout-body { flex: 1; overflow-y: auto; padding-bottom: 20px; }
 
-.delivery-toggle { display: flex; background: #eee; padding: 4px; border-radius: 10px; margin-bottom: 20px; }
-.delivery-toggle button {
-    flex: 1; border: none; background: none; padding: 10px; border-radius: 8px;
-    font-weight: 600; color: var(--gray); cursor: pointer; transition: 0.2s;
+.delivery-toggle {
+    display: flex;
+    gap: 10px;
+    background: #f2f2f2;
+    padding: 5px;
+    border-radius: 12px;
+    margin-bottom: 25px;
+    border: 1px solid #e0e0e0;
 }
-.delivery-toggle button.active { background: #fff; color: var(--primary); shadow: 0 2px 5px rgba(0,0,0,0.1); }
+
+.delivery-toggle button {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 15px; /* Botão grande */
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 1rem;
+    color: #777;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.delivery-toggle button.active {
+    background: #fff;
+    color: var(--primary);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    border: 1px solid var(--primary);
+    transform: scale(1.02); /* Leve aumento para destaque */
+}
+
+@keyframes pulse-border {
+    0% { box-shadow: 0 0 0 0 rgba(255, 68, 31, 0.4); }
+    70% { box-shadow: 0 0 0 10px rgba(255, 68, 31, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 68, 31, 0); }
+}
+
+.delivery-toggle {
+    animation: pulse-border 2s infinite; /* Chama atenção */
+}
 
 .form-section { margin-bottom: 20px; }
 .form-section h4 { font-size: 0.9rem; margin-bottom: 10px; color: var(--dark); }
-.input-field { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; background: #f9f9f9; }
-.row { display: flex; gap: 10px; } .small { width: 35%; }
+/* --- CSS PARA INPUTS MAIS ROBUSTOS --- */
+.form-section label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #555;
+}
+
+.input-field {
+    width: 100%;
+    padding: 14px; /* Mais alto, mais fácil de clicar */
+    background: #fff;
+    border: 1px solid #ccc; /* Borda visível */
+    border-radius: 8px;
+    font-size: 1rem;
+    color: #333;
+    margin-bottom: 15px;
+    transition: 0.2s;
+}
+
+.input-field:focus {
+    border-color: #FF441F; /* Sua cor principal */
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(255, 68, 31, 0.1);
+}
+
+/* Arrumar o DDI cortado */
+.row {
+    display: flex;
+    gap: 10px;
+}
+
+.input-field.small {
+    width: 120px !important; /* Força largura fixa suficiente */
+    flex-shrink: 0; /* Impede de encolher */
+    text-overflow: ellipsis;
+}
+
+.small { width: 35%; }
 .mt-10 { margin-top: 10px; } .hidden { display: none; }
 .btn-gps { width: 100%; background: #007bff; color: #fff; padding: 12px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }
 .frete-info { margin-top: 8px; font-size: 0.9rem; font-weight: 600; color: #28a745; text-align: center; }
