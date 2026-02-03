@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sushi Top Delivery</title>
+    <title>Sushiteria Delivery</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700&display=swap" rel="stylesheet">
@@ -13,9 +13,9 @@
     <header class="app-header sticky">
         <div class="header-content">
             <div class="logo-area">
-                <img src="img/logo.jpg" alt="Logo">
+                <img src="https://img.freepik.com/vetores-gratis/desenho-de-modelo-de-logotipo-de-sushi_742173-17797.jpg" alt="Logo">
                 <div class="store-details">
-                    <h1>Sushi Top</h1>
+                    <h1>Sushiteria</h1>
                     <span class="badge-status">Aberto</span>
                 </div>
             </div>
@@ -28,8 +28,13 @@
 
     <div class="banner-area">
         <div class="banner-track">
-            <img src="https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=800&q=80" alt="Banner 1">
-            <img src="https://images.unsplash.com/photo-1553621042-f6e147245754?w=800&q=80" alt="Banner 2">
+            <img src="https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=800&q=80" 
+                 onclick="clicarBanner('cmb-1')" 
+                 style="cursor:pointer">
+            
+            <img src="https://images.unsplash.com/photo-1553621042-f6e147245754?w=800&q=80" 
+                 onclick="clicarBanner('cmb-3')" 
+                 style="cursor:pointer">
         </div>
     </div>
 
@@ -54,12 +59,26 @@
 
     <div id="product-modal" class="modal-overlay">
         <div class="modal-bottom-sheet">
-            <button class="close-modal" onclick="fecharModalProduto()">&times;</button>
+            <button class="close-modal" onclick="fecharModalProduto()">×</button>
+            
             <div class="modal-header-prod">
                 <h3 id="modal-title">Nome do Produto</h3>
                 <p id="modal-desc">Descrição...</p>
             </div>
-            <div id="modal-options" class="options-list"></div>
+
+            <div class="modal-scroll-area">
+                
+                <div id="modal-options" class="options-list"></div>
+
+                <div id="modal-montagem" class="montagem-list" style="display:none;"></div>
+
+                <div class="obs-area">
+                    <label>Alguma observação?</label>
+                    <textarea id="modal-obs" placeholder="Ex: Sem cebolinha, Salmão Maçaricado, Capricha no molho..."></textarea>
+                </div>
+
+            </div>
+
             <div class="modal-actions">
                 <div class="stepper">
                     <button onclick="mudarQtd(-1)">-</button>
@@ -140,22 +159,24 @@
 
                 <div class="form-section">
                     <h4>Pagamento</h4>
-                    <select id="forma-pag" class="input-field" onchange="verificarPagamento()">
-                        <option value="">Selecione a forma de pagamento...</option>
-                        <option value="Efetivo">Dinheiro (Guaranis)</option>
-                        <option value="Pix">Pix (Reais)</option>
-                        <option value="Cartao">Cartão de Crédito/Débito</option>
-                        <option value="Transferencia">Transferência Bancária</option>
-                    </select>
-                    
-                    <div id="box-troco" class="hidden mt-10">
-                        <label style="font-size: 0.8rem;">Precisa de troco para quanto?</label>
-                        <input type="text" id="troco-valor" placeholder="Ex: 100.000" class="input-field">
-                    </div>
+                        <select id="forma-pag" class="input-field" onchange="verificarPagamento()">
+                            <option value="">Selecione a forma de pagamento...</option>
+                            <option value="Efetivo">Efectivo (Guaraníes)</option>
+                            <option value="Cartao">Tarjeta de Crédito/Débito</option>
+                            <option value="Pix">Pix (BR)</option>
+                            <option value="Transferencia">Transferéncia / Alias (PY)</option>
+                        </select>
+
+                        <div id="info-pagamento-extra" class="payment-info-box" style="display:none;"></div>
+
+                        <div id="box-troco" class="hidden mt-10">
+                            <label style="font-size: 0.8rem;">¿Cuánto vuelta necesitas?</label>
+                            <input type="text" id="troco-valor" placeholder="Ex: 100.000" class="input-field">
+                        </div>
 
                     <div class="row-check mt-10" style="display:flex; align-items:center; gap:10px; padding: 10px; background: #f9f9f9; border-radius: 8px;">
                         <input type="checkbox" id="check-factura" onchange="toggleFactura()" style="width: 20px; height: 20px;">
-                        <label for="check-factura" style="font-weight: 600;">Preciso de Factura</label>
+                        <label for="check-factura" style="font-weight: 600;">Necesito Factura</label>
                     </div>
                     <div id="box-ruc" class="hidden mt-10">
                         <input type="text" id="cli-ruc" placeholder="RUC ou CI" class="input-field">

@@ -55,6 +55,44 @@ const MENU = {
             img: "https://images.unsplash.com/photo-1553621042-f6e147245754?w=500&q=80"
         }
     ],
+    // --- NOVO: POKE (MONTAGEM) ---
+    "pokes": [
+        {
+            id: "poke-build",
+            nome: "Monte seu Poke (Médio)",
+            desc: "Escolha: 1 Base, 2 Proteínas, 3 Acompanhamentos, 1 Molho e Chips.",
+            preco: 45000,
+            img: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&q=80",
+            // AQUI ESTÁ A MÁGICA DA MONTAGEM:
+            montagem: [
+                { 
+                    titulo: "1. Escolha a Base (Max 1)", 
+                    max: 1, 
+                    itens: ["Arroz Shari (Sushi)", "Arroz Integral", "Mix de Folhas"] 
+                },
+                { 
+                    titulo: "2. Escolha a Proteína (Max 2)", 
+                    max: 2, 
+                    itens: ["Salmão Fresco", "Salmão Grelhado", "Atum", "Camarão", "Shimeji", "Kani"] 
+                },
+                { 
+                    titulo: "3. Molho (Max 1)", 
+                    max: 1, 
+                    itens: ["Tarê", "Shoyu", "Ponzu", "Acevichado", "Spicy"] 
+                },
+                { 
+                    titulo: "4. Acompanhamentos (Max 3)", 
+                    max: 3, 
+                    itens: ["Sunomono", "Manga", "Abacate", "Cream Cheese", "Cebola Roxa", "Tomate Cereja", "Cenoura"] 
+                },
+                { 
+                    titulo: "5. Chips / Crocância (Max 1)", 
+                    max: 1, 
+                    itens: ["Batata Doce", "Alho Poró", "Amendoim", "Crispy de Couve"] 
+                }
+            ]
+        }
+    ],
     "niguiris": [
         {
             id: "nig-sal",

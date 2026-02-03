@@ -107,9 +107,9 @@ body { background: var(--bg); padding-bottom: 100px; }
 /* --- ESTILO DOS BOTÕES (PILLS) --- */
 .cat-pill {
     /* O SEGREDO ESTÁ AQUI: */
-    flex: 0 0 auto;  /* Não cresce, não encolhe, tamanho automático */
-    flex-shrink: 0;  /* Garante que o botão não vai ser esmagado */
-    
+    flex: 0 0 auto;  
+    flex-shrink: 0;  
+    text-transform: capitalize;
     background: #fff;
     padding: 10px 20px;
     border-radius: 50px;
@@ -135,13 +135,13 @@ body { background: var(--bg); padding-bottom: 100px; }
 
 /* Menu */
 .menu-container { padding: 0 20px; }
-.section-title { margin: 25px 0 15px; font-size: 1.2rem; font-weight: 700; color: var(--dark); }
+.section-title { margin: 25px 0 15px; font-size: 1.2rem; font-weight: 700; color: var(--dark); text-transform: capitalize; }
 .product-item {
     background: #fff; border-radius: 12px; padding: 15px; margin-bottom: 15px;
     display: flex; gap: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); cursor: pointer;
 }
 .prod-info { flex: 1; display: flex; flex-direction: column; justify-content: center; }
-.prod-title { font-size: 1rem; font-weight: 600; color: var(--dark); margin-bottom: 5px; }
+.prod-title { font-size: 1rem; font-weight: 600; color: var(--dark); margin-bottom: 5px; text-transform: capitalize;}
 .prod-desc { font-size: 0.8rem; color: var(--gray); margin-bottom: 8px; line-height: 1.3; }
 .prod-price { font-weight: 600; color: var(--primary); }
 .prod-img { width: 90px; height: 90px; border-radius: 10px; object-fit: cover; background: #eee; }
@@ -421,3 +421,83 @@ body { background: var(--bg); padding-bottom: 100px; }
 }
 
 .mt-20 { margin-top: 20px; }
+
+/* Caixa de Informação Extra de Pagamento */
+.payment-info-box {
+    background: #e3f2fd; /* Azulzinho claro */
+    border: 1px solid #90caf9;
+    color: #0d47a1;
+    padding: 12px;
+    border-radius: 8px;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.payment-info-box strong {
+    font-weight: 700;
+    font-size: 1rem;
+    display: block;
+    margin-bottom: 5px;
+}
+
+.modal-bottom-sheet {
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-scroll-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px 0;
+    margin-bottom: 10px;
+}
+
+/* Área de Observação */
+.obs-area {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px dashed #eee;
+}
+.obs-area label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--dark);
+    display: block;
+    margin-bottom: 5px;
+}
+.obs-area textarea {
+    width: 100%;
+    height: 60px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    padding: 10px;
+    font-family: 'Rubik', sans-serif;
+    resize: none;
+}
+
+/* Lista de Montagem (Poke) */
+.montagem-group { margin-bottom: 20px; }
+.montagem-title { 
+    background: #f0f0f0; 
+    padding: 8px; 
+    border-radius: 5px; 
+    font-weight: 700; 
+    font-size: 0.9rem; 
+    color: var(--dark);
+    margin-bottom: 8px;
+}
+.montagem-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 5px;
+    border-bottom: 1px solid #f9f9f9;
+    cursor: pointer;
+}
+.montagem-item input {
+    width: 18px; height: 18px; accent-color: var(--primary);
+}
+.montagem-item span { font-size: 0.95rem; color: #555; }
