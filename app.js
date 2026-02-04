@@ -545,7 +545,7 @@ function enviarZap() {
     const linkImpressao = `${window.location.origin}${window.location.pathname.replace('index.html', '')}imprimir.html?d=${base64Code}`;
 
     // --- MONTAGEM DA MENSAGEM WHATSAPP ---
-    let msg = `*PEDIDO #${idPedido} - SUSHIERIA FICTICIA*\n`; 
+    let msg = `*PEDIDO #${idPedido} - SUSHITERIA FICTICIA*\n`; 
     msg += `--------------------------\n`;
     msg += `👤 *Cliente:* ${nome}\n`;
     msg += `📞 *Tel:* ${ddi} ${tel}\n`;
