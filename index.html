@@ -40,13 +40,18 @@
 
     <nav class="category-nav" id="category-nav"></nav>
 
-    <div id="buy-again-container" class="buy-again-card" style="display: none;">
-        <div class="icon-box"><i class="fas fa-redo"></i></div>
-        <div class="text-box">
-            <h4>Pedir novamente?</h4>
-            <p id="last-order-desc">Seu último pedido...</p>
+    <div id="buy-again-container" style="display: none; margin: 20px 20px 0; background: #fff; padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #eee;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <h3 style="margin:0; font-size:1rem; color:#333;"><i class="fas fa-history" style="color:var(--primary)"></i> Último Pedido</h3>
+            <span style="font-size:0.8rem; color:#888;">Gostou? Peça de novo!</span>
         </div>
-        <button onclick="repetirPedido()">Adicionar</button>
+        
+        <ul id="last-order-list" style="list-style:none; padding:0; margin:0 0 15px 0; font-size:0.9rem; color:#555; background:#f9f9f9; padding:10px; border-radius:8px;">
+            </ul>
+
+        <button onclick="repetirPedido()" style="width:100%; padding:12px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer; display:flex; justify-content:center; align-items:center; gap:8px;">
+            <i class="fas fa-redo"></i> Adicionar Tudo ao Carrinho
+        </button>
     </div>
 
     <main class="menu-container" id="menu-content"></main>
@@ -198,7 +203,8 @@
         </div>
     </div>
 
-    <script src="dados.js"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="supabaseClient.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Sushi Top Admin</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: 'Rubik', sans-serif; background: #f4f6f8; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .login-card { background: white; padding: 40px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
+        input { width: 100%; padding: 15px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        button { width: 100%; padding: 15px; background: #FF441F; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .error { color: red; font-size: 0.9rem; display: none; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <h2>Sushi Top Admin 🍣</h2>
+        <div id="msg-erro" class="error"></div>
+        <input type="email" id="email" placeholder="Email">
+        <input type="password" id="senha" placeholder="Senha">
+        <button onclick="fazerLogin()">ENTRAR</button>
+    </div>
+
+    <script src="supabaseClient.js"></script>
+
+    <script>
+        async function fazerLogin() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('senha').value;
+            const msg = document.getElementById('msg-erro');
+
+            // Verifica se a conexão existe
+            if(!window.supa) {
+                alert("Erro: Banco de dados não conectado. Verifique o console.");
+                return;
+            }
+
+            try {
+                // NOTA: Usamos 'supa' aqui
+                const { data, error } = await supa.auth.signInWithPassword({ email, password });
+
+                if (error) {
+                    msg.innerText = "Erro: " + error.message;
+                    msg.style.display = 'block';
+                } else {
+                    window.location.href = 'admin.html';
+                }
+            } catch (err) {
+                console.error(err);
+                msg.innerText = "Erro inesperado.";
+                msg.style.display = 'block';
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,17 +1,20 @@
 // ==========================================
-// 1. CONFIGURAÇÕES GERAIS
+// 1. CONFIGURAÇÕES
 // ==========================================
-const FONE_LOJA = "595976771714";
-const COORD_LOJA = { lat: -25.2365803, lng: -57.5380816 }; // MRA / Loma
-const COTACAO_REAL = 1100; // 1 Real = 1.100 Guaranis
+const FONE_LOJA = "595992490500";
+const COORD_LOJA = { lat: -25.2365803, lng: -57.5380816 };
+let COTACAO_REAL = 1100; 
 
-// DADOS PIX
-const CHAVE_PIX = "seuemail@pix.com"; 
-const NOME_PIX = "Sushiteria fictícia";
+// DADOS PIX & BANCO
+const CHAVE_PIX = "16999647032"; 
+const NOME_PIX = "Jessica Aparecida Silva Pereira";
+const DADOS_ALIAS = "Banco: Itaú PY | Titular: Marcus de Alencar Roque Pereira";
+const ALIAS_PY = "Alias: 0992490500";
 
-// DADOS TRANSFERÊNCIA PARAGUAI
-const DADOS_ALIAS = "Banco: Itaú PY | Titular: Sushiteria Ficiticia";
-const ALIAS_PY = "Alias: seuemail@alias.com"; 
+if (typeof supa === 'undefined') {
+    console.error("ERRO: O arquivo supabaseClient.js não foi carregado antes do app.js");
+    alert("Erro de sistema. Recarregue a página.");
+}
 
 // ==========================================
 // 2. ESTADO DA APLICAÇÃO
@@ -19,272 +22,274 @@ const ALIAS_PY = "Alias: seuemail@alias.com";
 let carrinho = [];
 let freteCalculado = 0;
 let localCliente = null;
-let modoEntrega = 'delivery'; // 'delivery' ou 'retirada'
+let modoEntrega = 'delivery';
 let prodAtual = null, optAtual = null, qtd = 1;
+let itensMontagem = {}; 
 
-// Inicialização
+// Variável Global de Menu (Preenchida via Banco)
+let MENU = {
+    "promocoes_do_dia": [], "sushis_e_rolls": [], "temakis": [],
+    "pratos_quentes": [], "pokes": [], "bebidas": [], "upsell": []
+};
+
+// --- INICIALIZAÇÃO ---
 document.addEventListener('DOMContentLoaded', () => {
+    if(!supabase) { alert("Erro: Biblioteca Supabase não carregou."); return; }
+    
+    verificarHorario(); // NOVO: Checa se está aberto
     renderMenu();
     carregarDadosLocal();
 });
 
-// ==========================================
-// 3. RENDERIZAÇÃO DO MENU (VITRINE)
-// ==========================================
-// 1. RENDERIZAR MENU (VITRINE)
-function renderMenu() {
+// --- FUNÇÃO DE HORÁRIO (NOVA) ---
+async function verificarHorario() {
+    const { data } = await supa.from('configuracoes').select('*').single();
+    if(!data) return;
+
+    if(data.cotacao_real) COTACAO_REAL = data.cotacao_real; // Atualiza cotação do banco
+
+    const agora = new Date();
+    const horaAtual = agora.getHours() * 60 + agora.getMinutes();
+
+    function horaParaMin(str) {
+        if(!str) return 0;
+        const [h, m] = str.split(':').map(Number);
+        return h * 60 + m;
+    }
+
+    const abre = horaParaMin(data.hora_abertura || "18:00");
+    const fecha = horaParaMin(data.hora_fechamento || "23:59");
+    const manualAberto = data.loja_aberta; 
+    const badge = document.querySelector('.badge-status');
+
+    let estaAberto = false;
+    if (!manualAberto) estaAberto = false;
+    else {
+        if (fecha < abre) estaAberto = (horaAtual >= abre || horaAtual < fecha);
+        else estaAberto = (horaAtual >= abre && horaAtual < fecha);
+    }
+
+    if(estaAberto) {
+        badge.innerText = "Aberto";
+        badge.style.background = "#e6ffea";
+        badge.style.color = "#28a745";
+    } else {
+        badge.innerText = "Fechado";
+        badge.style.background = "#ffebee";
+        badge.style.color = "#c0392b";
+        // Opcional: Bloquear botão de finalizar
+    }
+}
+
+// 1. RENDERIZAR MENU (Busca do Banco)
+async function renderMenu() {
     const nav = document.getElementById('category-nav');
     const content = document.getElementById('menu-content');
+    nav.innerHTML = ''; content.innerHTML = ''; // Limpa antes de renderizar
     
-    // --- DICIONÁRIO DE NOMES BONITOS ---
-    // Aqui você define exatamente como quer que apareça na tela
-    const nomesCategorias = {
-        "promocoes_do_dia": "Promoções do Dia",
-        "sushis_e_rolls": "Sushis & Rolls",
-        "temakis": "Temakis",
-        "pratos_quentes": "Pratos Quentes",
-        "pokes": "Pokes & Saladas",
-        "bebidas": "Bebidas",
-        "upsell": "Extras"
-    };
+    // Busca Categorias e Produtos do Banco
+    const { data: categsDb } = await supa.from('categorias').select('*').order('ordem');
+    const { data: produtos } = await supa.from('produtos').select('*').eq('ativo', true);
 
-    // Loop pelas categorias
-    for (const [key, items] of Object.entries(MENU)) {
-        if(key === "upsell") continue;
+    if(!produtos || !categsDb) { console.error("Erro ao carregar menu do banco"); return; }
 
-        // Verifica se tem um nome bonito, se não, usa o padrão (tira underline)
-        const nomeExibicao = nomesCategorias[key] || key.replace(/_/g, " ");
+    // Limpa estrutura local
+    for (let key in MENU) MENU[key] = [];
 
-        // Botão Navegação
-        const pill = document.createElement('button');
-        pill.className = 'cat-pill';
-        pill.innerText = nomeExibicao; // Usa o nome corrigido
-        pill.onclick = () => {
-            document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('active'));
-            pill.classList.add('active');
-            document.getElementById(key).scrollIntoView({behavior:'smooth', block:'start'});
-        };
-        nav.appendChild(pill);
-
-        // Seção
-        const section = document.createElement('section');
-        section.id = key;
-        // Usa o nome corrigido também no Título da Seção
-        section.innerHTML = `<h2 class="section-title">${nomeExibicao}</h2>`;
-
-        items.forEach(item => {
-            let preco = item.opcoes ? item.opcoes[0].preco : item.preco;
-            let img = item.img || "https://cdn-icons-png.flaticon.com/512/2252/2252075.png";
-
-            const div = document.createElement('div');
-            div.className = 'product-item';
-            div.onclick = () => abrirModal(item);
-            div.innerHTML = `
-                <div class="prod-info">
-                    <div class="prod-title">${item.nome}</div>
-                    <div class="prod-desc">${item.desc || ''}</div>
-                    <div class="prod-price">Gs ${preco.toLocaleString('es-PY')}</div>
-                </div>
-                <img src="${img}" class="prod-img">
-            `;
-            section.appendChild(div);
+    // Popula estrutura local com dados do banco
+    produtos.forEach(p => {
+        if(!MENU[p.categoria_slug]) MENU[p.categoria_slug] = [];
+        
+        MENU[p.categoria_slug].push({
+            id: p.id,
+            nome: p.nome,
+            desc: p.descricao,
+            preco: p.preco,
+            img: p.imagem_url,
+            montagem: p.montagem_config, // JSON para Pokes
+            e_montavel: p.e_montavel
+            // Opções simples (P/M/G) podem ser adaptadas aqui se usar JSONB tbm
         });
-        content.appendChild(section);
-    }
-}
+    });
 
-// Função para quando clica no Banner
-function clicarBanner(idProduto) {
-    let itemEncontrado = null;
-    for (const categoria in MENU) {
-        const item = MENU[categoria].find(i => i.id === idProduto);
-        if (item) {
-            itemEncontrado = item;
-            break;
+    // Renderiza na tela
+    categsDb.forEach(cat => {
+        const key = cat.slug;
+        const items = MENU[key];
+
+        if(items && items.length > 0) {
+            // Cria Botão Navegação
+            const pill = document.createElement('button');
+            pill.className = 'cat-pill';
+            pill.innerText = cat.nome_exibicao;
+            pill.onclick = () => {
+                document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('active'));
+                pill.classList.add('active');
+                document.getElementById(key).scrollIntoView({behavior:'smooth', block:'start'});
+            };
+            nav.appendChild(pill);
+
+            // Cria Seção
+            const section = document.createElement('section');
+            section.id = key;
+            section.innerHTML = `<h2 class="section-title">${cat.nome_exibicao}</h2>`;
+
+            items.forEach(item => {
+                let img = item.img || "https://cdn-icons-png.flaticon.com/512/2252/2252075.png";
+                
+                // Card Produto
+                const div = document.createElement('div');
+                div.className = 'product-item';
+                div.onclick = () => abrirModal(item);
+                
+                div.innerHTML = `
+                    <div class="prod-info">
+                        <div class="prod-title">${item.nome}</div>
+                        <div class="prod-desc">${item.desc || ''}</div>
+                        <div class="prod-price">Gs ${item.preco.toLocaleString('es-PY')}</div>
+                    </div>
+                    <img src="${img}" class="prod-img">
+                `;
+                section.appendChild(div);
+            });
+            content.appendChild(section);
         }
-    }
-    if (itemEncontrado) {
-        abrirModal(itemEncontrado);
-    } else {
-        console.error("Produto do banner não encontrado: " + idProduto);
-        alert("Promoção não encontrada.");
-    }
+    });
 }
 
-// ==========================================
-// 4. MODAL DE PRODUTO (POKE + OBS)
-// ==========================================
+// 2. MODAL DE PRODUTO (Mantendo sua lógica de montagem)
 function abrirModal(item) {
     prodAtual = item;
     qtd = 1;
-    
+    itensMontagem = {}; 
+
     document.getElementById('modal-title').innerText = item.nome;
     document.getElementById('modal-desc').innerText = item.desc || '';
+    document.getElementById('modal-obs').value = '';
     
-    // Limpa campo de observação
-    const campoObs = document.getElementById('modal-obs');
-    if(campoObs) campoObs.value = '';
-    
-    const divOpts = document.getElementById('modal-options');
-    const divMont = document.getElementById('modal-montagem');
-    
-    divOpts.innerHTML = '';
-    divMont.innerHTML = ''; 
-    
-    // --- CASO 1: PRODUTO COM OPÇÕES (ex: Tamanho) ---
-    if (item.opcoes) {
-        divOpts.style.display = 'block';
-        divMont.style.display = 'none';
-        
-        optAtual = item.opcoes[0];
-        item.opcoes.forEach((op, i) => {
-            const div = document.createElement('div');
-            div.className = `option-item ${i===0?'selected':''}`;
-            div.innerHTML = `<span>${op.tamanho}</span> <strong>Gs ${op.preco.toLocaleString('es-PY')}</strong>`;
-            div.onclick = () => {
-                optAtual = op;
-                document.querySelectorAll('.option-item').forEach(d=>d.classList.remove('selected'));
-                div.classList.add('selected');
-                atualizarPrecoModal();
-            };
-            divOpts.appendChild(div);
-        });
-    } 
-    // --- CASO 2: POKE (MONTAGEM) ---
-    else if (item.montagem) {
-        divOpts.style.display = 'none';
-        divMont.style.display = 'block';
-        optAtual = { preco: item.preco, tamanho: 'Montado' };
+    // Área de Opções (Tamanhos) e Montagem (Pokes)
+    const divOptions = document.getElementById('modal-options');
+    divOptions.innerHTML = ''; 
 
+    // Lógica para Pokes (Montagem Complexa via JSON do banco)
+    if(item.e_montavel && item.montagem) {
         item.montagem.forEach((etapa, idxEtapa) => {
-            const h4 = document.createElement('div');
-            h4.className = 'montagem-title';
-            h4.innerText = etapa.titulo;
-            divMont.appendChild(h4);
+            const h4 = document.createElement('h4');
+            h4.innerText = `${etapa.titulo} (Máx: ${etapa.max})`;
+            h4.style.marginTop = "10px";
+            divOptions.appendChild(h4);
 
             etapa.itens.forEach(ingrediente => {
                 const label = document.createElement('label');
-                label.className = 'montagem-item';
+                label.style.display = 'block';
+                label.style.padding = '5px 0';
                 
                 const input = document.createElement('input');
                 input.type = 'checkbox';
-                input.name = `etapa-${idxEtapa}`;
                 input.value = ingrediente;
+                input.name = `etapa_${idxEtapa}`;
                 
                 // Controle de Máximo
                 input.onchange = function() {
-                    const marcados = document.querySelectorAll(`input[name="etapa-${idxEtapa}"]:checked`);
+                    const marcados = document.querySelectorAll(`input[name="etapa_${idxEtapa}"]:checked`);
                     if(marcados.length > etapa.max) {
                         this.checked = false;
-                        alert(`Máximo de ${etapa.max} opções nesta etapa!`);
+                        alert(`Máximo de ${etapa.max} itens nesta etapa.`);
                     }
                 };
 
                 label.appendChild(input);
-                label.appendChild(document.createTextNode(ingrediente));
-                divMont.appendChild(label);
+                label.appendChild(document.createTextNode(" " + ingrediente));
+                divOptions.appendChild(label);
             });
         });
     }
-    // --- CASO 3: SIMPLES ---
-    else {
-        divOpts.style.display = 'none';
-        divMont.style.display = 'none';
-        optAtual = { tamanho: 'Padrão', preco: item.preco };
-    }
-    
+
     atualizarPrecoModal();
     document.getElementById('product-modal').classList.add('active');
 }
 
-function atualizarPrecoModal() {
-    document.getElementById('modal-qty').innerText = qtd;
-    document.getElementById('modal-price').innerText = `Gs ${(optAtual.preco * qtd).toLocaleString('es-PY')}`;
+function fecharModalProduto() {
+    document.getElementById('product-modal').classList.remove('active');
 }
 
-function mudarQtd(n) { if(qtd+n>0) { qtd+=n; atualizarPrecoModal(); } }
-function fecharModalProduto() { document.getElementById('product-modal').classList.remove('active'); }
+function mudarQtd(delta) {
+    if (qtd + delta >= 1) {
+        qtd += delta;
+        atualizarPrecoModal();
+    }
+}
+
+function atualizarPrecoModal() {
+    // Se tiver opções de tamanho (implementação futura), soma aqui
+    let precoFinal = prodAtual.preco; 
+    document.getElementById('modal-qty').innerText = qtd;
+    document.getElementById('modal-price').innerText = `Gs ${(precoFinal * qtd).toLocaleString('es-PY')}`;
+}
 
 function adicionarDoModal() {
-    // Captura Obs
-    const campoObs = document.getElementById('modal-obs');
-    const obsTexto = campoObs ? campoObs.value.trim() : '';
-
-    // Captura Montagem Poke
-    let listaMontagem = [];
-    if(prodAtual.montagem) {
-        const checkboxes = document.querySelectorAll('#modal-montagem input:checked');
-        if(checkboxes.length === 0) {
-            alert("Por favor, escolha os ingredientes!");
-            return;
+    const obs = document.getElementById('modal-obs').value;
+    
+    // Coletar Montagem (Poke)
+    let montagemEscolhida = [];
+    if(prodAtual.e_montavel) {
+        const inputs = document.querySelectorAll('#modal-options input:checked');
+        if(inputs.length === 0) {
+            if(!confirm("Tem certeza que não quer adicionar nenhum ingrediente?")) return;
         }
-        checkboxes.forEach(chk => listaMontagem.push(chk.value));
+        inputs.forEach(i => montagemEscolhida.push(i.value));
     }
 
-    carrinho.push({ 
-        ...prodAtual, 
-        preco: optAtual.preco, 
-        tamanho: optAtual.tamanho, 
+    carrinho.push({
+        ...prodAtual,
         qtd: qtd,
-        obs: obsTexto,
-        montagem: listaMontagem
+        obs: obs,
+        montagem: montagemEscolhida
     });
-    
+
     updateUI();
     fecharModalProduto();
 }
 
-// ==========================================
-// 5. CARRINHO E CHECKOUT
-// ==========================================
+// 3. CARRINHO & UI
 function updateUI() {
-    const bar = document.getElementById('cart-bar');
-    if(carrinho.length > 0) {
-        bar.classList.add('show');
-        const total = carrinho.reduce((a,b)=>a+(b.preco*b.qtd),0);
-        document.getElementById('cart-count').innerText = carrinho.reduce((a,b)=>a+b.qtd, 0);
-        document.getElementById('cart-total').innerText = `Gs ${total.toLocaleString('es-PY')}`;
+    const cartBar = document.getElementById('cart-bar');
+    const countSpan = document.getElementById('cart-count');
+    const totalSpan = document.getElementById('cart-total');
+
+    const totalQtd = carrinho.reduce((acc, item) => acc + item.qtd, 0);
+    const totalValor = carrinho.reduce((acc, item) => acc + (item.preco * item.qtd), 0);
+
+    if (totalQtd > 0) {
+        cartBar.classList.add('show');
+        countSpan.innerText = totalQtd;
+        totalSpan.innerText = `Gs ${totalValor.toLocaleString('es-PY')}`;
     } else {
-        bar.classList.remove('show');
+        cartBar.classList.remove('show');
     }
 }
 
+// 4. CHECKOUT
 function abrirCheckout() {
-    if(carrinho.length===0) return;
-    
-    renderizarItensCarrinho();
-    renderizarUpsell();
-    
-    if(!modoEntrega) mudarModoEntrega('delivery'); 
-    
-    document.getElementById('checkout-modal').classList.add('active');
-    atualizarTotalCheckout();
-    verificarPagamento(); // Verifica se já tem Pix selecionado
-}
+    if (carrinho.length === 0) return;
 
-function renderizarItensCarrinho() {
-    const container = document.getElementById('carrinho-lista');
-    container.innerHTML = '';
+    const lista = document.getElementById('carrinho-lista');
+    lista.innerHTML = '';
 
     carrinho.forEach((item, index) => {
+        let descMontagem = "";
+        if(item.montagem && item.montagem.length) {
+            descMontagem = `<div style="font-size:0.75rem; color:#666;">+ ${item.montagem.join(', ')}</div>`;
+        }
+        
         const div = document.createElement('div');
         div.className = 'cart-item-row';
-        
-        let img = item.img || "https://cdn-icons-png.flaticon.com/512/2252/2252075.png";
-        let subtotal = item.preco * item.qtd;
-        
-        // Monta texto de detalhes (Tamanho, Poke, Obs)
-        let variacoes = [];
-        if(item.tamanho && item.tamanho !== 'Padrão' && item.tamanho !== 'Montado') variacoes.push(item.tamanho);
-        if(item.montagem && item.montagem.length > 0) variacoes.push("Poke Montado");
-        if(item.obs) variacoes.push(`Obs: ${item.obs}`);
-
         div.innerHTML = `
-            <img src="${img}" class="cart-thumb">
             <div class="cart-details">
                 <div class="cart-title">${item.nome}</div>
-                <div class="cart-variant">${variacoes.join(' • ')}</div>
-                <div class="cart-item-price">Gs ${subtotal.toLocaleString('es-PY')}</div>
+                ${descMontagem}
+                ${item.obs ? `<div class="cart-variant">Obs: ${item.obs}</div>` : ''}
+                <div class="cart-item-price">Gs ${(item.preco * item.qtd).toLocaleString('es-PY')}</div>
             </div>
             <div class="qty-mini">
                 <button onclick="alterarQtdCarrinho(${index}, -1)">-</button>
@@ -292,298 +297,279 @@ function renderizarItensCarrinho() {
                 <button onclick="alterarQtdCarrinho(${index}, 1)">+</button>
             </div>
         `;
-        container.appendChild(div);
+        lista.appendChild(div);
     });
+
+    // Se ainda não calculou frete, tenta delivery
+    if(modoEntrega === 'delivery' && freteCalculado === 0 && localCliente) {
+        calcularFrete(); 
+    }
+    
+    atualizarTotalCheckout();
+    verificarPagamento(); // Atualiza visual do pagamento
+    document.getElementById('checkout-modal').classList.add('active');
+}
+
+function fecharCheckout() {
+    document.getElementById('checkout-modal').classList.remove('active');
 }
 
 function alterarQtdCarrinho(index, delta) {
-    const item = carrinho[index];
-    if (item.qtd + delta <= 0) {
+    carrinho[index].qtd += delta;
+    if (carrinho[index].qtd <= 0) {
         carrinho.splice(index, 1);
-    } else {
-        item.qtd += delta;
+        if (carrinho.length === 0) fecharCheckout();
     }
     updateUI();
-    if (carrinho.length === 0) {
-        fecharCheckout();
-    } else {
-        renderizarItensCarrinho();
-        atualizarTotalCheckout();
-    }
+    abrirCheckout();
 }
-
-function renderizarUpsell() {
-    const upList = document.getElementById('upsell-list');
-    upList.innerHTML = '';
-    MENU.upsell.forEach(u => {
-        const d = document.createElement('div');
-        d.className = 'upsell-card';
-        d.innerHTML = `<h5>${u.nome}</h5><span>Gs ${u.preco.toLocaleString('es-PY')}</span>`;
-        d.onclick = () => {
-            carrinho.push({...u, qtd:1, tamanho:'Extra', img: 'https://cdn-icons-png.flaticon.com/512/2405/2405479.png'}); 
-            d.style.background = '#d4edda';
-            setTimeout(()=>d.style.background='', 200);
-            updateUI();
-            renderizarItensCarrinho();
-            atualizarTotalCheckout();
-        };
-        upList.appendChild(d);
-    });
-}
-
-function limparCarrinho() {
-    if(confirm("Deseja esvaziar o carrinho?")) {
-        carrinho = [];
-        updateUI();
-        fecharCheckout();
-    }
-}
-
-function fecharCheckout() { document.getElementById('checkout-modal').classList.remove('active'); }
 
 function mudarModoEntrega(modo) {
     modoEntrega = modo;
-    document.getElementById('btn-delivery').className = modo === 'delivery' ? 'active' : '';
-    document.getElementById('btn-retirada').className = modo === 'retirada' ? 'active' : '';
-    
-    const boxEnd = document.getElementById('box-endereco');
-    if (modo === 'retirada') {
-        boxEnd.style.display = 'none';
-        freteCalculado = 0;
+    const btnDelivery = document.getElementById('btn-delivery');
+    const btnRetirada = document.getElementById('btn-retirada');
+    const boxEndereco = document.getElementById('box-endereco');
+
+    if (modo === 'delivery') {
+        btnDelivery.classList.add('active');
+        btnRetirada.classList.remove('active');
+        boxEndereco.style.display = 'block';
+        if (localCliente && freteCalculado === 0) calcularFrete();
     } else {
-        boxEnd.style.display = 'block';
-        if (freteCalculado === 0 && localCliente) calcularFrete(); 
+        btnRetirada.classList.add('active');
+        btnDelivery.classList.remove('active');
+        boxEndereco.style.display = 'none';
+        freteCalculado = 0;
+        document.getElementById('frete-msg').innerHTML = '';
     }
     atualizarTotalCheckout();
-    verificarPagamento(); 
 }
 
-function atualizarTotalCheckout() {
-    const itens = carrinho.reduce((a,b)=>a+(b.preco*b.qtd),0);
-    const final = itens + freteCalculado;
-    document.getElementById('total-final-checkout').innerText = `Gs ${final.toLocaleString('es-PY')}`;
-}
-
-// ==========================================
-// 6. FRETE (GPS)
-// ==========================================
+// 5. GEOLOCALIZAÇÃO
 function calcularFrete() {
-    const btn = document.getElementById('btn-gps');
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculando...';
-    
-    if(!navigator.geolocation) { alert("GPS indisponível"); return; }
-    
-    navigator.geolocation.getCurrentPosition(pos => {
-        localCliente = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        const dist = getDistancia(COORD_LOJA.lat, COORD_LOJA.lng, localCliente.lat, localCliente.lng);
-        
-        // REGRA: Até 3km=5k | 3-5km=15k | +5km: +5k a cada 2km
-        if (dist <= 3.0) {
-            freteCalculado = 5000;
-        } else if (dist <= 5.0) {
-            freteCalculado = 15000;
-        } else {
-            const kmExtra = dist - 5.0;
-            const faixasExtras = Math.ceil(kmExtra / 2.0);
-            freteCalculado = 15000 + (faixasExtras * 5000);
+    const btnGps = document.getElementById('btn-gps');
+    const msg = document.getElementById('frete-msg');
+
+    if (!navigator.geolocation) {
+        alert("Seu navegador não suporta geolocalização.");
+        return;
+    }
+
+    btnGps.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Buscando...';
+
+    navigator.geolocation.getCurrentPosition(
+        (position) => {
+            localCliente = {
+                lat: position.coords.latitude,
+                lng: position.coords.longitude
+            };
+
+            const dist = getDistancia(COORD_LOJA.lat, COORD_LOJA.lng, localCliente.lat, localCliente.lng);
+            
+            // Regra de Frete (Exemplo)
+            if (dist <= 3.0) freteCalculado = 5000;
+            else if (dist <= 5.0) freteCalculado = 10000;
+            else if (dist <= 8.0) freteCalculado = 15000;
+            else freteCalculado = 20000; // Longe
+
+            msg.innerHTML = `Distância: ${dist.toFixed(1)}km | Frete: Gs ${freteCalculado.toLocaleString('es-PY')}`;
+            msg.style.color = 'green';
+            btnGps.innerHTML = '<i class="fas fa-check"></i> Localizado';
+            btnGps.style.background = '#28a745';
+            
+            atualizarTotalCheckout();
+        },
+        (error) => {
+            console.error(error);
+            alert("Erro ao obter localização. Verifique se o GPS está ativo.");
+            btnGps.innerHTML = '<i class="fas fa-map-marker-alt"></i> Usar minha localização';
         }
-        
-        document.getElementById('frete-msg').innerHTML = `Distância: ${dist.toFixed(1)}km <br> Frete: Gs ${freteCalculado.toLocaleString('es-PY')}`;
-        btn.innerHTML = '<i class="fas fa-check"></i> Recalcular';
-        btn.style.background = '#28a745';
-        atualizarTotalCheckout();
-        verificarPagamento(); // Recalcula total do Pix se mudou o frete
-        
-    }, () => {
-        alert("Ative o GPS para calcular o frete.");
-        btn.innerHTML = 'Tentar Novamente';
-    });
+    );
 }
 
-function getDistancia(lat1,lon1,lat2,lon2) {
-    const R = 6371; 
-    const dLat = (lat2-lat1) * Math.PI/180;
-    const dLon = (lon2-lon1) * Math.PI/180;
-    const a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
+// Fórmula de Haversine para distância em km
+function getDistancia(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Raio da Terra em km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     return R * c;
 }
 
-// ==========================================
-// 7. PAGAMENTO E ENVIO WHATSAPP
-// ==========================================
+function atualizarTotalCheckout() {
+    const totalItens = carrinho.reduce((acc, item) => acc + (item.preco * item.qtd), 0);
+    const totalFinal = totalItens + (modoEntrega === 'delivery' ? freteCalculado : 0);
+    document.getElementById('total-final-checkout').innerText = `Gs ${totalFinal.toLocaleString('es-PY')}`;
+}
+
+// 6. PAGAMENTO & FATURA
 function verificarPagamento() {
     const metodo = document.getElementById('forma-pag').value;
-    let infoBox = document.getElementById('info-pagamento-extra');
-    if(!infoBox) return;
-
+    const infoBox = document.getElementById('info-pagamento-extra');
     const boxTroco = document.getElementById('box-troco');
     
+    // Esconde tudo primeiro
     infoBox.style.display = 'none';
-    infoBox.innerHTML = '';
     boxTroco.style.display = 'none';
 
-    // Totais
-    const totalItens = carrinho.reduce((a,b)=>a+(b.preco*b.qtd),0);
-    const totalGeral = totalItens + freteCalculado;
+    // Calcula Total para mostrar em Reais se for Pix
+    const totalItens = carrinho.reduce((acc, item) => acc + (item.preco * item.qtd), 0);
+    const totalGeral = totalItens + (modoEntrega === 'delivery' ? freteCalculado : 0);
 
-    if (metodo === 'Efetivo') {
-        boxTroco.style.display = 'block';
-    } 
-    else if (metodo === 'Pix') {
-        const valorEmReais = totalGeral / COTACAO_REAL;
-        const valorFormatado = valorEmReais.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'});
-        
+    if (metodo === 'Pix') {
+        const valorReais = (totalGeral / COTACAO_REAL).toFixed(2);
+        infoBox.style.display = 'block';
         infoBox.innerHTML = `
-            <strong>Total em Reais: ${valorFormatado}</strong><br>
-            Chave Pix: ${CHAVE_PIX}<br>
+            <strong>Total em Reais: R$ ${valorReais}</strong><br>
+            Chave: ${CHAVE_PIX}<br>
             Nome: ${NOME_PIX}
         `;
+    } else if (metodo === 'Transferencia') {
         infoBox.style.display = 'block';
-    } 
-    else if (metodo === 'Transferencia') {
-        infoBox.innerHTML = `
-            <strong>Dados para Transferência:</strong><br>
-            ${DADOS_ALIAS}<br>
-            <strong>${ALIAS_PY}</strong>
-        `;
-        infoBox.style.display = 'block';
+        infoBox.innerHTML = `${DADOS_ALIAS}<br>${ALIAS_PY}`;
+    } else if (metodo === 'Efetivo') {
+        boxTroco.style.display = 'block';
     }
 }
 
 function toggleFactura() {
-    const chk = document.getElementById('check-factura').checked;
-    document.getElementById('box-ruc').style.display = chk?'block':'none';
+    const check = document.getElementById('check-factura');
+    const box = document.getElementById('box-ruc');
+    box.style.display = check.checked ? 'block' : 'none';
 }
 
-function enviarZap() {
-    if(carrinho.length===0) return;
-    
-    // --- 1. GERA O ID ÚNICO AGORA ---
-    const idPedido = gerarIdPedido(); // Ex: 2035129
+function mascaraTelefone(input) {
+    let v = input.value.replace(/\D/g,"");
+    input.value = v; // Apenas números, simples para PY
+}
 
+// 7. ENVIAR PEDIDO (WHATSAPP + SUPABASE)
+function gerarIdTemporal() {
+    const now = new Date();
+    // Gera algo como 2030159 (HoraMinutoSegundoMilissegundo curto)
+    return `${now.getHours()}${now.getMinutes()}${now.getSeconds()}${Math.floor(Math.random() * 9)}`;
+}
+
+// app.js - Substitua a função enviarZap
+
+async function enviarZap() {
     const nome = document.getElementById('cli-nome').value;
-    const ddi = document.getElementById('cli-ddi').value;
     const tel = document.getElementById('cli-tel').value;
+    const ref = document.getElementById('cli-ref').value;
     const pag = document.getElementById('forma-pag').value;
-    
-    if(!nome || !tel || !pag) { alert("Por favor, preencha Nome, WhatsApp e Forma de Pagamento."); return; }
-    if(modoEntrega==='delivery' && freteCalculado===0) { alert("Por favor, clique em Calcular Frete."); return; }
+    const ddiInput = document.getElementById('cli-ddi');
+    const ddi = ddiInput ? ddiInput.value : '+595';
 
-    localStorage.setItem('sushi_user', JSON.stringify({ nome, ddi, tel }));
-    localStorage.setItem('sushi_last', JSON.stringify(carrinho));
+    if (!nome || !tel) return alert("Por favor, preencha seu nome e telefone.");
+    if (modoEntrega === 'delivery' && freteCalculado === 0) return alert("Por favor, clique em 'Usar minha localização' para calcular o frete.");
 
-    const totalItens = carrinho.reduce((a,b)=>a+(b.preco*b.qtd),0);
-    const totalGeral = totalItens + freteCalculado;
+    // Cálculos
+    const totalItens = carrinho.reduce((acc, item) => acc + (item.preco * item.qtd), 0);
+    const totalGeral = totalItens + (modoEntrega === 'delivery' ? freteCalculado : 0);
+    const idPedido = gerarIdTemporal();
 
-    // --- LÓGICA INTELIGENTE DE TROCO E TEXTOS ---
-    let textoPagamento = "";
-    let obsPagamentoCupom = ""; 
-
-    if (pag === 'Efetivo') {
-        let valorInput = document.getElementById('troco-valor').value;
-        let valorPago = parseInt(valorInput.replace(/\./g, '').replace(/,/g, '').replace(/\D/g, ''));
-
-        if(isNaN(valorPago)) { alert("Digite o valor para troco!"); return; }
-
-        if (valorPago < totalGeral && valorPago < 10000) { valorPago = valorPago * 1000; }
-
-        if (valorPago < totalGeral) {
-            alert(`Erro: O valor do pagamento é menor que o Total!`);
-            return;
-        }
-
-        const vuelto = valorPago - totalGeral;
-        textoPagamento += `💳 *Pagamento: Efetivo (Guaranis)*\n`;
-        textoPagamento += `💰 Paga com: Gs ${valorPago.toLocaleString('es-PY')}\n`;
-        textoPagamento += `🔄 *Troco (Vuelto): Gs ${vuelto.toLocaleString('es-PY')}*\n`;
-        obsPagamentoCupom = `Troco: ${vuelto.toLocaleString('es-PY')}`;
-    } 
-    else if (pag === 'Pix') {
-        const totalReais = totalGeral / COTACAO_REAL;
-        textoPagamento += `💳 *Pagamento: Pix*\n`;
-        textoPagamento += `🇧🇷 Valor: R$ ${totalReais.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}\n`;
-        textoPagamento += `🔑 Chave: ${CHAVE_PIX}\n`;
-        textoPagamento += `👤 Nome: ${NOME_PIX}\n`;
-        obsPagamentoCupom = `Pix (R$ ${totalReais.toFixed(2)})`;
-    }
-    else if (pag === 'Transferencia') {
-        textoPagamento += `💳 *Pagamento: Transferência*\n`;
-        textoPagamento += `🏦 Dados Bancários:\n${DADOS_ALIAS}\n`;
-        textoPagamento += `👉 ${ALIAS_PY}\n`;
-        obsPagamentoCupom = "Transferência Bancária";
-    }
-    else {
-        textoPagamento += `💳 *Pagamento: ${pag}*\n`;
-        obsPagamentoCupom = pag;
-    }
-
-    // --- GERAR LINK DE IMPRESSÃO ---
-    const dadosPedido = {
-        id: idPedido, 
-        cliente: { nome: nome, tel: ddi + ' ' + tel },
-        entrega: { 
-            tipo: modoEntrega, 
-            lat: localCliente ? localCliente.lat : '', 
-            lng: localCliente ? localCliente.lng : '',
-            ref: document.getElementById('cli-ref').value
-        },
-        itens: carrinho.map(i => ({ 
-            q: i.qtd, n: i.nome, t: i.tamanho, p: i.preco, 
-            o: i.obs, m: i.montagem 
-        })),
-        valores: { sub: totalItens, frete: freteCalculado, total: totalGeral },
-        pagamento: { metodo: pag, obs: obsPagamentoCupom },
-        factura: document.getElementById('check-factura').checked ? {
+    const pedidoDb = {
+        uid_temporal: idPedido,
+        status: 'pendente',
+        tipo_entrega: modoEntrega,
+        subtotal: totalItens,
+        frete_cobrado_cliente: freteCalculado,
+        total_geral: totalGeral,
+        forma_pagamento: pag,
+        itens: carrinho,
+        endereco_entrega: ref,
+        geo_lat: localCliente ? String(localCliente.lat) : '',
+        geo_lng: localCliente ? String(localCliente.lng) : '',
+        obs_pagamento: pag === 'Efetivo' ? document.getElementById('troco-valor').value : '',
+        dados_factura: document.getElementById('check-factura').checked ? {
             ruc: document.getElementById('cli-ruc').value,
             razao: document.getElementById('cli-zao').value
         } : null
     };
 
-    const jsonString = JSON.stringify(dadosPedido);
-    const base64Code = btoa(unescape(encodeURIComponent(jsonString)));
-    const linkImpressao = `${window.location.origin}${window.location.pathname.replace('index.html', '')}imprimir.html?d=${base64Code}`;
-
-    // --- MONTAGEM DA MENSAGEM WHATSAPP ---
-    let msg = `*PEDIDO #${idPedido} - SUSHITERIA FICTICIA*\n`; 
-    msg += `--------------------------\n`;
-    msg += `👤 *Cliente:* ${nome}\n`;
-    msg += `📞 *Tel:* ${ddi} ${tel}\n`;
-    msg += `🛵 *Tipo:* ${modoEntrega.toUpperCase()}\n`;
+    // Salva no Banco
+    const telCompleto = ddi + tel;
+    const db = (typeof supa !== 'undefined') ? supa : ((typeof supabase !== 'undefined') ? supabase : null);
     
-    if(modoEntrega === 'delivery') {
-        msg += `📍 *Maps:* http://maps.google.com/?q=${localCliente.lat},${localCliente.lng}\n`;
-        msg += `🏠 *Ref:* ${document.getElementById('cli-ref').value}\n`;
+    if(db) {
+        await db.from('clientes').upsert({ telefone: telCompleto, nome: nome, endereco_padrao: ref }, { onConflict: 'telefone' });
+        db.from('pedidos').insert([pedidoDb]).then(({ error }) => { if(error) console.error(error); });
+    }
+
+    localStorage.setItem('sushi_user', JSON.stringify({ nome, tel, ddi }));
+    localStorage.setItem('sushi_last', JSON.stringify(carrinho));
+
+    // Monta Mensagem
+    let msg = `*PEDIDO #${idPedido}* - SUSHI TOP\n`;
+    msg += `--------------------------\n`;
+    msg += `👤 Cliente: ${nome}\n`;
+    msg += `📞 Tel: ${telCompleto}\n`;
+    msg += `🛵 Tipo: ${modoEntrega.toUpperCase()}\n`;
+
+    if (modoEntrega === 'delivery') {
+        if(localCliente) {
+            msg += `📍 Maps: https://www.google.com/maps/search/?api=1&query=${localCliente.lat},${localCliente.lng}\n`;
+        }
+        msg += `🏠 Ref: ${ref}\n`;
     }
 
     msg += `--------------------------\n`;
-    carrinho.forEach(i => {
-        msg += `${i.qtd}x ${i.nome} ${i.tamanho!=='Padrão' && i.tamanho!=='Montado'?`(${i.tamanho})`:''} \n`;
-        if(i.montagem && i.montagem.length > 0) msg += `   📝 Ing: ${i.montagem.join(', ')}\n`;
-        if(i.obs) msg += `   ⚠️ Obs: ${i.obs}\n`;
+    carrinho.forEach(item => {
+        msg += `${item.qtd}x ${item.nome}\n`;
+        if(item.montagem && item.montagem.length > 0) msg += `   + ${item.montagem.join(', ')}\n`;
+        if(item.obs) msg += `   Obs: ${item.obs}\n`;
     });
+
     msg += `--------------------------\n`;
     msg += `Subtotal: Gs ${totalItens.toLocaleString('es-PY')}\n`;
     if(modoEntrega === 'delivery') msg += `Frete: Gs ${freteCalculado.toLocaleString('es-PY')}\n`;
     msg += `*TOTAL: Gs ${totalGeral.toLocaleString('es-PY')}*\n`;
     msg += `--------------------------\n`;
-    msg += textoPagamento;
+    
+    // --- LÓGICA DE TROCO ---
+    if(pag === 'Efetivo') {
+        const valorPagoStr = document.getElementById('troco-valor').value;
+        
+        // 1. Remove tudo que não é número (pontos, letras, espaços)
+        let valorPagoNum = parseInt(valorPagoStr.replace(/\D/g, '')) || 0;
 
-    if(document.getElementById('check-factura').checked) {
-        msg += `\n📄 *DADOS FACTURA*\n`;
-        msg += `RUC: ${document.getElementById('cli-ruc').value}\n`;
-        msg += `Razão: ${document.getElementById('cli-zao').value}\n`;
+        // 2. REGRA DO PARAGUAI: Se digitou menos de 1000 (ex: 100, 150, 50), multiplica por 1000
+        if(valorPagoNum > 0 && valorPagoNum < 1000) {
+            valorPagoNum = valorPagoNum * 1000;
+        }
+
+        const troco = valorPagoNum - totalGeral;
+
+        // Formata o valor corrigido para mostrar na mensagem (ex: mostra 150.000 em vez de 150)
+        const valorExibicao = valorPagoNum.toLocaleString('es-PY');
+
+        msg += `💰 Pagamento: Efetivo\n`;
+        msg += `💵 Paga com: Gs ${valorExibicao}\n`; // Mostra o valor já corrigido
+        
+        if(troco >= 0) {
+            msg += `🔄 *Troco: Gs ${troco.toLocaleString('es-PY')}*\n`;
+        } else {
+            msg += `⚠️ Valor insuficiente (Faltam Gs ${Math.abs(troco).toLocaleString('es-PY')})\n`;
+        }
+    } else {
+        msg += `💰 Pagamento: ${pag}\n`;
     }
 
-    msg += `--------------------------\n`;
-    msg += `🖨️ *Imprimir Comanda:*\n${linkImpressao}`;
+    if(pag === 'Pix' || pag === 'Transferencia') {
+        msg += `\n⚠️ *ATENÇÃO: Seu Pedido só será confirmado após o envio do comprovante de pagamento.*\n`;
+    }
+
+    if(document.getElementById('check-factura').checked) {
+        msg += `\n📄 *DADOS FACTURA*\nRUC: ${document.getElementById('cli-ruc').value}\nRazão: ${document.getElementById('cli-zao').value}\n`;
+    }
 
     window.open(`https://wa.me/${FONE_LOJA}?text=${encodeURIComponent(msg)}`, '_blank');
 }
 
-// ==========================================
-// 8. DADOS LOCAIS (HISTÓRICO)
-// ==========================================
+// 8. DADOS LOCAIS & REPETIR PEDIDO (Melhorado)
 function carregarDadosLocal() {
     const u = JSON.parse(localStorage.getItem('sushi_user'));
     if(u) {
@@ -592,26 +578,48 @@ function carregarDadosLocal() {
         if(u.ddi) document.getElementById('cli-ddi').value = u.ddi;
     }
     const last = JSON.parse(localStorage.getItem('sushi_last'));
-    if(last) {
-        document.getElementById('buy-again-container').style.display = 'flex';
-        document.getElementById('last-order-desc').innerText = `${last.length} itens do último pedido`;
+    if(last && last.length > 0) {
+        const container = document.getElementById('buy-again-container');
+        if(container) {
+            container.style.display = 'block'; // Mostra o container
+            
+            // GERA A LISTA VISUAL (UL/LI)
+            const ul = document.getElementById('last-order-list');
+            if(ul) {
+                ul.innerHTML = '';
+                last.forEach(i => {
+                    const li = document.createElement('li');
+                    li.style.borderBottom = '1px dashed #eee';
+                    li.style.padding = '5px 0';
+                    li.innerHTML = `<b>${i.qtd}x</b> ${i.nome}`;
+                    ul.appendChild(li);
+                });
+            } else {
+                // Fallback se não tiver a UL no HTML ainda
+                const desc = document.getElementById('last-order-desc');
+                if(desc) desc.innerText = `${last.length} itens do último pedido`;
+            }
+        }
     }
 }
 
 function repetirPedido() {
     const last = JSON.parse(localStorage.getItem('sushi_last'));
-    if(last) { carrinho = last; updateUI(); alert("Itens adicionados!"); }
+    if(last) { 
+        carrinho = last; 
+        updateUI(); 
+        abrirCheckout(); // Já abre o checkout direto para facilitar
+    }
 }
 
-// --- GERADOR DE ID TEMPORAL (Único por 24h) ---
-function gerarIdPedido() {
-    const agora = new Date();
-    const h = String(agora.getHours()).padStart(2, '0');
-    const m = String(agora.getMinutes()).padStart(2, '0');
-    const s = String(agora.getSeconds()).padStart(2, '0');
-    // Gera 1 dígito aleatório (0-9) para desempate
-    const r = Math.floor(Math.random() * 10); 
-    
-    // Retorna algo como: 2030159
-    return `${h}${m}${s}${r}`;
+// 9. BANNER (Mantido do seu original)
+function clicarBanner(idProduto) {
+    // Procura em todas as categorias
+    for (const key in MENU) {
+        const item = MENU[key].find(i => i.id === idProduto);
+        if (item) {
+            abrirModal(item);
+            return;
+        }
+    }
 }
