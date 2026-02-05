@@ -54,7 +54,12 @@
         .btn-sm { padding: 5px 10px; font-size: 0.8rem; }
         
         /* Ações Tabela */
-        .actions-cell { display: flex; gap: 5px; }
+        .actions-cell { 
+            display: flex;
+            gap: 8px;
+            justify-content: flex-start;
+            align-items: center; 
+        }
 
         /* MODAL */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
@@ -63,6 +68,26 @@
         .form-group label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 0.9rem; }
         .form-control { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
         .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+        .close-modal {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            font-size: 28px;
+            font-weight: bold;
+            color: #888;
+            cursor: pointer;
+            line-height: 1;
+            transition: 0.2s;
+        }
+
+        .close-modal:hover {
+            color: var(--primary);
+        }
+
+        /* Garante que o modal-box tenha posição relativa para o X não fugir */
+        .modal-box {
+            position: relative; 
+        }
 
         /* Builder (Poke) */
         .builder-box { background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px dashed #ccc; margin-top: 10px; }
@@ -79,7 +104,25 @@
             .menu-item { padding: 10px; font-size: 0.8rem; border-radius: 8px; white-space: nowrap; }
             .mobile-hide { display: none; }
             .main-content { padding: 15px; overflow: visible; }
-            .actions-cell { flex-direction: column; }
+            .actions-cell { 
+                flex-direction: column; 
+                    gap: 4px;
+                    padding: 5px !important; 
+            }
+            .actions-cell .btn {
+                width: 100%;
+                justify-content: center;
+                padding: 6px;
+                font-size: 0.8rem;
+            }
+            table td, table th {
+                font-size: 0.85rem;
+                padding: 8px 5px !important;
+            }
+            .table-container {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
             .btn-sm { width: 100%; justify-content: center; margin-bottom: 2px; }
         }
     </style>
@@ -187,6 +230,7 @@
 
     <div id="modal-produto" class="modal-overlay">
         <div class="modal-box">
+            <span class="close-modal" onclick="fecharModal('modal-produto')">&times;</span>
             <h3>Produto</h3>
             <input type="hidden" id="prod-id">
             <div class="form-group"><label>Nome</label><input type="text" id="prod-nome" class="form-control"></div>
@@ -226,9 +270,49 @@
         </div>
     </div>
 
-    <div id="modal-cat" class="modal-overlay"><div class="modal-box"><h3>Categoria</h3><div class="form-group"><label>Slug</label><input type="text" id="cat-slug" class="form-control"></div><div class="form-group"><label>Nome</label><input type="text" id="cat-nome" class="form-control"></div><div class="form-group"><label>Ordem</label><input type="number" id="cat-ordem" class="form-control"></div><div class="modal-actions"><button class="btn btn-success" onclick="salvarCategoria()">Salvar</button></div></div></div>
+    <div id="modal-cat" class="modal-overlay">
+        <div class="modal-box">
+            <span class="close-modal" onclick="fecharModal('modal-cat')">&times;</span>
+            <h3 id="titulo-modal-cat">Nova Categoria</h3>
+            
+            <input type="hidden" id="cat-modo-edicao" value="nao">
+
+            <div class="form-group">
+                <label>ID (Slug - Ex: bebidas)</label>
+                <input type="text" id="cat-slug" class="form-control">
+            </div>
+            <div class="form-group">
+                <label>Nome Exibição (Ex: Bebidas Geladas)</label>
+                <input type="text" id="cat-nome" class="form-control">
+            </div>
+            <div class="form-group">
+                <label>Ordem (Número)</label>
+                <input type="number" id="cat-ordem" class="form-control">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-success" onclick="salvarCategoria()">Salvar</button>
+            </div>
+        </div>
+    </div>
     
-    <div id="modal-moto" class="modal-overlay"><div class="modal-box"><h3>Motoboy</h3><input type="hidden" id="moto-id"><div class="form-group"><label>Nome</label><input type="text" id="moto-nome" class="form-control"></div><div class="form-group"><label>Telefone</label><input type="text" id="moto-tel" class="form-control"></div><div class="modal-actions"><button class="btn btn-success" onclick="salvarMotoboy()">Salvar</button></div></div></div>
+    <div id="modal-moto" class="modal-overlay">
+        <div class="modal-box">
+            <span class="close-moto" onclick="fecharModal('modal-produto')">&times;</span>
+            <h3>Motoboy</h3>
+            <input type="hidden" id="moto-id">
+            <div class="form-group">
+                <label>Nome</label>
+                <input type="text" id="moto-nome" class="form-control">
+            </div>
+            <div class="form-group">
+                <label>Telefone</label>
+                <input type="text" id="moto-tel" class="form-control">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-success" onclick="salvarMotoboy()">Salvar</button>
+            </div>
+        </div>
+    </div>
 
     <script src="supabaseClient.js"></script>
 
@@ -494,13 +578,67 @@
         async function carregarCategorias() {
             const { data } = await supa.from('categorias').select('*').order('ordem');
             const tb = document.getElementById('lista-categorias'); tb.innerHTML = '';
-            data.forEach(c => tb.innerHTML += `<tr><td>${c.slug}</td><td>${c.nome_exibicao}</td><td>${c.ordem}</td><td><button class="btn btn-sm btn-danger" onclick="supa.from('categorias').delete().eq('slug','${c.slug}').then(carregarCategorias)"><i class="fas fa-trash"></i></button></td></tr>`);
+            data.forEach(c => {
+                tb.innerHTML += `
+                    <tr>
+                        <td>${c.slug}</td>
+                        <td>${c.nome_exibicao}</td>
+                        <td>${c.ordem}</td>
+                        <td class="actions-cell">
+                            <button class="btn btn-sm btn-primary" onclick='editarCategoria(${JSON.stringify(c).replace(/'/g, "&#39;")})'>
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="deletarCat('${c.slug}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>`;
+            });
         }
+
+        function editarCategoria(c) {
+            document.getElementById('titulo-modal-cat').innerText = "Editar Categoria";
+            document.getElementById('cat-modo-edicao').value = "sim";
+            document.getElementById('cat-slug').value = c.slug;
+            document.getElementById('cat-slug').disabled = true; // Slug é o ID, melhor não mudar se já tiver produtos nela
+            document.getElementById('cat-nome').value = c.nome_exibicao;
+            document.getElementById('cat-ordem').value = c.ordem;
+            document.getElementById('modal-cat').style.display = 'flex';
+        }
+
         async function salvarCategoria() {
-             await supa.from('categorias').upsert([{ slug: document.getElementById('cat-slug').value, nome_exibicao: document.getElementById('cat-nome').value, ordem: document.getElementById('cat-ordem').value }]);
-             fecharModal('modal-cat'); carregarCategorias();
+            const slug = document.getElementById('cat-slug').value;
+            const nome = document.getElementById('cat-nome').value;
+            const ordem = document.getElementById('cat-ordem').value;
+
+            if(!slug || !nome) return alert("Preencha o slug e o nome!");
+
+            const dados = {
+                slug: slug,
+                nome_exibicao: nome,
+                ordem: parseInt(ordem) || 0
+            };
+
+            // O .upsert faz o seguinte: Se o slug já existir, ele ATUALIZA. Se não existir, ele CRIA.
+            const { error } = await supa.from('categorias').upsert([dados]);
+
+            if(error) {
+                alert("Erro ao salvar: " + error.message);
+            } else {
+                fecharModal('modal-cat');
+                carregarCategorias();
+            }
         }
-        function abrirModalCategoria() { document.getElementById('modal-cat').style.display='flex'; }
+
+        function abrirModalCategoria() {
+            document.getElementById('titulo-modal-cat').innerText = "Nova Categoria";
+            document.getElementById('cat-modo-edicao').value = "nao";
+            document.getElementById('cat-slug').value = "";
+            document.getElementById('cat-slug').disabled = false; // Permite digitar slug novo
+            document.getElementById('cat-nome').value = "";
+            document.getElementById('cat-ordem').value = "";
+            document.getElementById('modal-cat').style.display = 'flex';
+        }
 
         async function carregarMotoboys() {
              const { data } = await supa.from('motoboys').select('*');
@@ -597,6 +735,17 @@
                 });
             }
         }
+        window.onclick = function(event) {
+    // Verifica se o clique foi em algum elemento com a classe 'modal-overlay'
+    if (event.target.classList.contains('modal-overlay')) {
+        // Esconde todos os modais ativos
+        document.querySelectorAll('.modal-overlay').forEach(modal => {
+            modal.style.display = 'none';
+        });
+    }
+};
+
+
 
         function fecharModal(id) { document.getElementById(id).style.display='none'; }
     </script>

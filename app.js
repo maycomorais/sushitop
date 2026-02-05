@@ -506,7 +506,7 @@ async function enviarZap() {
     let msg = `*PEDIDO #${idPedido}* - SUSHI TOP\n`;
     msg += `--------------------------\n`;
     msg += `👤 Cliente: ${nome}\n`;
-    msg += `📞 Tel: ${telCompleto}\n`;
+    msg += `📱 Tel: ${telCompleto}\n`;
     msg += `🛵 Tipo: ${modoEntrega.toUpperCase()}\n`;
 
     if (modoEntrega === 'delivery') {
@@ -525,7 +525,7 @@ async function enviarZap() {
 
     msg += `--------------------------\n`;
     msg += `Subtotal: Gs ${totalItens.toLocaleString('es-PY')}\n`;
-    if(modoEntrega === 'delivery') msg += `Frete: Gs ${freteCalculado.toLocaleString('es-PY')}\n`;
+    if(modoEntrega === 'delivery') msg += `Delivery: Gs ${freteCalculado.toLocaleString('es-PY')}\n`;
     msg += `*TOTAL: Gs ${totalGeral.toLocaleString('es-PY')}*\n`;
     msg += `--------------------------\n`;
     
@@ -550,16 +550,16 @@ async function enviarZap() {
         msg += `💵 Paga com: Gs ${valorExibicao}\n`; // Mostra o valor já corrigido
         
         if(troco >= 0) {
-            msg += `🔄 *Troco: Gs ${troco.toLocaleString('es-PY')}*\n`;
+            msg += `🔄 *Troco/Vuelta: Gs ${troco.toLocaleString('es-PY')}*\n`;
         } else {
-            msg += `⚠️ Valor insuficiente (Faltam Gs ${Math.abs(troco).toLocaleString('es-PY')})\n`;
+            msg += `⚠️ Valor insuficiente (Faltam/Quedan Gs ${Math.abs(troco).toLocaleString('es-PY')})\n`;
         }
     } else {
         msg += `💰 Pagamento: ${pag}\n`;
     }
 
     if(pag === 'Pix' || pag === 'Transferencia') {
-        msg += `\n⚠️ *ATENÇÃO: Seu Pedido só será confirmado após o envio do comprovante de pagamento.*\n`;
+        msg += `\n⚠️ *ATENÇÃO: Seu Pedido só será confirmado após o envio do comprovante de pagamento.*\n\n*ATENCIÓN: Su pedido solo será confirmado después de enviar el comprobante de pago.*`;
     }
 
     if(document.getElementById('check-factura').checked) {
@@ -567,6 +567,28 @@ async function enviarZap() {
     }
 
     window.open(`https://wa.me/${FONE_LOJA}?text=${encodeURIComponent(msg)}`, '_blank');
+
+    carrinho = [];
+
+    atualizarCarrinho();
+
+    if(typeof fecharCheckout === 'function') {
+        fecharCheckout();
+    } else {
+        document.getElementById('modal-checkout').style.display = 'none';
+    }
+
+    setTimeout(() => {
+        alert("✅ PEDIDO ENVIADO COM SUCESSO!\n\nAgora basta enviar a mensagem no WhatsApp que abriu para confirmarmos seu pedido.");
+        
+        window.location.reload(); 
+    }, 500);
+
+    if(pag === 'Pix' || pag === 'Transferencia') {
+        alert("✅ Pedido enviado! \n\n⚠️ Lembre-se de enviar o comprovante da tranferencia  no WhatsApp para iniciarmos a produção.");
+    } else {
+        alert("✅ Pedido enviado com sucesso!");
+}
 }
 
 // 8. DADOS LOCAIS & REPETIR PEDIDO (Melhorado)
