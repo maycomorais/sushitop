@@ -331,12 +331,22 @@
             checks.forEach(chk => {
                 const p = JSON.parse(chk.value);
                 
+                // Atualiza status
                 supa.from('pedidos').update({ status: 'entregue', motoboy_id: selMoto.value }).eq('id', p.id).then();
 
                 msg += `📦 *PEDIDO #${p.uid_temporal}*\n`;
                 
+                // --- CORREÇÃO: DADOS DO CLIENTE ---
+                // Se por acaso o cliente foi deletado do banco, evita erro mostrando 'Cliente'
+                const nomeCli = p.clientes ? p.clientes.nome : 'Cliente';
+                const telCli = p.clientes ? p.clientes.telefone : 'Sem Tel';
+                
+                msg += `👤 ${nomeCli}\n`;
+                msg += `📞 ${telCli}\n`;
+                // -----------------------------------
+
                 if(p.geo_lat && p.geo_lng) {
-                    msg += `📍 Maps: https://www.google.com/maps/search/?api=1&query=${p.geo_lat},${p.geo_lng}\n`;
+                    msg += `📍 Maps: https://www.google.com/maps/search/?api=1&query=$${p.geo_lat},${p.geo_lng}\n`;
                     coords.push(`${p.geo_lat},${p.geo_lng}`);
                 } else {
                     msg += `🏠 End: ${p.endereco_entrega}\n`;
@@ -345,21 +355,14 @@
                 msg += `💰 *Cobrar: Gs ${p.total_geral.toLocaleString('es-PY')}*\n`;
                 msg += `💳 Pagamento: ${p.forma_pagamento}`;
                 
-                // --- CÁLCULO DE TROCO PARA O MOTOBOY ---
+                // Lógica de Troco Inteligente (Mantida)
                 if(p.forma_pagamento === 'Efetivo' && p.obs_pagamento) {
-                    // 1. Remove tudo que não é número
                     let valorPago = parseInt(p.obs_pagamento.replace(/\D/g, '')) || 0;
-
-                    // 2. REGRA DO PARAGUAI: Se digitou menos de 1000, multiplica por 1000
-                    if(valorPago > 0 && valorPago < 1000) {
-                        valorPago = valorPago * 1000;
-                    }
-
+                    if(valorPago > 0 && valorPago < 1000) valorPago = valorPago * 1000;
+                    
                     const troco = valorPago - p.total_geral;
 
-                    // Mostra pro motoboy o valor interpretado (150.000) e não o digitado (150)
                     msg += `\n💵 Receber: Gs ${valorPago.toLocaleString('es-PY')}`;
-                    
                     if(troco >= 0) {
                         msg += `\n🔄 *LEVAR TROCO: Gs ${troco.toLocaleString('es-PY')}*`;
                     } else {
@@ -371,7 +374,7 @@
             });
 
             if(coords.length > 0) {
-                const rotaUrl = `https://www.google.com/maps/dir/${COORD_LOJA.lat},${COORD_LOJA.lng}/${coords.join('/')}`;
+                const rotaUrl = `https://www.google.com/maps/dir/$${COORD_LOJA.lat},${COORD_LOJA.lng}/${coords.join('/')}`;
                 msg += `\n🗺️ *ROTA GOOGLE:*\n${rotaUrl}`;
             }
 
