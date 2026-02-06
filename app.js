@@ -79,6 +79,20 @@ async function verificarHorario() {
         badge.style.color = "#c0392b";
         // Opcional: Bloquear botão de finalizar
     }
+
+    if (data.banner_imagem && data.banner_produto_id) {
+        const bannerArea = document.querySelector('.banner-area');
+        if (bannerArea) {
+            // Atualiza a imagem
+            const img = bannerArea.querySelector('img');
+            if(img) img.src = data.banner_imagem;
+
+            // Atualiza o click para o produto certo
+            bannerArea.onclick = function() {
+                clicarBanner(data.banner_produto_id);
+            };
+        }
+    }
 }
 
 // 1. RENDERIZAR MENU (Busca do Banco)
@@ -456,20 +470,59 @@ function gerarIdTemporal() {
 // app.js - Substitua a função enviarZap
 
 async function enviarZap() {
-    const nome = document.getElementById('cli-nome').value;
-    const tel = document.getElementById('cli-tel').value;
+    // 1. PEGA OS ELEMENTOS
+    const elNome = document.getElementById('cli-nome');
+    const elTel = document.getElementById('cli-tel');
+    const elPag = document.getElementById('forma-pag');
+    const btnGps = document.getElementById('btn-gps'); 
+    
+    // 2. LIMPA ERROS ANTERIORES
+    [elNome, elTel, elPag, btnGps].forEach(el => el?.classList.remove('erro-validacao'));
+    document.querySelectorAll('.msg-erro-texto').forEach(span => span.style.display = 'none');
+
+    // 3. VALIDAÇÃO (Borda Vermelha)
+    let temErro = false;
+
+    if (!elNome.value.trim()) {
+        elNome.classList.add('erro-validacao');
+        if(document.getElementById('erro-nome')) document.getElementById('erro-nome').style.display = 'block';
+        temErro = true;
+    }
+
+    if (!elTel.value.trim()) {
+        elTel.classList.add('erro-validacao');
+        if(document.getElementById('erro-tel')) document.getElementById('erro-tel').style.display = 'block';
+        temErro = true;
+    }
+
+    if (modoEntrega === 'delivery' && freteCalculado === 0) {
+        btnGps.classList.add('erro-validacao');
+        alert("⚠️ Por favor, clique no botão para calcular a distância e o frete.");
+        temErro = true;
+    }
+
+    if (!elPag.value || elPag.value === "") {
+        elPag.classList.add('erro-validacao');
+        temErro = true;
+    }
+
+    if (temErro) {
+        document.querySelector('.erro-validacao').scrollIntoView({behavior: 'smooth', block: 'center'});
+        return; 
+    }
+
+    // 4. PREPARA DADOS
+    const nome = elNome.value;
+    const tel = elTel.value;
     const ref = document.getElementById('cli-ref').value;
-    const pag = document.getElementById('forma-pag').value;
-    const ddiInput = document.getElementById('cli-ddi');
-    const ddi = ddiInput ? ddiInput.value : '+595';
+    const pag = elPag.value;
+    const ddi = document.getElementById('cli-ddi') ? document.getElementById('cli-ddi').value : '+595';
 
-    if (!nome || !tel) return alert("Por favor, preencha seu nome e telefone.");
-    if (modoEntrega === 'delivery' && freteCalculado === 0) return alert("Por favor, clique em 'Usar minha localização' para calcular o frete.");
-
-    // Cálculos
     const totalItens = carrinho.reduce((acc, item) => acc + (item.preco * item.qtd), 0);
     const totalGeral = totalItens + (modoEntrega === 'delivery' ? freteCalculado : 0);
-    const idPedido = gerarIdTemporal();
+    
+    // Gera ID único
+    const idPedido = `${new Date().getHours()}${new Date().getMinutes()}${Math.floor(Math.random() * 9)}`;
 
     const pedidoDb = {
         uid_temporal: idPedido,
@@ -490,7 +543,7 @@ async function enviarZap() {
         } : null
     };
 
-    // Salva no Banco
+    // 5. SALVA NO BANCO
     const telCompleto = ddi + tel;
     const db = (typeof supa !== 'undefined') ? supa : ((typeof supabase !== 'undefined') ? supabase : null);
     
@@ -502,7 +555,7 @@ async function enviarZap() {
     localStorage.setItem('sushi_user', JSON.stringify({ nome, tel, ddi }));
     localStorage.setItem('sushi_last', JSON.stringify(carrinho));
 
-    // Monta Mensagem
+    // 6. MONTA MENSAGEM WHATSAPP (Com suas traduções)
     let msg = `*PEDIDO #${idPedido}* - SUSHI TOP\n`;
     msg += `--------------------------\n`;
     msg += `👤 Cliente: ${nome}\n`;
@@ -529,26 +582,21 @@ async function enviarZap() {
     msg += `*TOTAL: Gs ${totalGeral.toLocaleString('es-PY')}*\n`;
     msg += `--------------------------\n`;
     
-    // --- LÓGICA DE TROCO ---
+    // Lógica de Troco
     if(pag === 'Efetivo') {
         const valorPagoStr = document.getElementById('troco-valor').value;
-        
-        // 1. Remove tudo que não é número (pontos, letras, espaços)
         let valorPagoNum = parseInt(valorPagoStr.replace(/\D/g, '')) || 0;
-
-        // 2. REGRA DO PARAGUAI: Se digitou menos de 1000 (ex: 100, 150, 50), multiplica por 1000
-        if(valorPagoNum > 0 && valorPagoNum < 1000) {
-            valorPagoNum = valorPagoNum * 1000;
-        }
+        
+        // Regra dos 3 zeros
+        if(valorPagoNum > 0 && valorPagoNum < 1000) valorPagoNum = valorPagoNum * 1000;
 
         const troco = valorPagoNum - totalGeral;
-
-        // Formata o valor corrigido para mostrar na mensagem (ex: mostra 150.000 em vez de 150)
         const valorExibicao = valorPagoNum.toLocaleString('es-PY');
 
         msg += `💰 Pagamento: Efetivo\n`;
-        msg += `💵 Paga com: Gs ${valorExibicao}\n`; // Mostra o valor já corrigido
+        msg += `💵 Paga com: Gs ${valorExibicao}\n`;
         
+        // SUAS TRADUÇÕES AQUI (Vuelta / Quedan)
         if(troco >= 0) {
             msg += `🔄 *Troco/Vuelta: Gs ${troco.toLocaleString('es-PY')}*\n`;
         } else {
@@ -558,6 +606,7 @@ async function enviarZap() {
         msg += `💰 Pagamento: ${pag}\n`;
     }
 
+    // AVISO DUPLO (PT/ES)
     if(pag === 'Pix' || pag === 'Transferencia') {
         msg += `\n⚠️ *ATENÇÃO: Seu Pedido só será confirmado após o envio do comprovante de pagamento.*\n\n*ATENCIÓN: Su pedido solo será confirmado después de enviar el comprobante de pago.*`;
     }
@@ -566,10 +615,11 @@ async function enviarZap() {
         msg += `\n📄 *DADOS FACTURA*\nRUC: ${document.getElementById('cli-ruc').value}\nRazão: ${document.getElementById('cli-zao').value}\n`;
     }
 
+    // 7. ABRE WHATSAPP
     window.open(`https://wa.me/${FONE_LOJA}?text=${encodeURIComponent(msg)}`, '_blank');
 
+    // 8. LIMPEZA FINAL
     carrinho = [];
-
     atualizarCarrinho();
 
     if(typeof fecharCheckout === 'function') {
@@ -578,17 +628,16 @@ async function enviarZap() {
         document.getElementById('modal-checkout').style.display = 'none';
     }
 
+    // 9. ALERTA FINAL (Com delay)
     setTimeout(() => {
-        alert("✅ PEDIDO ENVIADO COM SUCESSO!\n\nAgora basta enviar a mensagem no WhatsApp que abriu para confirmarmos seu pedido.");
+        if(pag === 'Pix' || pag === 'Transferencia') {
+            alert("✅ Pedido enviado! / Pedido Enviado!\n\n⚠️ Lembre-se de enviar o comprovante no WhatsApp / Recuerde enviar el comprobante.");
+        } else {
+            alert("✅ Pedido enviado com sucesso! / Pedido Enviado!");
+        }
         
         window.location.reload(); 
     }, 500);
-
-    if(pag === 'Pix' || pag === 'Transferencia') {
-        alert("✅ Pedido enviado! \n\n⚠️ Lembre-se de enviar o comprovante da tranferencia  no WhatsApp para iniciarmos a produção.");
-    } else {
-        alert("✅ Pedido enviado com sucesso!");
-}
 }
 
 // 8. DADOS LOCAIS & REPETIR PEDIDO (Melhorado)
@@ -634,14 +683,25 @@ function repetirPedido() {
     }
 }
 
-// 9. BANNER (Mantido do seu original)
+// 9. BANNER 
 function clicarBanner(idProduto) {
+    console.log("Tentando abrir banner com ID:", idProduto);
+    
+    let produtoEncontrado = null;
+
     // Procura em todas as categorias
     for (const key in MENU) {
-        const item = MENU[key].find(i => i.id === idProduto);
+        const item = MENU[key].find(i => i.id == idProduto); 
         if (item) {
-            abrirModal(item);
-            return;
+            produtoEncontrado = item;
+            break;
         }
+    }
+
+    if (produtoEncontrado) {
+        abrirModal(produtoEncontrado);
+    } else {
+        console.error("Produto do banner não encontrado no menu carregado.");
+        alert("Desculpe, esta promoção não está mais disponível ou o menu está carregando.");
     }
 }

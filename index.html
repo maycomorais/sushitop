@@ -29,11 +29,11 @@
     <div class="banner-area">
         <div class="banner-track">
             <img src="https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=800&q=80" 
-                 onclick="clicarBanner('cmb-1')" 
+                 onclick="clicarBanner(1)" 
                  style="cursor:pointer">
             
             <img src="https://images.unsplash.com/photo-1553621042-f6e147245754?w=800&q=80" 
-                 onclick="clicarBanner('cmb-3')" 
+                 onclick="clicarBanner(2)" 
                  style="cursor:pointer">
         </div>
     </div>
@@ -133,6 +133,7 @@
                     <h4>Seus Dados</h4>
                     <label style="font-size: 0.8rem; color: #666;">Nome Completo</label>
                     <input type="text" id="cli-nome" placeholder="Ex: João da Silva" class="input-field">
+                    <span id="erro-nome" class="msg-erro-texto">Nome é obrigatório</span>
                     
                     <label style="font-size: 0.8rem; color: #666;">WhatsApp</label>
                     <div class="row">
@@ -150,6 +151,7 @@
                             <option value="+58">🇻🇪 +58 (VE)</option>
                         </select>
                         <input type="tel" id="cli-tel" placeholder="99123-4567" class="input-field">
+                        <span id="erro-nome" class="msg-erro-texto">Telefone é obrigatório</span>
                     </div>
                 </div>
 

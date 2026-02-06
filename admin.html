@@ -202,27 +202,57 @@
         </div>
 
         <div id="configuracoes" class="tab-content">
-            <h2>Configurações</h2>
-            <div style="background: white; padding: 20px; border-radius: 10px; max-width: 500px;">
-                <div class="form-group"><label>Loja Aberta?</label>
-                    <select id="cfg-aberta" class="form-control"><option value="true">SIM</option><option value="false">NÃO</option></select>
+            <h2>Configurações da Loja</h2>
+                <div style="display:flex; flex-wrap:wrap; gap:20px;">
+                    <div style="flex:1; min-width:300px; background:white; padding:20px; border-radius:10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                        <h3>⚡ Funcionamento</h3>
+                        <div class="form-group">
+                            <label>Loja Aberta?</label>
+                            <select id="cfg-aberta" class="form-control"><option value="true">SIM</option><option value="false">NÃO</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Cotação Real (R$)</label>
+                            <input type="number" id="cfg-cotacao" class="form-control">
+                        </div>
+                        <div style="display:flex; gap:10px;">
+                            <div class="form-group" style="flex:1"><label>Abre</label><input type="time" id="cfg-hora-abre" class="form-control"></div>
+                            <div class="form-group" style="flex:1"><label>Fecha</label><input type="time" id="cfg-hora-fecha" class="form-control"></div>
+                        </div>
+                    </div>
+
+                    <div style="flex:1; min-width:300px; background:white; padding:20px; border-radius:10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                        <h3>📢 Banner Promocional</h3>
+                        <p style="font-size:0.8rem; color:#666;">Configure a promoção do topo do site.</p>
+                        
+                        <div class="form-group">
+                            <label>ID do Produto (Promoção)</label>
+                            <input type="text" id="cfg-banner-id" class="form-control" placeholder="Ex: 15">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Imagem do Banner (URL)</label>
+                            <input type="text" id="cfg-banner-img" class="form-control" placeholder="Cole o link da imagem">
+                        </div>
+                        
+                        <div style="text-align:center; margin-top:10px;">
+                            <img id="preview-banner" src="" style="max-width:100%; height:100px; object-fit:cover; border-radius:8px; display:none;">
+                        </div>
+                    </div>
                 </div>
-                <div class="form-group"><label>Cotação Real (R$)</label><input type="number" id="cfg-cotacao" class="form-control"></div>
-                <div style="display: flex; gap: 10px;">
-                    <div class="form-group" style="flex:1"><label>Abre</label><input type="time" id="cfg-hora-abre" class="form-control"></div>
-                    <div class="form-group" style="flex:1"><label>Fecha</label><input type="time" id="cfg-hora-fecha" class="form-control"></div>
-                </div>
-                <button class="btn btn-success" onclick="salvarConfiguracoes()">Salvar</button>
-            </div>
+                <button class="btn btn-success" style="margin-top:20px; width:100%; padding:15px;" onclick="salvarConfiguracoes()">SALVAR TUDO</button>
         </div>
 
         <div id="financeiro" class="tab-content">
             <h2>Financeiro Detalhado</h2>
+            <div class="header-title">
+                <h2>Fechamento de Caixa</h2>
+                <button class="btn btn-info" onclick="abrirModalBalcao()"><i class="fas fa-cash-register"></i> Venda Balcão</button>
+            </div>
             <div class="card-grid">
                 <div class="kpi-card"><div class="kpi-title">Pix</div><div class="kpi-value" id="fin-pix">0</div></div>
                 <div class="kpi-card"><div class="kpi-title">Cartão</div><div class="kpi-value" id="fin-cartao">0</div></div>
                 <div class="kpi-card"><div class="kpi-title">Efetivo</div><div class="kpi-value" id="fin-efetivo">0</div></div>
-                <div class="kpi-card" style="border-left:5px solid #2ecc71"><div class="kpi-title">LUCRO LÍQUIDO</div><div class="kpi-value" id="fin-liquido">0</div></div>
+                <div class="kpi-card" style="border-left:5px solid #2ecc71"><div class="kpi-title">Faturamento do dia</div><div class="kpi-value" id="fin-liquido">0</div></div>
             </div>
         </div>
 
@@ -310,6 +340,47 @@
             </div>
             <div class="modal-actions">
                 <button class="btn btn-success" onclick="salvarMotoboy()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-balcao" class="modal-overlay">
+        <div class="modal-box">
+            <span class="close-modal" onclick="fecharModal('modal-balcao')">&times;</span>
+            <h3>🏪 Venda Balcão</h3>
+            
+            <div class="form-group">
+                <label>Nome do Cliente</label>
+                <input type="text" id="balcao-cliente" class="form-control" placeholder="Cliente Balcão">
+            </div>
+
+            <div class="form-group" style="background:#f9f9f9; padding:10px; border-radius:5px;">
+                <label>Adicionar Item (Digite para buscar)</label>
+                <input list="lista-sugestoes" id="balcao-busca" class="form-control" placeholder="Ex: Temaki..." onchange="adicionarItemBalcao()">
+                <datalist id="lista-sugestoes"></datalist> </div>
+
+            <div style="max-height:150px; overflow-y:auto; border:1px solid #eee; margin-bottom:10px;">
+                <table style="font-size:0.9rem;">
+                    <tbody id="lista-itens-balcao"></tbody>
+                </table>
+            </div>
+
+            <div style="text-align:right; font-weight:bold; font-size:1.2rem; margin-bottom:10px;">
+                Total: Gs <span id="balcao-total">0</span>
+            </div>
+
+            <div class="form-group">
+                <label>Pagamento</label>
+                <select id="balcao-pag" class="form-control">
+                    <option value="Efetivo">Efetivo</option>
+                    <option value="Cartao">Cartão</option>
+                    <option value="Pix">Pix</option>
+                    <option value="Transferencia">Transferência</option>
+                </select>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn btn-success" style="width:100%" onclick="salvarPedidoBalcao()">FINALIZAR VENDA</button>
             </div>
         </div>
     </div>
@@ -641,9 +712,28 @@
         }
 
         async function carregarMotoboys() {
-             const { data } = await supa.from('motoboys').select('*');
-             const tb = document.getElementById('lista-motos'); tb.innerHTML = '';
-             data.forEach(m => tb.innerHTML += `<tr><td>${m.nome}</td><td>${m.telefone}</td><td><button class="btn btn-sm btn-primary" onclick='editarMoto(${JSON.stringify(m)})'>Edit</button></td></tr>`);
+            const { data } = await supa.from('motoboys').select('*');
+            const tb = document.getElementById('lista-motos');
+            tb.innerHTML = '';
+            
+            data.forEach(m => {
+                tb.innerHTML += `
+                    <tr>
+                        <td>${m.nome}</td>
+                        <td>${m.telefone}</td>
+                        <td class="actions-cell">
+                            <button class="btn btn-sm btn-primary" onclick='editarMoto(${JSON.stringify(m)})'>Edit</button>
+                            <button class="btn btn-sm btn-danger" onclick="deletarMoto(${m.id})"><i class="fas fa-trash"></i></button>
+                        </td>
+                    </tr>`;
+            });
+        }
+
+        async function deletarMoto(id) {
+            if(confirm('Tem certeza que deseja excluir este motoboy?')) { 
+                await supa.from('motoboys').delete().eq('id',id); 
+                carregarMotoboys(); 
+            }
         }
         async function carregarMotoboysSelect() {
              const { data } = await supa.from('motoboys').select('*').eq('ativo', true);
@@ -664,45 +754,88 @@
             if(data) {
                 document.getElementById('cfg-aberta').value = data.loja_aberta.toString();
                 document.getElementById('cfg-cotacao').value = data.cotacao_real;
-                if(data.hora_abertura) document.getElementById('cfg-hora-abre').value = data.hora_abertura;
-                if(data.hora_fechamento) document.getElementById('cfg-hora-fecha').value = data.hora_fechamento;
+                document.getElementById('cfg-hora-abre').value = data.hora_abertura || '';
+                document.getElementById('cfg-hora-fecha').value = data.hora_fechamento || '';
+                
+                // Novos campos do Banner
+                document.getElementById('cfg-banner-id').value = data.banner_produto_id || '';
+                document.getElementById('cfg-banner-img').value = data.banner_imagem || '';
+                if(data.banner_imagem) {
+                    document.getElementById('preview-banner').src = data.banner_imagem;
+                    document.getElementById('preview-banner').style.display = 'block';
+                }
             }
         }
+
         async function salvarConfiguracoes() {
-             await supa.from('configuracoes').update({
-                 loja_aberta: document.getElementById('cfg-aberta').value === 'true',
-                 cotacao_real: document.getElementById('cfg-cotacao').value,
-                 hora_abertura: document.getElementById('cfg-hora-abre').value,
-                 hora_fechamento: document.getElementById('cfg-hora-fecha').value
-             }).gt('id', 0);
-             alert("Salvo!");
+            const dados = {
+                loja_aberta: document.getElementById('cfg-aberta').value === 'true',
+                cotacao_real: document.getElementById('cfg-cotacao').value,
+                hora_abertura: document.getElementById('cfg-hora-abre').value,
+                hora_fechamento: document.getElementById('cfg-hora-fecha').value,
+                // Novos campos salvando no banco
+                banner_produto_id: document.getElementById('cfg-banner-id').value,
+                banner_imagem: document.getElementById('cfg-banner-img').value
+            };
+            // Atualiza qualquer configuração existente
+            await supa.from('configuracoes').update(dados).gt('id', 0);
+            alert("Configurações e Banner salvos!");
         }
 
         function toggleTodos(s) { document.querySelectorAll('.check-pedido').forEach(c => c.checked = s.checked); }
+
         async function calcularFinanceiro() {
-            // ... (Sua lógica financeira mantida igual)
             const hoje = new Date().toISOString().split('T')[0];
-            const { data: vendas } = await supa.from('pedidos').select('*').eq('status', 'entregue').gte('data_pedido', hoje);
-            let totalPix = 0, totalCartao = 0, totalEfetivo = 0, totalGeral = 0, custoMotoboysTotal = 0;
-            const motoboysAtivos = new Set();
+            
+            // Busca TODAS as vendas entregues de hoje
+            const { data: vendas } = await supa.from('pedidos')
+                .select('*')
+                .eq('status', 'entregue')
+                .gte('data_pedido', hoje);
+
+            let pix=0, cartao=0, efetivo=0, total=0;
+            let qtdBalcao=0, totalBalcao=0;
+            let qtdDelivery=0, totalDelivery=0;
 
             if(vendas) {
                 vendas.forEach(v => {
-                    totalGeral += v.total_geral;
-                    if(v.forma_pagamento === 'Pix' || v.forma_pagamento === 'Transferencia') totalPix += v.total_geral;
-                    else if(v.forma_pagamento === 'Cartao') totalCartao += v.total_geral;
-                    else totalEfetivo += v.total_geral;
-                    custoMotoboysTotal += TAXA_MOTOBOY; 
-                    if(v.motoboy_id) motoboysAtivos.add(v.motoboy_id);
+                    total += v.total_geral;
+                    
+                    // Soma por método de pagamento
+                    if(v.forma_pagamento === 'Pix' || v.forma_pagamento === 'Transferencia') pix += v.total_geral;
+                    else if(v.forma_pagamento === 'Cartao') cartao += v.total_geral;
+                    else efetivo += v.total_geral;
+
+                    // Separa Delivery vs Balcão
+                    if(v.tipo_entrega === 'balcao') {
+                        qtdBalcao++;
+                        totalBalcao += v.total_geral;
+                    } else {
+                        qtdDelivery++;
+                        totalDelivery += v.total_geral;
+                    }
                 });
-                custoMotoboysTotal += (motoboysAtivos.size * AJUDA_COMBUSTIVEL);
-                document.getElementById('fin-pix').innerText = `Gs ${totalPix.toLocaleString('es-PY')}`;
-                document.getElementById('fin-cartao').innerText = `Gs ${totalCartao.toLocaleString('es-PY')}`;
-                document.getElementById('fin-efetivo').innerText = `Gs ${totalEfetivo.toLocaleString('es-PY')}`;
-                const lucroLiquido = totalGeral - custoMotoboysTotal;
-                document.getElementById('fin-liquido').innerText = `Gs ${lucroLiquido.toLocaleString('es-PY')}`;
             }
+
+            // Atualiza os Cards
+            document.getElementById('fin-pix').innerText = `Gs ${pix.toLocaleString('es-PY')}`;
+            document.getElementById('fin-cartao').innerText = `Gs ${cartao.toLocaleString('es-PY')}`;
+            document.getElementById('fin-efetivo').innerText = `Gs ${efetivo.toLocaleString('es-PY')}`;
+            document.getElementById('fin-total').innerText = `Gs ${total.toLocaleString('es-PY')}`; // Total Geral (Liq + Custos se quiser ajustar)
+
+            // Se você tiver uma tabela de resumo no HTML, pode preencher assim:
+            /*
+            const tb = document.querySelector('#tabela-financeiro tbody');
+            if(tb) {
+                tb.innerHTML = `
+                    <tr><td>🛵 Delivery</td><td>${qtdDelivery}</td><td>Gs ${totalDelivery.toLocaleString('es-PY')}</td></tr>
+                    <tr><td>🏪 Balcão</td><td>${qtdBalcao}</td><td>Gs ${totalBalcao.toLocaleString('es-PY')}</td></tr>
+                    <tr style="font-weight:bold; background:#eee;"><td>TOTAL</td><td>${qtdBalcao+qtdDelivery}</td><td>Gs ${total.toLocaleString('es-PY')}</td></tr>
+                `;
+            }
+            */
         }
+
         async function logout() { await supa.auth.signOut(); window.location.href='login.html'; }
         async function carregarDashboard() {
             const hoje = new Date().toISOString().split('T')[0];
@@ -748,6 +881,90 @@
 
 
         function fecharModal(id) { document.getElementById(id).style.display='none'; }
+
+        // --- LÓGICA DE VENDA BALCÃO ---
+let itensBalcao = [];
+let produtosCache = [];
+
+// 1. Carrega produtos para o autocomplete ao iniciar
+async function carregarListaSugestoes() {
+    const { data } = await supa.from('produtos').select('nome, preco');
+    produtosCache = data || [];
+    const dl = document.getElementById('lista-sugestoes');
+    if(dl) {
+        dl.innerHTML = '';
+        produtosCache.forEach(p => dl.innerHTML += `<option value="${p.nome}">Gs ${p.preco}</option>`);
+    }
+}
+// Chame isso no seu DOMContentLoaded lá em cima: carregarListaSugestoes();
+
+function abrirModalBalcao() {
+    itensBalcao = [];
+    document.getElementById('balcao-cliente').value = '';
+    document.getElementById('balcao-busca').value = '';
+    atualizarListaBalcao();
+    // Garante que a lista de sugestões esteja atualizada
+    if(produtosCache.length === 0) carregarListaSugestoes();
+    document.getElementById('modal-balcao').style.display = 'flex';
+}
+
+function adicionarItemBalcao() {
+    const val = document.getElementById('balcao-busca').value;
+    // Tenta achar o produto pelo nome
+    const prod = produtosCache.find(p => p.nome === val);
+    
+    if(prod) {
+        itensBalcao.push({ nome: prod.nome, preco: prod.preco, qtd: 1 });
+        document.getElementById('balcao-busca').value = ''; // Limpa para o próximo
+        atualizarListaBalcao();
+    }
+}
+
+function atualizarListaBalcao() {
+    const tb = document.getElementById('lista-itens-balcao');
+    tb.innerHTML = '';
+    let total = 0;
+    itensBalcao.forEach((i, idx) => {
+        total += i.preco;
+        tb.innerHTML += `<tr>
+            <td>${i.nome}</td>
+            <td>Gs ${i.preco.toLocaleString()}</td>
+            <td><button class="btn btn-sm btn-danger" onclick="itensBalcao.splice(${idx},1); atualizarListaBalcao()">X</button></td>
+        </tr>`;
+    });
+    document.getElementById('balcao-total').innerText = total.toLocaleString('es-PY');
+}
+
+async function salvarPedidoBalcao() {
+    const cliente = document.getElementById('balcao-cliente').value || 'Cliente Balcão';
+    const total = parseInt(document.getElementById('balcao-total').innerText.replace(/\D/g,''));
+    const pag = document.getElementById('balcao-pag').value;
+    
+    if(total === 0) return alert("Adicione itens!");
+
+    const pedido = {
+        uid_temporal: `BALC-${Math.floor(Math.random()*1000)}`,
+        status: 'entregue', // Balcão já nasce entregue
+        tipo_entrega: 'balcao', // Importante para diferenciar no relatório
+        total_geral: total,
+        subtotal: total,
+        frete_cobrado_cliente: 0,
+        forma_pagamento: pag,
+        itens: itensBalcao,
+        endereco_entrega: 'Retirada Balcão',
+        clientes: { nome: cliente } // Mock, ou pode salvar ID se quiser
+    };
+
+    const { error } = await supa.from('pedidos').insert([pedido]);
+    
+    if(error) alert("Erro: " + error.message);
+    else {
+        alert("Venda registrada!");
+        fecharModal('modal-balcao');
+        // Se tiver a função calcularFinanceiro, chame-a aqui
+        if(typeof calcularFinanceiro === 'function') calcularFinanceiro();
+    }
+}
     </script>
 </body>
 </html>

@@ -501,3 +501,24 @@ body { background: var(--bg); padding-bottom: 100px; }
     width: 18px; height: 18px; accent-color: var(--primary);
 }
 .montagem-item span { font-size: 0.95rem; color: #555; }
+
+@keyframes blink-red {
+    0% { border-color: #ff0000; box-shadow: 0 0 0 2px rgba(255,0,0,0.1); }
+    50% { border-color: #ffcccc; box-shadow: 0 0 5px rgba(255,0,0,0.5); }
+    100% { border-color: #ff0000; box-shadow: 0 0 0 2px rgba(255,0,0,0.1); }
+}
+
+.erro-validacao {
+    animation: blink-red 1s infinite !important;
+    border: 2px solid red !important;
+    background-color: #fff0f0 !important;
+}
+
+/* Texto de ajuda (Help Text) */
+.msg-erro-texto {
+    color: red;
+    font-size: 0.8rem;
+    margin-top: 4px;
+    font-weight: bold;
+    display: none; /* Escondido por padrão */
+}
