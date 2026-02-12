@@ -109,6 +109,10 @@
             <div class="checkout-body">
                 
                 <div id="carrinho-lista" class="cart-items-list"></div>
+                <div class="upsell-area mt-10">
+                    <h4 style="margin-bottom:10px; font-size:0.9rem; color:#666;">Bebidas & Extras</h4>
+                    <div id="lista-upsell" class="scroll-horizontal"></div>
+                </div>
 
                 <div class="form-section mt-20">
                     <h4 style="font-size: 1.1rem; color: #2D5A27; margin-bottom: 10px; text-align: center;">
@@ -161,6 +165,17 @@
                         <i class="fas fa-map-marker-alt"></i> Calcular Frete (Obrigatório)
                     </button>
                     <div id="frete-msg" class="frete-info"></div>
+
+                    <div id="box-erro-gps" style="display:none; background:#fff3cd; color:#856404; padding:10px; border:1px solid #ffeeba; border-radius:5px; margin-top:10px; font-size:0.9rem;">
+                        <p><strong><i class="fas fa-info-circle"></i> GPS não funcionou?</strong></p>
+                        <p>Sem problemas! Marque a opção abaixo para combinar o valor da entrega pelo WhatsApp.</p>
+                        
+                        <label style="display:flex; align-items:center; gap:10px; margin-top:5px; cursor:pointer;">
+                            <input type="checkbox" id="check-sem-gps" style="width:20px; height:20px;">
+                            <span>Vou enviar minha localização pelo WhatsApp</span>
+                        </label>
+                    </div>
+
                     <input type="text" id="cli-ref" placeholder="Ponto de Referência (Ex: Casa azul, portão preto)" class="input-field mt-10">
                 </div>
 

@@ -522,3 +522,59 @@ body { background: var(--bg); padding-bottom: 100px; }
     font-weight: bold;
     display: none; /* Escondido por padrão */
 }
+
+.scroll-horizontal {
+    display: flex;
+    overflow-x: auto;
+    gap: 10px;
+    padding: 5px 0;
+    /* Esconde a barra de rolagem feia em alguns navegadores */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none;  /* IE and Edge */
+}
+.scroll-horizontal::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+
+/* A IMAGEM CORRIGIDA */
+.upsell-item img {
+    width: 70px;          /* Largura fixa */
+    height: 70px;         /* Altura fixa (formando um quadrado) */
+    object-fit: cover;    /* O PULO DO GATO: preenche o quadrado sem distorcer */
+    border-radius: 12px;  /* Bordas arredondadas bonitas */
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1); /* Sombra suave */
+    margin-bottom: 5px;   /* Espaço para o texto abaixo */
+}
+
+/* Ajustes finos no texto do upsell */
+.upsell-info h4 {
+    font-size: 0.8rem;
+    margin: 0;
+    white-space: nowrap;       /* Não quebra linha */
+    overflow: hidden;          /* Esconde o que passar */
+    text-overflow: ellipsis;   /* Coloca "..." se o nome for longo */
+    max-width: 100%;
+}
+
+.upsell-info span {
+    font-size: 0.75rem;
+    color: var(--primary);
+    font-weight: bold;
+    display: block;
+    margin-bottom: 3px;
+}
+
+/* Botãozinho de adicionar (+) */
+.upsell-info button {
+    background: var(--primary);
+    color: white;
+    border: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
