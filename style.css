@@ -7,7 +7,15 @@
 }
 
 * { margin:0; padding:0; box-sizing:border-box; font-family:'Rubik', sans-serif; -webkit-tap-highlight-color:transparent; }
-body { background: var(--bg); padding-bottom: 100px; }
+html { height: 100%; }
+body { 
+    background: var(--bg); 
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    /* padding-bottom: 80px; espaço para cart-float */
+}
+main.menu-container { flex: 1; }
 
 /* Header */
 .app-header {
@@ -146,6 +154,16 @@ body { background: var(--bg); padding-bottom: 100px; }
 .prod-price { font-weight: 600; color: var(--primary); }
 .prod-img { width: 90px; height: 90px; border-radius: 10px; object-fit: cover; background: #eee; }
 
+/* Aplica cor primária em todos os elementos de destaque */
+.badge-primary, .highlight, .price-highlight {
+    color: var(--primary);
+}
+
+.tracker-step-active {
+    background: var(--primary) !important;
+    color: #fff;
+}
+
 /* Barra Carrinho */
 .cart-float {
     position: fixed; bottom: 20px; left: 20px; right: 20px;
@@ -166,10 +184,19 @@ body { background: var(--bg); padding-bottom: 100px; }
 .modal-bottom-sheet {
     background: #fff; width: 100%; max-width: 500px;
     border-radius: 20px 20px 0 0; padding: 25px; max-height: 90vh; display: flex; flex-direction: column;
-    animation: slideUp 0.3s;
+    animation: slideUpSmooth 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .full-height { height: 95vh; }
-@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes slideUpSmooth { 
+    from { 
+        transform: translateY(100%); 
+        opacity: 0.8;
+    } 
+    to { 
+        transform: translateY(0); 
+        opacity: 1;
+    } 
+}
 
 .close-btn, .close-modal {
     position: absolute;
@@ -577,4 +604,193 @@ body { background: var(--bg); padding-bottom: 100px; }
     display: flex;
     align-items: center;
     justify-content: center;
+}
+/* ===== TRACKER DE PEDIDO ===== */
+@keyframes slideUp {
+    from { opacity:0; transform:translateX(-50%) translateY(30px); }
+    to   { opacity:1; transform:translateX(-50%) translateY(0); }
+}
+.tracker-step {
+    flex:1; text-align:center; font-size:0.62rem; padding:5px 2px;
+    border-radius:6px; color:#aaa; font-weight:600;
+    transition: all 0.3s;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.tracker-step-active {
+    background:var(--primary, #FF441F); color:#fff;
+}
+.tracker-step-done {
+    background:#e8f5e9; color:#2e7d32;
+}
+
+/* === CUPOM DE DESCONTO === */
+.cupom-area {
+    margin: 15px 0;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 10px;
+    border: 2px dashed #dee2e6;
+}
+
+.cupom-input-group {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+    align-items: stretch; /* CORREÇÃO: alinha altura */
+}
+
+.cupom-input-group input {
+    flex: 1;
+    padding: 12px 15px;
+    border: 2px solid #dee2e6;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    min-width: 0; /* CORREÇÃO: permite encolher */
+}
+
+.cupom-input-group button {
+    padding: 12px 20px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap; /* CORREÇÃO: não quebra texto */
+    flex-shrink: 0; /* CORREÇÃO: não encolhe */
+}
+
+/* === RODAPÉ FIXO === */
+footer {
+    margin-top: auto !important;
+    position: relative;
+    bottom: 0;
+    width: 100%;
+}
+
+/* === ESTILOS MODERNOS PARA MODAIS DE CUPOM === */
+.modal-card-modern {
+    background: white;
+    border-radius: 20px;
+    width: 90%;
+    max-width: 550px;
+    max-height: 85vh;
+    overflow: hidden;
+    box-shadow: 0 25px 70px rgba(0,0,0,0.35);
+    animation: modalSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(30px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.modal-header-modern {
+    background: linear-gradient(135deg, var(--primary) 0%, #e63b1f 100%);
+    color: white;
+    padding: 20px 25px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header-modern h3 {
+    margin: 0;
+    font-size: 1.3rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.close-btn-modern {
+    background: rgba(255,255,255,0.2);
+    border: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.close-btn-modern:hover {
+    background: rgba(255,255,255,0.3);
+    transform: rotate(90deg);
+}
+
+.modal-body-modern {
+    padding: 25px;
+    max-height: calc(85vh - 160px);
+    overflow-y: auto;
+}
+
+.form-group-modern {
+    margin-bottom: 20px;
+}
+
+.form-group-modern label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #34495e;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.form-group-modern label i {
+    color: var(--primary);
+}
+
+/* Badge de status */
+.badge {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.badge-success {
+    background: #d4edda;
+    color: #155724;
+}
+
+.badge-danger {
+    background: #f8d7da;
+    color: #721c24;
+}
+/* =============================================
+   TRACKING CARD - ESTILOS
+   ============================================= */
+.track-step {
+    flex: 1;
+    text-align: center;
+    padding: 8px 4px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 8px;
+    font-size: 1.2rem;
+    opacity: 0.4;
+    transition: all 0.3s ease;
+}
+
+.track-step.active {
+    opacity: 1;
+    background: rgba(255,255,255,0.4);
+    transform: scale(1.1);
 }

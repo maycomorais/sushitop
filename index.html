@@ -3,13 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sushiteria Delivery</title>
+    <meta name="theme-color" content="#FF441F">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Sushiteria">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="https://img.freepik.com/vetores-gratis/desenho-de-modelo-de-logotipo-de-sushi_742173-17797.jpg">
+    <title>Sushitop Loma-Mariano</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <script src="translations.js"></script>
 </head>
 <body>
-
     <header class="app-header sticky">
         <div class="header-content">
             <div class="logo-area">
@@ -19,6 +26,197 @@
                     <span class="badge-status">Aberto</span>
                 </div>
             </div>
+            <div class="language-selector" style="position:absolute; top:15px; right:15px; z-index:1000;">
+    <button id="btn-idioma" onclick="toggleLanguageMenu()" style="background:rgba(255,255,255,0.95); border:2px solid var(--primary); padding:8px 15px; border-radius:8px; cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:600; color:#333; box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+        <span id="current-flag">🇵🇾</span>
+        <span id="current-code" style="font-size:0.9rem;">ES</span>
+        <i class="fas fa-chevron-down" style="font-size:0.7rem;"></i>
+    </button>
+    
+    <div id="language-menu" style="display:none; position:absolute; top:calc(100% + 8px); right:0; background:white; border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,0.15); min-width:200px; overflow:hidden; z-index:1001;">
+        <button onclick="changeLanguage('es')" style="width:100%; text-align:left; padding:12px 15px; border:none; background:none; cursor:pointer; display:flex; align-items:center; gap:12px; transition:all 0.2s;">
+            <span style="font-size:1.5rem">🇵🇾</span>
+            <div style="flex:1">
+                <div style="font-weight:600; color:#333">Español</div>
+                <div style="font-size:0.75rem; color:#999">Paraguay</div>
+            </div>
+        </button>
+        
+        <button onclick="changeLanguage('pt')" style="width:100%; text-align:left; padding:12px 15px; border:none; background:none; cursor:pointer; display:flex; align-items:center; gap:12px; transition:all 0.2s;">
+            <span style="font-size:1.5rem">🇧🇷</span>
+            <div style="flex:1">
+                <div style="font-weight:600; color:#333">Português</div>
+                <div style="font-size:0.75rem; color:#999">Brasil</div>
+            </div>
+        </button>
+        
+        <button onclick="changeLanguage('en')" style="width:100%; text-align:left; padding:12px 15px; border:none; background:none; cursor:pointer; display:flex; align-items:center; gap:12px; transition:all 0.2s;">
+            <span style="font-size:1.5rem">🇺🇸</span>
+            <div style="flex:1">
+                <div style="font-weight:600; color:#333">English</div>
+                <div style="font-size:0.75rem; color:#999">United States</div>
+            </div>
+        </button>
+        
+        <button onclick="changeLanguage('de')" style="width:100%; text-align:left; padding:12px 15px; border:none; background:none; cursor:pointer; display:flex; align-items:center; gap:12px; transition:all 0.2s;">
+            <span style="font-size:1.5rem">🇩🇪</span>
+            <div style="flex:1">
+                <div style="font-weight:600; color:#333">Deutsch</div>
+                <div style="font-size:0.75rem; color:#999">Deutschland</div>
+            </div>
+        </button>
+    </div>
+</div>
+
+<!-- CSS para hover -->
+<style>
+#language-menu button:hover {
+    background: #f8f9fa !important;
+}
+
+@media (max-width: 768px) {
+    .language-selector {
+        top: 10px;
+        right: 10px;
+    }
+    #btn-idioma {
+        padding: 6px 10px !important;
+        font-size: 0.9rem;
+    }
+}
+</style>
+
+<!-- JavaScript para funcionamento -->
+<script>
+// Dados dos idiomas
+const langData = {
+    es: { flag: '🇵🇾', code: 'ES' },
+    pt: { flag: '🇧🇷', code: 'PT' },
+    en: { flag: '🇺🇸', code: 'EN' },
+    de: { flag: '🇩🇪', code: 'DE' }
+};
+
+// Toggle menu
+function toggleLanguageMenu() {
+    const menu = document.getElementById('language-menu');
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+
+// Mudar idioma
+function changeLanguage(lang) {
+    // Salva preferência
+    localStorage.setItem('language', lang);
+    
+    // Atualiza botão
+    const data = langData[lang];
+    document.getElementById('current-flag').textContent = data.flag;
+    document.getElementById('current-code').textContent = data.code;
+    
+    // Fecha menu
+    document.getElementById('language-menu').style.display = 'none';
+    
+    // Aplica traduções
+    if (typeof updatePageLanguage === 'function') {
+        updatePageLanguage();
+    } else {
+        // Se função não existe, recarrega página
+        location.reload();
+    }
+}
+
+// Fecha menu ao clicar fora
+document.addEventListener('click', (e) => {
+    const selector = document.querySelector('.language-selector');
+    const menu = document.getElementById('language-menu');
+    if (selector && !selector.contains(e.target) && menu) {
+        menu.style.display = 'none';
+    }
+});
+
+// Inicializa idioma ao carregar
+window.addEventListener('DOMContentLoaded', () => {
+    const currentLang = localStorage.getItem('language') || 'es';
+    const data = langData[currentLang];
+    document.getElementById('current-flag').textContent = data.flag;
+    document.getElementById('current-code').textContent = data.code;
+});
+</script>
+</div>
+
+<!-- CSS p  ara o botão de idioma -->
+<style>
+.lang-option:hover {
+    background: #f8f9fa !important;
+}
+
+.lang-option:active {
+    transform: scale(0.98);
+}
+
+.btn-language:hover {
+    background: white !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+@media (max-width: 768px) {
+    .language-selector {
+        top: 10px;
+        right: 10px;
+    }
+    
+    .btn-language {
+        padding: 6px 10px !important;
+        font-size: 0.9rem;
+    }
+}
+</style>
+
+<!-- JavaScript para o botão de idioma -->
+<script>
+const languageData = {
+    es: { flag: '🇵🇾', code: 'ES' },
+    pt: { flag: '🇧🇷', code: 'PT' },
+    en: { flag: '🇺🇸', code: 'EN' },
+    de: { flag: '🇩🇪', code: 'DE' }
+};
+
+function toggleLanguageMenu() {
+    const menu = document.getElementById('language-menu');
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+
+function changeLanguage(lang) {
+    setLanguage(lang);
+    
+    // Atualiza o botão
+    const data = languageData[lang];
+    document.getElementById('current-lang-flag').textContent = data.flag;
+    document.getElementById('current-lang-code').textContent = data.code;
+    
+    // Fecha o menu
+    document.getElementById('language-menu').style.display = 'none';
+    
+    // Recarrega a página para aplicar tradução
+    location.reload();
+}
+
+// Fecha menu ao clicar fora
+document.addEventListener('click', (e) => {
+    const selector = document.querySelector('.language-selector');
+    const menu = document.getElementById('language-menu');
+    if (selector && !selector.contains(e.target)) {
+        menu.style.display = 'none';
+    }
+});
+
+// Define idioma inicial ao carregar
+window.addEventListener('DOMContentLoaded', () => {
+    const currentLang = getCurrentLanguage();
+    const data = languageData[currentLang];
+    document.getElementById('current-lang-flag').textContent = data.flag;
+    document.getElementById('current-lang-code').textContent = data.code;
+});
+</script>
             <div class="header-info">
                 <p><i class="fas fa-star" style="color:#fc0;"></i> 4.8</p>
                 <p>30-45 min</p>
@@ -39,6 +237,64 @@
     </div>
 
     <nav class="category-nav" id="category-nav"></nav>
+
+    <!-- ===== RASTREADOR DE PEDIDO (CARD FIXO) ===== -->
+    <div id="track-order-card" style="display: block; margin: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 16px; box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3); color: white;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3 style="margin: 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-shipping-fast"></i> Rastrear Pedido
+            </h3>
+            <button onclick="fecharCardTracking()" style="background: rgba(255,255,255,0.2); border: none; width: 32px; height: 32px; border-radius: 50%; color: white; cursor: pointer; font-size: 1.2rem;">×</button>
+        </div>
+        
+        <!-- Formulário de busca -->
+        <div id="track-form" style="display: block;">
+            <p style="margin: 0 0 12px 0; font-size: 0.9rem; opacity: 0.9;">Digite o número do seu pedido para acompanhar:</p>
+            <div style="display: flex; gap: 10px;">
+                <input type="number" id="track-pedido-input" placeholder="Ex: 81" style="flex: 1; padding: 12px; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600;">
+                <button onclick="buscarPedido()" style="padding: 12px 20px; background: white; color: #667eea; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; white-space: nowrap;">
+                    <i class="fas fa-search"></i> Buscar
+                </button>
+            </div>
+        </div>
+        
+        <!-- Resultado do tracking -->
+        <div id="track-result" style="display: none;">
+            <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 12px; margin-bottom: 15px;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                    <span id="track-icon" style="font-size: 2rem;">📦</span>
+                    <div style="flex: 1;">
+                        <div style="font-size: 0.8rem; opacity: 0.8;">Pedido #<span id="track-numero">-</span></div>
+                        <div id="track-status-msg" style="font-weight: 700; font-size: 1.05rem;">Carregando...</div>
+                    </div>
+                </div>
+                
+                <!-- Barra de progresso -->
+                <div style="display: flex; gap: 4px; margin-top: 12px;">
+                    <div id="track-step-1" class="track-step">📥</div>
+                    <div id="track-step-2" class="track-step">🔥</div>
+                    <div id="track-step-3" class="track-step">🛵</div>
+                    <div id="track-step-4" class="track-step">✅</div>
+                </div>
+            </div>
+            
+            <!-- Info do motoboy (aparece quando sair para entrega) -->
+            <div id="track-motoboy-info" style="display: none; background: rgba(255,255,255,0.95); color: #333; padding: 12px; border-radius: 10px;">
+                <div style="font-weight: 700; font-size: 0.9rem; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-motorcycle" style="color: var(--primary);"></i>
+                    <span>Saiu para Entrega</span>
+                </div>
+                <div style="font-size: 0.85rem; line-height: 1.6;">
+                    <strong>Motoboy:</strong> <span id="track-motoboy-nome">-</span><br>
+                    <strong>Contato:</strong> <a id="track-motoboy-tel" href="#" style="color: var(--primary); text-decoration: none; font-weight: 600;">-</a>
+                </div>
+            </div>
+            
+            <button onclick="voltarBusca()" style="width: 100%; padding: 10px; background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; font-weight: 600; cursor: pointer; margin-top: 10px;">
+                Rastrear Outro Pedido
+            </button>
+        </div>
+    </div>
 
     <div id="buy-again-container" style="display: none; margin: 20px 20px 0; background: #fff; padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #eee;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
@@ -109,6 +365,17 @@
             <div class="checkout-body">
                 
                 <div id="carrinho-lista" class="cart-items-list"></div>
+                
+                <!-- CUPOM DE DESCONTO -->
+                <div class="cupom-area">
+                    <h4 style="margin-bottom:10px; font-size:1rem; color:#333;">🎟️ Cupom de Desconto</h4>
+                    <div class="cupom-input-group">
+                        <input type="text" id="cupom-codigo" placeholder="Digite o código" maxlength="20">
+                        <button onclick="aplicarCupom()">Aplicar</button>
+                    </div>
+                    <div id="cupom-msg"></div>
+                </div>
+                
                 <div class="upsell-area mt-10">
                     <h4 style="margin-bottom:10px; font-size:0.9rem; color:#666;">Bebidas & Extras</h4>
                     <div id="lista-upsell" class="scroll-horizontal"></div>
@@ -209,9 +476,8 @@
             </div>
 
             <div class="checkout-footer">
-                <div class="row-total">
-                    <span>Total Final:</span>
-                    <strong id="total-final-checkout">Gs 0</strong>
+                <div id="total-final-checkout" style="width:100%; padding: 15px 0;">
+                    <!-- Será preenchido dinamicamente pelo JavaScript -->
                 </div>
                 <button class="btn-finish" onclick="enviarZap()">
                     Confirmar Pedido <i class="fab fa-whatsapp"></i>
@@ -220,8 +486,29 @@
         </div>
     </div>
 
+    <!-- ===== TRACKING DE PEDIDO ===== -->
+    <!-- ===== RODAPÉ ===== -->
+    <footer style="background:#2c3e50; color:#ecf0f1; text-align:center; padding:20px 10px; margin-top:40px; font-size:0.9rem;">
+        <p style="margin:0 0 5px 0;">💼 Desarrollado por <strong>MyM Developer's</strong></p>
+        <p style="margin:0; font-size:0.85rem;">
+            <i class="fab fa-whatsapp"></i> WhatsApp: 
+            <a href="https://wa.me/595976771714" target="_blank" style="color:#25D366; text-decoration:none; font-weight:600;">
+                +595 976 771 714
+            </a>
+        </p>
+        <p style="margin:10px 0 0 0; font-size:0.75rem; color:#95a5a6;">
+            Soluciones tecnológicas para restaurantes y servicios de entrega.
+        </p>
+    </footer>
+
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script src="supabaseClient.js"></script>
     <script src="app.js"></script>
+    <script>
+        // Registro do Service Worker para PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').catch(() => {});
+        }
+    </script>
 </body>
 </html>

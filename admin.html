@@ -4,112 +4,171 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Painel Administrativo - Sushi Top</title>
-    
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-    
-    <link rel="stylesheet" href="admin.css">
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link rel="stylesheet" href="admin.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   </head>
   <body>
-    
     <audio id="som-campainha" preload="auto" loop>
-        <source src="https://www.soundjay.com/door/sounds/doorbell-1.mp3" type="audio/mpeg">
+      <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg" />
+      <source src="https://freesound.org/data/previews/320/320655_5260872-lq.mp3" type="audio/mpeg" />
     </audio>
 
     <div class="sidebar">
       <div class="brand">SUSHI ADMIN</div>
+
+      <div
+        style="padding: 10px; text-align: center; font-size: 0.8rem; background: rgba(0, 0, 0, 0.2)"
+      >
+        <i class="fas fa-user-circle"></i> <span id="user-cargo">...</span><br />
+        <small id="user-email">...</small>
+      </div>
+
       <div class="menu">
         <div class="menu-item active" onclick="showTab('dashboard', event)">
           <i class="fas fa-chart-line"></i><span class="mobile-hide"> Visão</span>
         </div>
+
+        <div class="menu-item" onclick="showTab('pdv', event)" style="color: #ffca28">
+          <i class="fas fa-cash-register"></i><span class="mobile-hide"> PDV Balcão</span>
+        </div>
+
         <div class="menu-item" onclick="showTab('pedidos', event)">
           <i class="fas fa-clipboard-list"></i><span class="mobile-hide"> Pedidos</span>
         </div>
+
         <div class="menu-item" onclick="showTab('cozinha', event)">
           <i class="fas fa-fire"></i><span class="mobile-hide"> Cozinha</span>
         </div>
-        <div class="menu-item" onclick="showTab('motoboys', event)">
-          <i class="fas fa-motorcycle"></i><span class="mobile-hide"> Motos</span>
+
+        <div class="menu-item restrito-gerente" onclick="showTab('equipe', event)">
+          <i class="fas fa-users"></i><span class="mobile-hide"> Equipe</span>
         </div>
-        <div class="menu-item" onclick="showTab('financeiro', event)" id="menu-financeiro" style="display:none;">
-            <i class="fas fa-wallet"></i><span class="mobile-hide"> Finan.</span>
-        </div>
+
         <div class="menu-item" onclick="showTab('produtos', event)">
-          <i class="fas fa-utensils"></i><span class="mobile-hide"> Prod.</span>
+            <i class="fas fa-utensils"></i><span> Prod.</span>
         </div>
+
         <div class="menu-item" onclick="showTab('categorias', event)">
-          <i class="fas fa-tags"></i><span class="mobile-hide"> Cats</span>
+            <i class="fas fa-tags"></i><span> Cats</span>
         </div>
-        <div class="menu-item" onclick="showTab('configuracoes', event)">
-          <i class="fas fa-cog"></i><span class="mobile-hide"> Config</span>
+        
+        <div class="menu-item" onclick="showTab('motoboys', event)">
+            <i class="fas fa-motorcycle"></i><span> Motos</span>
         </div>
-        <div class="menu-item" onclick="abrirModalBalcao()">
-            <i class="fas fa-cash-register"></i><span class="mobile-hide"> Balcão</span>
+
+        <div class="menu-item restrito-gerente" onclick="showTab('financeiro', event)">
+          <i class="fas fa-wallet"></i><span class="mobile-hide"> Financeiro</span>
         </div>
-        <div class="menu-item" onclick="logout()" style="color: #e74c3c;">
-          <i class="fas fa-sign-out-alt"></i><span class="mobile-hide"> Sair</span>
+        <div class="menu-item restrito-func" onclick="showTab('configuracoes', event)">
+          <i class="fas fa-cogs"></i><span class="mobile-hide"> Config</span>
         </div>
+      </div>
+
+      <div class="menu-item" onclick="logout()" style="margin-top: auto; background: #c0392b">
+        <i class="fas fa-sign-out-alt"></i><span class="mobile-hide"> Sair</span>
       </div>
     </div>
 
     <div class="main-content">
-      
       <div id="dashboard" class="tab-content active">
-        <div class="header-title">
-          <h2>Visão Geral</h2>
-          <small id="user-cargo" style="color:#888; font-weight:bold;">CARREGANDO...</small>
-        </div>
-        <div class="card-grid">
-          <div class="kpi-card">
-            <div class="kpi-title">Vendas Hoje</div>
-            <div class="kpi-value kpi-green" id="kpi-vendas">Gs 0</div>
+        <div class="dash-header">
+          <div class="dash-title">
+            <span class="dash-greeting" id="dash-greeting">Bom dia</span>
+            <h2>Painel de Controle</h2>
           </div>
-          <div class="kpi-card">
-            <div class="kpi-title">Pedidos Entregues</div>
-            <div class="kpi-value" id="kpi-pedidos">0</div>
+          <div class="dash-date" id="dash-date"></div>
+        </div>
+
+        <div class="kpi-grid dash-kpi-grid">
+          <div class="kpi-card kpi-accent-green">
+            <div class="kpi-icon"><i class="fas fa-coins"></i></div>
+            <div class="kpi-info">
+              <div class="kpi-label">Vendas Hoje</div>
+              <div class="value" id="kpi-vendas">Gs 0</div>
+            </div>
           </div>
-          <div class="kpi-card">
-            <div class="kpi-title">Custo Motoboy</div>
-            <div class="kpi-value kpi-red" id="kpi-moto">Gs 0</div>
+          <div class="kpi-card kpi-accent-blue">
+            <div class="kpi-icon"><i class="fas fa-receipt"></i></div>
+            <div class="kpi-info">
+              <div class="kpi-label">Pedidos Hoje</div>
+              <div class="value" id="kpi-pedidos">0</div>
+            </div>
+          </div>
+          <div class="kpi-card kpi-accent-orange">
+            <div class="kpi-icon"><i class="fas fa-motorcycle"></i></div>
+            <div class="kpi-info">
+              <div class="kpi-label">A Pagar Motoboys</div>
+              <div class="value" id="kpi-moto">Gs 0</div>
+            </div>
+          </div>
+          <div class="kpi-card kpi-accent-red">
+            <div class="kpi-icon"><i class="fas fa-fire-alt"></i></div>
+            <div class="kpi-info">
+              <div class="kpi-label">Em Preparo</div>
+              <div class="value" id="kpi-em-preparo">0</div>
+            </div>
           </div>
         </div>
-        <h3>🏆 Ranking Produtos (Top 5)</h3>
-        <div class="table-container">
-          <table id="tabela-ranking">
-            <thead>
-              <tr><th>Produto</th><th>Vendas Totais</th></tr>
-            </thead>
-            <tbody></tbody>
-          </table>
+
+        <div class="dash-rankings">
+          <div class="card ranking-card">
+            <div class="ranking-header">
+              <i class="fas fa-trophy" style="color:#f59e0b"></i>
+              <h3>Top Produtos</h3>
+            </div>
+            <div id="ranking-produtos-list" class="ranking-list"></div>
+          </div>
+          <div class="card ranking-card">
+            <div class="ranking-header">
+              <i class="fas fa-star" style="color:#a78bfa"></i>
+              <h3>Clientes Assíduos</h3>
+            </div>
+            <div id="ranking-clientes-list" class="ranking-list"></div>
+          </div>
         </div>
+
+        <!-- legado para JS existente -->
+        <table id="tabela-ranking" style="display:none"><tbody></tbody></table>
       </div>
 
       <div id="pedidos" class="tab-content">
-        <div class="header-title">
-          <h2>Gestão de Pedidos</h2>
-          <button class="btn btn-primary" onclick="carregarPedidos()">
-            <i class="fas fa-sync"></i> Atualizar
+        <div class="section-topbar">
+          <h2 class="section-title">Pedidos</h2>
+          <button class="btn btn-primary btn-icon" onclick="carregarPedidos()" title="Atualizar">
+            <i class="fas fa-sync-alt"></i>
           </button>
         </div>
 
-        <div style="background: #fff; padding: 15px; border-radius: 8px; margin-bottom: 20px; display: flex; gap: 10px; align-items: center; border: 1px solid #eee;">
-          <strong><i class="fab fa-whatsapp"></i> Rota:</strong>
-          <select id="sel-motoboy" class="form-control" style="width: auto; flex: 1">
-            <option value="">Carregando...</option>
-          </select>
-          <button class="btn btn-success" onclick="enviarRotaZap()">Enviar</button>
+        <div class="card rota-card">
+          <div class="rota-card-title"><i class="fas fa-route"></i> Despachar Rota</div>
+          <div class="rota-controls">
+            <select id="sel-motoboy" class="form-control">
+              <option value="">Selecione Motoboy...</option>
+            </select>
+            <button class="btn btn-success btn-zap" onclick="enviarRotaZap()">
+              <i class="fab fa-whatsapp"></i> Enviar Rota
+            </button>
+          </div>
         </div>
 
-        <div class="table-container">
-          <table>
+        <div class="pedidos-list" id="lista-pedidos-cards"></div>
+
+        <!-- Tabela legado (oculta no mobile, visível desktop) -->
+        <div class="card pedidos-table-wrap">
+          <table class="table">
             <thead>
               <tr>
-                <th width="30"><input type="checkbox" onchange="toggleTodos(this)" /></th>
+                <th width="50">Rota</th>
                 <th>ID</th>
                 <th>Cliente</th>
                 <th>Status</th>
-                <th>Valor</th>
+                <th>Total</th>
                 <th>Ações</th>
               </tr>
             </thead>
@@ -119,235 +178,659 @@
       </div>
 
       <div id="cozinha" class="tab-content">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-           <h2><i class="fas fa-fire" style="color:var(--primary)"></i> Fila de Produção</h2>
-           <button onclick="carregarCozinha()" class="btn btn-info"><i class="fas fa-sync"></i> Atualizar</button>
+        <h2 class="section-title">Monitor de Cozinha (KDS)</h2>
+        <div class="cozinha-grid" id="grid-cozinha"></div>
+      </div>
+
+      <div id="pdv" class="tab-content">
+        <h2 class="section-title">🏪 Venda Balcão (PDV)</h2>
+
+        <div class="pdv-container">
+          <div class="pdv-carrinho">
+            <h4 style="margin-top: 0; text-align: center; color: #555">🛒 Novo Pedido</h4>
+
+            <div style="display: flex; gap: 5px; margin-bottom: 8px">
+              <div style="flex:0 0 80px">
+                <label class="pdv-label">Mesa <span class="obrig">*</span></label>
+                <input type="number" id="balcao-mesa" class="form-control" placeholder="Nº" min="1" required />
+              </div>
+              <div style="flex:1">
+                <label class="pdv-label">Cliente</label>
+                <input type="text" id="balcao-cliente" class="form-control" placeholder="Nome do cliente" />
+              </div>
+            </div>
+            <div style="margin-bottom: 10px">
+              <label class="pdv-label">Telefone (WhatsApp)</label>
+              <input type="tel" id="balcao-telefone" class="form-control" placeholder="Ex: 0981234567" />
+            </div>
+
+            <div class="pdv-lista-itens" id="pdv-lista"></div>
+
+            <div style="background: #f8f9fa; padding: 10px; border-radius: 5px">
+              <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 1.1rem; margin-bottom: 10px;">
+                <span>Total:</span>
+                <span>Gs <span id="balcao-total">0</span></span>
+              </div>
+              <select id="balcao-pag" class="form-control" style="margin-bottom: 8px"
+                onchange="atualizarInfoPagPDV(parseInt(document.getElementById('balcao-total').innerText.replace(/\D/g,'')))">
+                <option value="Efetivo">Efetivo</option>
+                <option value="Cartao">Cartão</option>
+                <option value="Pix">Pix</option>
+                <option value="Transferencia">Transferência</option>
+              </select>
+              <div id="balcao-pag-info" style="display:none; background:#e8f5e9; border:1px solid #4caf50; border-radius:6px; padding:8px 12px; font-size:0.9rem; color:#1b5e20; margin-bottom:8px"></div>
+              <button class="btn btn-success" style="width: 100%; padding: 12px" onclick="salvarPedidoBalcao()">
+                🚀 LANÇAR NA COZINHA
+              </button>
+            </div>
+          </div>
+
+          <div class="pdv-produtos" id="pdv-grid"></div>
+
+          <div class="pdv-monitor">
+            <h4 style="margin-top: 0; text-align: center; border-bottom: 1px solid #444; padding-bottom: 10px;">
+              <i class="fas fa-utensils"></i> Pedidos em Andamento
+            </h4>
+            <div id="lista-mesas-andamento">
+              <p style="text-align: center; font-size: 0.8rem; color: #aaa; margin-top: 20px">Nenhum pedido ativo.</p>
+            </div>
+          </div>
         </div>
-        <div id="grid-cozinha" style="display: flex; flex-direction: column; gap: 10px;"></div>
       </div>
 
       <div id="financeiro" class="tab-content">
-        <h2>Financeiro do Dia</h2>
-        <div class="finance-cards">
-          <div class="card">
-            <h3>Faturamento Total</h3>
-            <div class="value" id="card-faturamento">Gs 0</div>
-          </div>
-          <div class="card">
-            <h3>Custo Motoboys</h3>
-            <div class="value" id="card-custo-moto">Gs 0</div>
-          </div>
-          <div class="card">
-            <h3>Lucro Líquido</h3>
-            <div class="value" id="card-lucro" style="color: green">Gs 0</div>
-          </div>
-        </div>
+  <h2 class="section-title">💰 Controle Financeiro</h2>
 
-        <div class="finance-details" style="display: flex; gap: 20px; margin-top: 20px">
-          <div class="card" style="flex: 1; background: #fff3cd; color: #856404">
-            <h4>Pix / Transf.</h4>
-            <div class="value" id="total-pix">Gs 0</div>
-          </div>
-          <div class="card" style="flex: 1; background: #d4edda; color: #155724">
-            <h4>Efetivo</h4>
-            <div class="value" id="total-efetivo">Gs 0</div>
-          </div>
-          <div class="card" style="flex: 1; background: #cce5ff; color: #004085">
-            <h4>Cartão</h4>
-            <div class="value" id="total-cartao">Gs 0</div>
-          </div>
-        </div>
+  <!-- ===== FILTROS ===== -->
+  <div class="filtro-bar">
+    <div class="filtro-group">
+      <label><i class="far fa-calendar-alt"></i> Início</label>
+      <input type="date" id="fin-inicio" />
+    </div>
 
-        <h3 style="margin-top: 30px; border-bottom: 2px solid var(--primary); padding-bottom: 10px">
-          <i class="fas fa-motorcycle"></i> Detalhamento por Motoboy
-        </h3>
-        <div class="table-container">
-          <table>
-            <thead style="background: var(--dark); color: white">
-              <tr>
-                <th>Motoboy</th>
-                <th>Qtd</th>
-                <th>Valor Unit.</th>
-                <th style="text-align: right">Total</th>
-              </tr>
-            </thead>
-            <tbody id="lista-financeiro-motoboys"></tbody>
-          </table>
+    <div class="filtro-group">
+      <label><i class="far fa-calendar-alt"></i> Fim</label>
+      <input type="date" id="fin-fim" />
+    </div>
+
+    <div class="filtro-group">
+      <label><i class="fas fa-wallet"></i> Pagamento</label>
+      <select id="fin-tipo">
+        <option value="todos">Todos</option>
+        <option value="Efetivo">Dinheiro</option>
+        <option value="Cartao">Cartão</option>
+        <option value="Pix">Pix</option>
+        <option value="Transferencia">Transferência</option>
+      </select>
+    </div>
+
+    <!-- NOVO FILTRO -->
+    <div class="filtro-group">
+      <label><i class="fas fa-receipt"></i> Factura</label>
+      <select id="fin-factura">
+        <option value="todos">Todos</option>
+        <option value="com_factura">Com Factura</option>
+        <option value="sem_factura">Sem Factura</option>
+      </select>
+    </div>
+
+    <button class="btn-filtrar" onclick="calcularFinanceiro()">
+      <i class="fas fa-filter"></i> Filtrar
+    </button>
+
+    <!-- NOVO BOTÃO EXPORTAR -->
+    <button class="btn btn-success" onclick="exportarFinanceiro()" style="height: 45px;">
+      <i class="fas fa-file-excel"></i> Excel
+    </button>
+    <button class="btn btn-primary" onclick="abrirGraficos()" style="height:45px; background:#8e44ad; border-color:#8e44ad">
+      <i class="fas fa-chart-bar"></i> Gráficos
+    </button>
+  </div>
+
+  <!-- ===== CONTROLE DE CAIXA ===== -->
+  <div class="card" style="margin-bottom: 20px; padding: 20px; border: none; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);">
+    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px">
+      <div style="width: 4px; height: 20px; background: var(--primary); border-radius: 2px"></div>
+      <h3 style="margin: 0; color: #444">Controle de Caixa</h3>
+    </div>
+
+    <div class="actions-grid">
+      <button class="action-card ac-abrir" onclick="abrirModalCaixa('abertura')">
+        <i class="fas fa-door-open"></i>
+        <span>Abrir Caixa</span>
+      </button>
+
+      <button class="action-card ac-suprir" onclick="abrirModalCaixa('suprimento')">
+        <i class="fas fa-plus-circle"></i>
+        <span>Suprimento</span>
+      </button>
+
+      <button class="action-card ac-sangria" onclick="abrirModalCaixa('sangria')">
+        <i class="fas fa-hand-holding-usd"></i>
+        <span>Sangria</span>
+      </button>
+
+      <button class="action-card ac-despesa" onclick="abrirModalCaixa('despesa')">
+        <i class="fas fa-file-invoice-dollar"></i>
+        <span>Despesa</span>
+      </button>
+
+      <button class="action-card ac-fechar" onclick="fecharCaixaResumo()">
+        <i class="fas fa-calculator"></i>
+        <span>Fechar Dia</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ===== KPIs PRINCIPAIS ===== -->
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <h3>Faturamento</h3>
+      <div class="value" id="card-faturamento">Gs 0</div>
+    </div>
+    <div class="kpi-card">
+      <h3>Custo Entregas</h3>
+      <div class="value" id="card-custo-moto">Gs 0</div>
+    </div>
+    <div class="kpi-card">
+      <h3>Lucro Operacional</h3>
+      <div class="value" id="card-lucro" style="color: green">Gs 0</div>
+    </div>
+    
+    <!-- NOVOS CARDS -->
+    <div class="kpi-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+      <h3 style="color: rgba(255,255,255,0.9);">Total Pedidos</h3>
+      <div class="value" id="card-qtd-pedidos" style="color: white;">0</div>
+    </div>
+    <div class="kpi-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+      <h3 style="color: rgba(255,255,255,0.9);">Ticket Médio</h3>
+      <div class="value" id="card-ticket-medio" style="color: white;">Gs 0</div>
+    </div>
+  </div>
+
+  <!-- ===== FORMAS DE PAGAMENTO ===== -->
+  <div class="card" style="margin-top: 20px; padding: 20px;">
+    <h3 style="margin-bottom: 15px; color: #555;">💳 Por Forma de Pagamento</h3>
+    <div class="kpi-grid" style="margin: 0;">
+      <div class="kpi-card" style="background: #fff3cd; border-left: 4px solid #ffc107;">
+        <h4 style="color: #856404;">Dinheiro</h4>
+        <div class="value" id="total-efetivo" style="color: #856404;">Gs 0</div>
+      </div>
+      <div class="kpi-card" style="background: #d1ecf1; border-left: 4px solid #17a2b8;">
+        <h4 style="color: #0c5460;">Cartão</h4>
+        <div class="value" id="total-cartao" style="color: #0c5460;">Gs 0</div>
+      </div>
+      <div class="kpi-card" style="background: #d4edda; border-left: 4px solid #28a745;">
+        <h4 style="color: #155724;">Pix</h4>
+        <div class="value" id="total-pix" style="color: #155724;">Gs 0</div>
+      </div>
+      <div class="kpi-card" style="background: #e7e8ea; border-left: 4px solid #6c757d;">
+        <h4 style="color: #383d41;">Transferência</h4>
+        <div class="value" id="total-transf" style="color: #383d41;">Gs 0</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TABELA MOTOBOYS ===== -->
+  <div class="card" style="margin-top: 20px">
+    <h3>🏍️ Relatório Motoboys</h3>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>Qtd Entregas</th>
+          <th>Taxa Unitária</th>
+          <th>Total a Pagar</th>
+        </tr>
+      </thead>
+      <tbody id="lista-financeiro-motoboys"></tbody>
+    </table>
+  </div>
+</div>
+
+      <div id="equipe" class="tab-content">
+        <h2 class="section-title">Gestão de Equipe</h2>
+        <div class="card">
+          <div style="margin-bottom: 20px">
+            <h4 style="margin-bottom:12px">Cadastrar Usuário</h4>
+            <div class="equipe-form">
+              <input type="email" id="novo-user-email" placeholder="Email" class="form-control" />
+              <input type="text" id="novo-user-senha" placeholder="Senha (mín. 6)" class="form-control" />
+              <select id="novo-user-cargo" class="form-control">
+                <option value="funcionario">Funcionário</option>
+                <option value="gerente">Gerente</option>
+              </select>
+              <button class="btn btn-success" onclick="cadastrarUsuario()">
+                <i class="fas fa-user-plus"></i> Criar
+              </button>
+            </div>
+          </div>
+          <div class="table-container">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Email</th>
+                  <th>Cargo</th>
+                  <th>Data</th>
+                </tr>
+              </thead>
+              <tbody id="lista-equipe"></tbody>
+            </table>
+          </div>
         </div>
       </div>
 
-      <div id="produtos" class="tab-content">
-        <div class="header-title">
-          <h2>Produtos</h2>
-          <button class="btn btn-primary" onclick="abrirModalProduto()">
-            <i class="fas fa-plus"></i> Novo
-          </button>
-        </div>
-        <div class="table-container">
-          <table>
-            <thead>
-              <tr><th>Img</th><th>Nome</th><th>Cat</th><th>Preço</th><th>Ações</th></tr>
-            </thead>
-            <tbody id="lista-produtos"></tbody>
-          </table>
-        </div>
-      </div>
+<div id="produtos" class="tab-content">
+  
+  <div class="header-title" style="flex-direction: column; align-items: flex-start; gap: 15px;">
+    <h2>Gestão de Estoque e Equipe</h2>
+    
+    <div class="sub-nav" style="display: flex; gap: 10px; background: #eee; padding: 5px; border-radius: 8px;">
+        <button class="btn btn-secondary" onclick="showSubTab('lista-produtos-wrapper')">Produtos</button>
+        <button class="btn btn-secondary" onclick="showSubTab('lista-categorias-wrapper')">Categorias</button>
+        <button class="btn btn-secondary" onclick="showSubTab('lista-motos-wrapper')">Motoboys</button>
+    </div>
+  </div>
 
-      <div id="categorias" class="tab-content">
-        <div class="header-title">
-          <h2>Categorias</h2>
-          <button class="btn btn-primary" onclick="abrirModalCategoria()">
-            <i class="fas fa-plus"></i> Nova
-          </button>
-        </div>
-        <div class="table-container">
-          <table>
-            <thead>
-              <tr><th>Slug</th><th>Nome</th><th>Ordem</th><th>Ações</th></tr>
-            </thead>
-            <tbody id="lista-categorias"></tbody>
-          </table>
-        </div>
+  <div id="lista-produtos-wrapper" class="subtab-content">
+      <div style="display: flex; justify-content: space-between; margin: 15px 0;">
+          <h3>Produtos</h3>
+          <button class="btn btn-primary" onclick="abrirModalProduto()">Novo Produto</button>
       </div>
-
-      <div id="motoboys" class="tab-content">
-        <div class="header-title">
-          <h2>Motoboys</h2>
-          <button class="btn btn-primary" onclick="abrirModalMoto()">
-            <i class="fas fa-plus"></i> Novo
-          </button>
-        </div>
-        <div class="table-container">
+      <div class="table-container">
           <table>
-            <thead>
-              <tr><th>Nome</th><th>Telefone</th><th>Ações</th></tr>
-            </thead>
-            <tbody id="lista-motos"></tbody>
+              <thead><tr><th>ID</th><th>Img</th><th>Nome</th><th>Cat</th><th>Preço</th><th>Ações</th></tr></thead>
+              <tbody id="lista-produtos"></tbody>
           </table>
-        </div>
       </div>
+  </div>
 
+  <div id="lista-categorias-wrapper" class="subtab-content" style="display: none;">
+      <div style="display: flex; justify-content: space-between; margin: 15px 0;">
+          <h3>Categorias</h3>
+          <button class="btn btn-primary" onclick="abrirModalCategoria()">Nova Categoria</button>
+      </div>
+      <div class="table-container">
+          <table>
+              <thead><tr><th>Slug</th><th>Nome</th><th>Ordem</th><th>Ações</th></tr></thead>
+              <tbody id="lista-categorias"></tbody>
+          </table>
+      </div>
+  </div>
+
+  <div id="lista-motos-wrapper" class="subtab-content" style="display: none;">
+      <div style="display: flex; justify-content: space-between; margin: 15px 0;">
+          <h3>Equipe Motoboys</h3>
+          <button class="btn btn-primary" onclick="abrirModalMoto()">Novo Motoboy</button>
+      </div>
+      <div class="table-container">
+          <table>
+              <thead><tr><th>Nome</th><th>Telefone</th><th>Ações</th></tr></thead>
+              <tbody id="lista-motos"></tbody>
+          </table>
+      </div>
+  </div>
+</div>
+
+      <!-- ===== ABA CONFIGURAÇÕES (COMPLETA) ===== -->
       <div id="configuracoes" class="tab-content">
-        <h2>Configurações da Loja</h2>
-        <div style="display: flex; flex-wrap: wrap; gap: 20px">
-          <div style="flex: 1; min-width: 300px; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);">
-            <h3>⚡ Funcionamento</h3>
+        <h2 class="section-title">⚙️ Configurações</h2>
+
+        <div class="card cfg-card">
+          <div class="cfg-section-title"><i class="fas fa-store"></i> Loja &amp; Horário</div>
+          <div class="cfg-grid">
             <div class="form-group">
-              <label>Loja Aberta?</label>
+              <label>Status</label>
               <select id="cfg-aberta" class="form-control">
-                <option value="true">SIM</option>
-                <option value="false">NÃO</option>
+                <option value="true">🟢 Aberta</option>
+                <option value="false">🔴 Fechada</option>
               </select>
             </div>
             <div class="form-group">
-              <label>Cotação Real (R$)</label>
-              <input type="number" id="cfg-cotacao" class="form-control" />
-            </div>
-            <div style="display: flex; gap: 10px">
-              <div class="form-group" style="flex: 1">
-                <label>Abre</label><input type="time" id="cfg-hora-abre" class="form-control" />
-              </div>
-              <div class="form-group" style="flex: 1">
-                <label>Fecha</label><input type="time" id="cfg-hora-fecha" class="form-control" />
-              </div>
-            </div>
-          </div>
-          <div style="flex: 1; min-width: 300px; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);">
-            <h3>📢 Banner Promocional</h3>
-            <div class="form-group">
-              <label>ID do Produto</label>
-              <input type="text" id="cfg-banner-id" class="form-control" placeholder="Ex: 15" />
+              <label>Cotação Real (Gs/R$)</label>
+              <input type="number" id="cfg-cotacao" class="form-control" placeholder="Ex: 1100">
             </div>
             <div class="form-group">
-              <label>Imagem do Banner (URL)</label>
-              <input type="text" id="cfg-banner-img" class="form-control" />
+              <label>Abre às</label>
+              <input type="time" id="cfg-hora-abre" class="form-control">
             </div>
-            <div style="text-align: center; margin-top: 10px">
-              <img id="preview-banner" src="" style="max-width: 100%; height: 100px; object-fit: cover; border-radius: 8px; display: none;" />
+            <div class="form-group">
+              <label>Fecha às</label>
+              <input type="time" id="cfg-hora-fecha" class="form-control">
             </div>
           </div>
+          <button class="btn btn-primary" onclick="salvarConfiguracoes()" style="margin-top:12px">
+            <i class="fas fa-save"></i> Salvar Configurações
+          </button>
         </div>
-        <button class="btn btn-success" style="margin-top: 20px; width: 100%; padding: 15px" onclick="salvarConfiguracoes()">SALVAR TUDO</button>
+
+        <div class="card cfg-card" style="margin-top:16px">
+          <div class="cfg-section-title"><i class="fas fa-tags"></i> Promoção do Dia (Banner)</div>
+          <p style="font-size:0.83rem;color:#888;margin-bottom:12px">
+            Ao clicar no banner, o cliente já abre o modal do produto para comprar.
+          </p>
+          <div class="form-group">
+            <label>ID do Produto Promocional</label>
+            <input type="text" id="cfg-banner-id" class="form-control" placeholder="Ex: 42">
+          </div>
+          <div class="form-group" style="margin-top:10px">
+            <label>Foto do Banner <span class="obrig">*</span></label>
+            <input type="file" id="cfg-banner-file" class="form-control" accept="image/*" onchange="previewBanner(this)">
+          </div>
+          <div id="cfg-banner-preview-box" style="display:none;margin:10px 0;text-align:center">
+            <img id="cfg-banner-preview" src="" style="max-height:130px;border-radius:8px;border:1px solid #ddd">
+          </div>
+          <input type="hidden" id="cfg-banner-img">
+          <button class="btn btn-success" onclick="salvarBanner()" style="margin-top:10px;width:100%">
+            <i class="fas fa-upload"></i> Enviar Foto &amp; Ativar Promoção
+          </button>
+        </div>
+
+        <!-- DEPOIS DA SEÇÃO DE PERSONALIZAÇÃO VISUAL -->
+<div class="card cfg-card" style="margin-top:16px">
+    <div class="cfg-section-title">
+        <i class="fas fa-ticket-alt"></i> Gestão de Cupons de Desconto
+    </div>
+    
+    <button class="btn btn-primary" onclick="abrirModalCupom()" style="margin-bottom:15px">
+        <i class="fas fa-plus"></i> Novo Cupom
+    </button>
+    
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Tipo</th>
+                    <th>Valor</th>
+                    <th>Mínimo</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody id="lista-cupons">
+                <!-- Preenchido via JS -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- MODAL DE CUPOM -->
+<div class="modal-overlay" id="modal-cupom">
+    <div class="modal-card-modern">
+        <div class="modal-header-modern">
+            <h3><i class="fas fa-ticket-alt"></i> Gerenciar Cupom</h3>
+            <button class="close-btn-modern" onclick="fecharModal('modal-cupom')">×</button>
+        </div>
+        
+        <div class="modal-body-modern">
+            <input type="hidden" id="cupom-id">
+            
+            <div class="form-group-modern">
+                <label><i class="fas fa-tag"></i> Código do Cupom</label>
+                <input type="text" id="cupom-codigo" class="input-modern" 
+                       placeholder="Ex: BEMVINDO10" style="text-transform:uppercase">
+            </div>
+            
+            <div class="form-group-modern">
+                <label><i class="fas fa-percentage"></i> Tipo de Desconto</label>
+                <select id="cupom-tipo" class="input-modern" onchange="alterarTipoCupom()">
+                    <option value="percentual">Desconto Percentual (%)</option>
+                    <option value="frete">Frete Grátis</option>
+                </select>
+            </div>
+            
+            <div class="form-group-modern" id="box-valor-cupom">
+                <label><i class="fas fa-percent"></i> Valor do Desconto (%)</label>
+                <input type="number" id="cupom-valor" class="input-modern" 
+                       placeholder="Ex: 10" min="0" max="100">
+            </div>
+            
+            <div class="form-group-modern">
+                <label><i class="fas fa-money-bill"></i> Valor Mínimo do Pedido (Gs)</label>
+                <input type="number" id="cupom-minimo" class="input-modern" 
+                       placeholder="Ex: 50000" min="0">
+            </div>
+            
+            <div class="checkbox-modern">
+                <input type="checkbox" id="cupom-ativo" checked>
+                <label for="cupom-ativo">
+                    <strong>Cupom Ativo</strong><br>
+                    <small>Desmarque para desativar temporariamente</small>
+                </label>
+            </div>
+        </div>
+        
+        <div class="modal-footer-modern">
+            <button class="btn-modern btn-modern-cancel" onclick="fecharModal('modal-cupom')">
+                <i class="fas fa-times"></i> Cancelar
+            </button>
+            <button class="btn-modern btn-modern-primary" onclick="salvarCupom()">
+                <i class="fas fa-save"></i> Salvar Cupom
+            </button>
+        </div>
+    </div>
+</div>
+
+        <div class="card cfg-card" style="margin-top:16px">
+          <div class="cfg-section-title"><i class="fas fa-palette"></i> Personalização Visual</div>
+          <div class="cfg-grid">
+            <div class="form-group">
+              <label>Nome da Loja</label>
+              <input type="text" id="cfg-nome-loja" class="form-control" placeholder="Ex: Sushiteria">
+            </div>
+            <div class="form-group">
+              <label>Cor Principal (botões)</label>
+              <div style="display:flex;gap:8px;align-items:center">
+                <input type="color" id="cfg-cor-primaria" value="#FF441F" style="width:50px;height:40px;border:none;cursor:pointer;border-radius:4px">
+                <input type="text" id="cfg-cor-primaria-hex" class="form-control" placeholder="#FF441F" style="flex:1">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Ícone da Loja (upload)</label>
+              <input type="file" id="cfg-icone-file" class="form-control" accept="image/*" onchange="previewIcone(this)">
+            </div>
+            <div class="form-group" id="cfg-icone-preview-box" style="display:none">
+              <label>Preview</label>
+              <img id="cfg-icone-preview" src="" style="width:60px;height:60px;object-fit:cover;border-radius:50%;border:2px solid #ddd">
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="salvarPersonalizacao()" style="margin-top:12px">
+            <i class="fas fa-paint-brush"></i> Salvar Personalização
+          </button>
+        </div>
       </div>
 
-    </div> <div id="modal-produto" class="modal-overlay">
-      <div class="modal-box">
-        <span class="close-modal" onclick="fecharModal('modal-produto')">&times;</span>
-        <h3>Produto</h3>
+    </div><!-- /main-content -->
+
+
+    <div id="modal-produto" class="modal-overlay">
+      <div class="modal-content">
+        <h3>Gerenciar Produto</h3>
         <input type="hidden" id="prod-id" />
-        <div class="form-group"><label>Nome</label><input type="text" id="prod-nome" class="form-control" /></div>
-        <div class="form-group"><label>Descrição</label><input type="text" id="prod-desc" class="form-control" /></div>
-        <div style="display: flex; gap: 10px">
-          <div class="form-group" style="flex: 1"><label>Preço</label><input type="number" id="prod-preco" class="form-control" /></div>
-          <div class="form-group" style="flex: 1"><label>Categoria</label><select id="prod-cat" class="form-control"></select></div>
-        </div>
+
         <div class="form-group">
-           <label>Imagem (URL ou Upload)</label>
-           <input type="text" id="prod-img" class="form-control" placeholder="Link da imagem..." style="margin-bottom:5px;">
-           <input type="file" id="prod-img-file" accept="image/*" class="form-control" onchange="previewUpload(this)">
-           <div id="box-preview" style="display:none; text-align:center; margin-top:10px;">
-               <img id="img-preview" src="" style="height:80px; border-radius:5px;">
-           </div>
+          <label>Nome</label>
+          <input type="text" id="prod-nome" class="form-control" />
         </div>
-        <div class="form-group" style="background: #f0faff; padding: 10px; border-radius: 5px">
-           <label style="display:flex; align-items:center; gap:5px;"><input type="checkbox" id="prod-montavel" onchange="toggleBuilder()"> Produto Montável?</label>
-           <div id="builder-area" class="builder-box" style="display: none">
-              <div id="builder-steps"></div>
-              <button class="btn btn-sm btn-primary" style="margin-top: 10px" onclick="addBuilderStep()">+ Etapa</button>
-           </div>
+
+        <div class="form-group">
+          <label>Descrição</label>
+          <textarea id="prod-desc" class="form-control"></textarea>
         </div>
+
+        <div class="form-group" style="display: flex; gap: 10px">
+          <div style="flex: 1">
+            <label>Preço (Gs)</label>
+            <input type="number" id="prod-preco" class="form-control" />
+          </div>
+          <div style="flex: 1">
+            <label>Categoria</label>
+            <select id="prod-cat" class="form-control"></select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Imagem (Upload ou URL)</label>
+          <input
+            type="file"
+            id="prod-img-file"
+            class="form-control"
+            onchange="previewUpload(this)"
+          />
+          <input type="text" id="prod-img" class="form-control" placeholder="Ou cole a URL aqui" />
+          <div id="box-preview" style="display: none; margin-top: 10px; text-align: center">
+            <img id="img-preview" src="" style="max-height: 100px; border-radius: 5px" />
+          </div>
+        </div>
+
+        <hr />
+        <div class="form-group" style="display: flex; align-items: center; gap: 10px">
+          <input
+            type="checkbox"
+            id="prod-montavel"
+            onchange="toggleBuilder()"
+            style="width: 20px; height: 20px"
+          />
+          <label for="prod-montavel" style="font-weight: bold"
+            >Este produto é montável? (Ex: Poke, Combo)</label
+          >
+        </div>
+
+        <div
+          id="builder-area"
+          style="
+            display: none;
+            background: #f9f9f9;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+          "
+        >
+          <h4>Etapas de Montagem</h4>
+          <div id="builder-steps"></div>
+          <button class="btn btn-sm btn-info" onclick="addBuilderStep()">+ Adicionar Etapa</button>
+        </div>
+
         <div class="modal-actions">
-           <button class="btn btn-danger" onclick="fecharModal('modal-produto')">Cancelar</button>
-           <button class="btn btn-success" onclick="salvarProduto()">Salvar</button>
+          <button class="btn btn-primary" onclick="salvarProduto()">Salvar Produto</button>
+          <button class="btn btn-secondary" onclick="fecharModal('modal-produto')">Cancelar</button>
         </div>
       </div>
     </div>
 
     <div id="modal-cat" class="modal-overlay">
-      <div class="modal-box">
-        <span class="close-modal" onclick="fecharModal('modal-cat')">&times;</span>
-        <h3 id="titulo-modal-cat">Nova Categoria</h3>
-        <input type="hidden" id="cat-modo-edicao" value="nao" />
-        <div class="form-group"><label>Slug (ID)</label><input type="text" id="cat-slug" class="form-control" /></div>
-        <div class="form-group"><label>Nome Exibição</label><input type="text" id="cat-nome" class="form-control" /></div>
-        <div class="form-group"><label>Ordem</label><input type="number" id="cat-ordem" class="form-control" /></div>
-        <div class="modal-actions"><button class="btn btn-success" onclick="salvarCategoria()">Salvar</button></div>
+      <div class="modal-content" style="max-width: 400px">
+        <h3 id="titulo-modal-cat">Categoria</h3>
+        <input type="hidden" id="cat-modo-edicao" />
+        <div class="form-group">
+          <label>Slug (ID único, sem espaços)</label>
+          <input type="text" id="cat-slug" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label>Nome Exibição</label>
+          <input type="text" id="cat-nome" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label>Ordem</label>
+          <input type="number" id="cat-ordem" class="form-control" />
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-primary" onclick="salvarCategoria()">Salvar</button>
+          <button class="btn btn-secondary" onclick="fecharModal('modal-cat')">Cancelar</button>
+        </div>
       </div>
     </div>
 
     <div id="modal-moto" class="modal-overlay">
-      <div class="modal-box">
-        <span class="close-modal" onclick="fecharModal('modal-moto')">&times;</span>
+      <div class="modal-content" style="max-width: 400px">
         <h3>Motoboy</h3>
         <input type="hidden" id="moto-id" />
-        <div class="form-group"><label>Nome</label><input type="text" id="moto-nome" class="form-control" /></div>
-        <div class="form-group"><label>Telefone</label><input type="text" id="moto-tel" class="form-control" /></div>
-        <div class="modal-actions"><button class="btn btn-success" onclick="salvarMotoboy()">Salvar</button></div>
+        <div class="form-group">
+          <label>Nome</label>
+          <input type="text" id="moto-nome" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label>Telefone (WhatsApp)</label>
+          <input type="text" id="moto-tel" class="form-control" />
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-primary" onclick="salvarMotoboy()">Salvar</button>
+          <button class="btn btn-secondary" onclick="fecharModal('modal-moto')">Cancelar</button>
+        </div>
       </div>
     </div>
 
-    <div id="modal-balcao" class="modal-overlay">
-      <div class="modal-box">
-        <span class="close-modal" onclick="fecharModal('modal-balcao')">&times;</span>
-        <h3>🏪 Venda Balcão</h3>
-        <div class="form-group"><label>Cliente</label><input type="text" id="balcao-cliente" class="form-control" placeholder="Nome" /></div>
-        <div class="form-group"><label>Buscar Item</label><input list="lista-sugestoes" id="balcao-busca" class="form-control" onchange="adicionarItemBalcao()" /><datalist id="lista-sugestoes"></datalist></div>
-        <div style="max-height: 150px; overflow-y: auto; border: 1px solid #eee; margin-bottom: 10px"><table style="font-size: 0.9rem"><tbody id="lista-itens-balcao"></tbody></table></div>
-        <div style="text-align: right; font-weight: bold; font-size: 1.2rem; margin-bottom: 10px">Total: Gs <span id="balcao-total">0</span></div>
+    <!-- ===== MODAL CAIXA (faltava no HTML) ===== -->
+    <div id="modal-caixa" class="modal-overlay" style="display:none">
+      <div class="modal-content" style="max-width:420px">
+        <h3 id="titulo-caixa">Operação de Caixa</h3>
+        <input type="hidden" id="tipo-caixa" value="">
         <div class="form-group">
-            <label>Pagamento</label>
-            <select id="balcao-pag" class="form-control">
-                <option value="Efetivo">Efetivo</option>
-                <option value="Cartao">Cartão</option>
-                <option value="Pix">Pix</option>
-                <option value="Transferencia">Transferência</option>
-            </select>
+          <label>Valor (Gs)</label>
+          <input type="number" id="valor-caixa" class="form-control" placeholder="Ex: 50000" min="1">
         </div>
-        <div class="modal-actions"><button class="btn btn-success" style="width: 100%" onclick="salvarPedidoBalcao()">FINALIZAR VENDA</button></div>
+        <div class="form-group">
+          <label>Descrição</label>
+          <input type="text" id="desc-caixa" class="form-control" placeholder="Ex: Pagamento fornecedor">
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" onclick="fecharModal('modal-caixa')">Cancelar</button>
+          <button class="btn btn-primary" onclick="salvarMovimentacaoCaixa()">
+            <i class="fas fa-save"></i> Salvar
+          </button>
+        </div>
       </div>
     </div>
 
     <script src="supabaseClient.js"></script>
     <script src="admin.js"></script>
-  </body>
+  
+    <!-- ===== MODAL GRÁFICOS ===== -->
+<div id="modal-graficos" class="modal-overlay" style="display:none; align-items:flex-start; padding:20px; overflow-y:auto">
+  <div class="modal-content" style="max-width:720px; width:100%; margin:auto">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
+      <h3 style="margin:0"><i class="fas fa-chart-bar" style="color:#8e44ad"></i> Análise Comparativa de Vendas</h3>
+      <button onclick="fecharModal('modal-graficos')" style="background:none;border:none;font-size:1.5rem;cursor:pointer;color:#888">✕</button>
+    </div>
+
+    <!-- Seletores de período -->
+    <div style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap">
+      <button class="btn btn-periodo btn-sm" data-dias="7"  onclick="carregarDadosGrafico('7')"  style="background:#8e44ad;color:#fff;padding:6px 14px;border-radius:20px;border:none;cursor:pointer;font-size:0.85rem">7 dias</button>
+      <button class="btn btn-periodo btn-sm" data-dias="14" onclick="carregarDadosGrafico('14')" style="background:#bdc3c7;color:#333;padding:6px 14px;border-radius:20px;border:none;cursor:pointer;font-size:0.85rem">14 dias</button>
+      <button class="btn btn-periodo btn-sm" data-dias="30" onclick="carregarDadosGrafico('30')" style="background:#bdc3c7;color:#333;padding:6px 14px;border-radius:20px;border:none;cursor:pointer;font-size:0.85rem">30 dias</button>
+    </div>
+
+    <!-- Cards de resumo -->
+    <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:16px">
+      <div style="background:#f0f9f4; border-radius:10px; padding:12px; border-left:4px solid #27ae60">
+        <div style="font-size:0.75rem; color:#888; font-weight:600">TOTAL DO PERÍODO</div>
+        <div id="graf-total-periodo" style="font-size:1.1rem; font-weight:700; color:#27ae60">-</div>
+      </div>
+      <div style="background:#f0f4ff; border-radius:10px; padding:12px; border-left:4px solid #3498db">
+        <div style="font-size:0.75rem; color:#888; font-weight:600">MÉDIA POR DIA</div>
+        <div id="graf-media-dia" style="font-size:1.1rem; font-weight:700; color:#3498db">-</div>
+      </div>
+      <div style="background:#f0fff4; border-radius:10px; padding:12px; border-left:4px solid #2ecc71">
+        <div style="font-size:0.75rem; color:#888; font-weight:600">🏆 MELHOR DIA</div>
+        <div id="graf-melhor-dia" style="font-size:0.9rem; font-weight:700; color:#27ae60">-</div>
+      </div>
+      <div style="background:#fff5f5; border-radius:10px; padding:12px; border-left:4px solid #e74c3c">
+        <div style="font-size:0.75rem; color:#888; font-weight:600">📉 PIOR DIA</div>
+        <div id="graf-pior-dia" style="font-size:0.9rem; font-weight:700; color:#e74c3c">-</div>
+      </div>
+    </div>
+
+    <!-- Gráfico de barras -->
+    <div style="position:relative; height:280px; background:#fafafa; border-radius:10px; padding:10px">
+      <canvas id="canvas-grafico"></canvas>
+    </div>
+
+    <p style="font-size:0.75rem; color:#aaa; margin-top:10px; text-align:center">
+      🟢 Melhor dia &nbsp;|&nbsp; 🔴 Pior dia &nbsp;|&nbsp; 🔵 Demais dias
+    </p>
+  </div>
+</div>
+
+</body>
 </html>
