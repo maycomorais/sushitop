@@ -28,8 +28,8 @@
             </div>
             <div class="language-selector" style="position:absolute; top:15px; right:15px; z-index:1000;">
     <button id="btn-idioma" onclick="toggleLanguageMenu()" style="background:rgba(255,255,255,0.95); border:2px solid var(--primary); padding:8px 15px; border-radius:8px; cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:600; color:#333; box-shadow:0 2px 8px rgba(0,0,0,0.1);">
-        <span id="current-flag">🇵🇾</span>
-        <span id="current-code" style="font-size:0.9rem;">ES</span>
+        <span id="current-lang-flag">🇵🇾</span>
+        <span id="current-lang-code" style="font-size:0.9rem;">ES</span>
         <i class="fas fa-chevron-down" style="font-size:0.7rem;"></i>
     </button>
     
@@ -68,7 +68,7 @@
     </div>
 </div>
 
-<!-- CSS para hover -->
+<!-- CSS para o seletor de idioma -->
 <style>
 #language-menu button:hover {
     background: #f8f9fa !important;
@@ -85,63 +85,6 @@
     }
 }
 </style>
-
-<!-- JavaScript para funcionamento -->
-<script>
-// Dados dos idiomas
-const langData = {
-    es: { flag: '🇵🇾', code: 'ES' },
-    pt: { flag: '🇧🇷', code: 'PT' },
-    en: { flag: '🇺🇸', code: 'EN' },
-    de: { flag: '🇩🇪', code: 'DE' }
-};
-
-// Toggle menu
-function toggleLanguageMenu() {
-    const menu = document.getElementById('language-menu');
-    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
-}
-
-// Mudar idioma
-function changeLanguage(lang) {
-    // Salva preferência
-    localStorage.setItem('language', lang);
-    
-    // Atualiza botão
-    const data = langData[lang];
-    document.getElementById('current-flag').textContent = data.flag;
-    document.getElementById('current-code').textContent = data.code;
-    
-    // Fecha menu
-    document.getElementById('language-menu').style.display = 'none';
-    
-    // Aplica traduções
-    if (typeof updatePageLanguage === 'function') {
-        updatePageLanguage();
-    } else {
-        // Se função não existe, recarrega página
-        location.reload();
-    }
-}
-
-// Fecha menu ao clicar fora
-document.addEventListener('click', (e) => {
-    const selector = document.querySelector('.language-selector');
-    const menu = document.getElementById('language-menu');
-    if (selector && !selector.contains(e.target) && menu) {
-        menu.style.display = 'none';
-    }
-});
-
-// Inicializa idioma ao carregar
-window.addEventListener('DOMContentLoaded', () => {
-    const currentLang = localStorage.getItem('language') || 'es';
-    const data = langData[currentLang];
-    document.getElementById('current-flag').textContent = data.flag;
-    document.getElementById('current-code').textContent = data.code;
-});
-</script>
-</div>
 
 <!-- CSS p  ara o botão de idioma -->
 <style>
@@ -173,7 +116,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
 <!-- JavaScript para o botão de idioma -->
 <script>
-const languageData = {
+const _langData = {
     es: { flag: '🇵🇾', code: 'ES' },
     pt: { flag: '🇧🇷', code: 'PT' },
     en: { flag: '🇺🇸', code: 'EN' },
@@ -182,39 +125,40 @@ const languageData = {
 
 function toggleLanguageMenu() {
     const menu = document.getElementById('language-menu');
-    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+    if (menu) menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
 }
 
 function changeLanguage(lang) {
-    setLanguage(lang);
-    
-    // Atualiza o botão
-    const data = languageData[lang];
-    document.getElementById('current-lang-flag').textContent = data.flag;
-    document.getElementById('current-lang-code').textContent = data.code;
-    
-    // Fecha o menu
-    document.getElementById('language-menu').style.display = 'none';
-    
-    // Recarrega a página para aplicar tradução
-    location.reload();
+    localStorage.setItem('language', lang);
+    const data = _langData[lang] || _langData['es'];
+    const flagEl = document.getElementById('current-lang-flag');
+    const codeEl = document.getElementById('current-lang-code');
+    if (flagEl) flagEl.textContent = data.flag;
+    if (codeEl) codeEl.textContent = data.code;
+    const menu = document.getElementById('language-menu');
+    if (menu) menu.style.display = 'none';
+    // Aplica tradução se a função existir, senão recarrega
+    if (typeof setLanguage === 'function') setLanguage(lang);
+    else location.reload();
 }
 
 // Fecha menu ao clicar fora
 document.addEventListener('click', (e) => {
     const selector = document.querySelector('.language-selector');
     const menu = document.getElementById('language-menu');
-    if (selector && !selector.contains(e.target)) {
+    if (selector && menu && !selector.contains(e.target)) {
         menu.style.display = 'none';
     }
 });
 
 // Define idioma inicial ao carregar
 window.addEventListener('DOMContentLoaded', () => {
-    const currentLang = getCurrentLanguage();
-    const data = languageData[currentLang];
-    document.getElementById('current-lang-flag').textContent = data.flag;
-    document.getElementById('current-lang-code').textContent = data.code;
+    const savedLang = localStorage.getItem('language') || 'es';
+    const data = _langData[savedLang] || _langData['es'];
+    const flagEl = document.getElementById('current-lang-flag');
+    const codeEl = document.getElementById('current-lang-code');
+    if (flagEl) flagEl.textContent = data.flag;
+    if (codeEl) codeEl.textContent = data.code;
 });
 </script>
             <div class="header-info">
@@ -239,7 +183,7 @@ window.addEventListener('DOMContentLoaded', () => {
     <nav class="category-nav" id="category-nav"></nav>
 
     <!-- ===== RASTREADOR DE PEDIDO (CARD FIXO) ===== -->
-    <div id="track-order-card" style="display: block; margin: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 16px; box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3); color: white;">
+    <div id="track-order-card" style="display: none; margin: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 16px; box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3); color: white;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
             <h3 style="margin: 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
                 <i class="fas fa-shipping-fast"></i> Rastrear Pedido
@@ -250,9 +194,9 @@ window.addEventListener('DOMContentLoaded', () => {
         <!-- Formulário de busca -->
         <div id="track-form" style="display: block;">
             <p style="margin: 0 0 12px 0; font-size: 0.9rem; opacity: 0.9;">Digite o número do seu pedido para acompanhar:</p>
-            <div style="display: flex; gap: 10px;">
-                <input type="number" id="track-pedido-input" placeholder="Ex: 81" style="flex: 1; padding: 12px; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600;">
-                <button onclick="buscarPedido()" style="padding: 12px 20px; background: white; color: #667eea; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; white-space: nowrap;">
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <input type="number" id="track-pedido-input" placeholder="Ex: 81" style="flex: 1; min-width: 80px; padding: 12px; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600;">
+                <button onclick="buscarPedido()" style="padding: 12px 16px; background: white; color: #667eea; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; white-space: nowrap; flex-shrink: 0;">
                     <i class="fas fa-search"></i> Buscar
                 </button>
             </div>

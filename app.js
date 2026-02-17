@@ -159,79 +159,41 @@ function mostrarMensagemEntregaConfirmada() {
 // SUBSTITUA a função mostrarTracker() por esta versão atualizada:
 
 function mostrarTracker(status, uidPedido) {
-    const tracker = document.getElementById('pedido-tracker');
-    if (!tracker) return;
-
-    tracker.style.display = 'block';
-
-    // Atualiza ID do pedido
-    const elId = document.getElementById('tracker-pedido-id');
-    if (elId) elId.textContent = `Pedido #${uidPedido}`;
-
-    // Define ícone e mensagem por status
-    const statusConfig = {
-        'pendente': { icon: '⏳', msg: 'Aguardando confirmação...', step: 1 },
-        'confirmado': { icon: '✅', msg: 'Pedido confirmado!', step: 1 },
-        'em_preparo': { icon: '🔥', msg: 'Sua comida está sendo preparada', step: 2 },
-        'pronto_entrega': { icon: '📦', msg: 'Pedido pronto! Aguardando motoboy', step: 3 },
-        'saiu_entrega': { icon: '🛵', msg: 'Pedido saiu para entrega!', step: 3 },
-        'entregue': { icon: '🎉', msg: 'Pedido entregue!', step: 4 }
-    };
-
-    const config = statusConfig[status] || statusConfig['pendente'];
-
-    // Atualiza ícone e mensagem
-    const elIcon = document.getElementById('tracker-status-icon');
-    const elMsg = document.getElementById('tracker-msg');
-    if (elIcon) elIcon.textContent = config.icon;
-    if (elMsg) elMsg.textContent = config.msg;
-
-    // Atualiza steps visuais
-    for (let i = 1; i <= 4; i++) {
-        const step = document.getElementById(`tstep-${i}`);
-        if (step) {
-            if (i <= config.step) {
-                step.classList.add('tracker-step-active');
-            } else {
-                step.classList.remove('tracker-step-active');
-            }
-        }
-    }
-
-    // ===== NOVA FUNCIONALIDADE: BOTÃO DE CONFIRMAÇÃO =====
-    // Se status for "saiu_entrega", mostra botão de confirmar
-    const pedidoId = localStorage.getItem('sushi_pedido_id');
+    // Usa o novo sistema de tracking (track-order-card)
+    // O elemento 'pedido-tracker' é do sistema antigo — redireciona para o novo
+    atualizarTrackingVisual(status, null);
     
-    if (status === 'saiu_entrega') {
-        // Adiciona botão de confirmação
-        const existingBtn = document.getElementById('btn-confirmar-entrega');
-        if (!existingBtn) {
-            const btnHTML = `
+    const card = document.getElementById('track-order-card');
+    if (card) card.style.display = 'block';
+    
+    const tn = document.getElementById('track-numero');
+    if (tn) tn.textContent = uidPedido;
+    
+    const tf = document.getElementById('track-form');
+    const tr = document.getElementById('track-result');
+    if (tf) tf.style.display = 'none';
+    if (tr) tr.style.display = 'block';
+
+    // Botão confirmar entrega se saiu para entrega
+    const pedidoId = localStorage.getItem('sushi_pedido_id');
+    if (status === 'saiu_entrega' && pedidoId) {
+        const tr2 = document.getElementById('track-result');
+        if (tr2 && !document.getElementById('btn-confirmar-entrega')) {
+            tr2.insertAdjacentHTML('beforeend', `
                 <button id="btn-confirmar-entrega" onclick="confirmarEntregaCliente()" 
-                        style="width:100%; margin-top:15px; padding:12px; background:#27ae60; color:white; 
-                               border:none; border-radius:8px; font-weight:600; cursor:pointer; 
-                               transition:all 0.3s; font-size:1rem;">
-                    <i class="fas fa-check-circle"></i> Confirmar Recebimento
+                        style="width:100%; margin-top:12px; padding:12px; background:#27ae60; color:white; 
+                               border:none; border-radius:8px; font-weight:600; cursor:pointer; font-size:1rem;">
+                    ✅ Confirmar Recebimento
                 </button>
-            `;
-            tracker.querySelector('div').insertAdjacentHTML('beforeend', btnHTML);
+            `);
         }
-        
-        // Inicia timer de 4 horas se ainda não iniciado
         const tempoExpiracao = localStorage.getItem('autoConfirmExpiry_' + pedidoId);
-        if (!tempoExpiracao) {
-            iniciarTimerAutoConfirmacao(pedidoId);
-        }
+        if (!tempoExpiracao) iniciarTimerAutoConfirmacao(pedidoId);
     }
 
-    // Se já foi entregue, mostra mensagem de confirmação
     if (status === 'entregue') {
         mostrarMensagemEntregaConfirmada();
-        
-        // Cancela timer se existir
-        if (autoConfirmTimer) {
-            clearTimeout(autoConfirmTimer);
-        }
+        if (autoConfirmTimer) clearTimeout(autoConfirmTimer);
         localStorage.removeItem('autoConfirmExpiry_' + pedidoId);
     }
 }
@@ -762,7 +724,17 @@ function verificarPagamento() {
     boxTroco.classList.remove('hidden');
   } else if (pag === 'Pix') {
     infoDiv.style.display = 'block';
-    infoDiv.innerHTML = `<strong>💳 Chave Pix:</strong><br>${CHAVE_PIX}<br><small>Titular: ${NOME_PIX}</small>`;
+    // Calcula valor em BRL baseado no total atual
+    const totalItens = carrinho.reduce((a, i) => a + i.preco * i.qtd, 0);
+    let freteAplicado = modoEntrega === 'delivery' ? freteCalculado : 0;
+    let desconto = 0;
+    if (cupomAplicado) {
+      if (cupomAplicado.tipo === 'percentual') desconto = Math.round(totalItens * (cupomAplicado.valor / 100));
+      else if (cupomAplicado.tipo === 'frete') freteAplicado = 0;
+    }
+    const totalGs = totalItens - desconto + freteAplicado;
+    const totalBrl = COTACAO_REAL > 0 ? (totalGs / COTACAO_REAL).toFixed(2) : '---';
+    infoDiv.innerHTML = `<strong>💳 Chave Pix:</strong><br>${CHAVE_PIX}<br><small>Titular: ${NOME_PIX}</small><br><strong style="color:#c0392b;font-size:1rem">💰 Valor a pagar: R$ ${totalBrl}</strong><br><small style="color:#888">(Gs ${totalGs.toLocaleString('es-PY')} ÷ ${COTACAO_REAL})</small>`;
   } else if (pag === 'Transferencia') {
     infoDiv.style.display = 'block';
     infoDiv.innerHTML = `<strong>🏦 Dados para Transferência:</strong><br>${DADOS_ALIAS}<br>${ALIAS_PY}`;
@@ -964,7 +936,11 @@ async function enviarZap() {
 
   // Avisos de Pix/Alias (Bilíngue)
   if (pag === 'Pix' || pag === 'Transferencia') {
-      if(pag === 'Pix') msg += `\n💠 Chave Pix: ${CHAVE_PIX}\n`;
+      if(pag === 'Pix') {
+          const totalBrl = COTACAO_REAL > 0 ? (totalGeral / COTACAO_REAL).toFixed(2) : '---';
+          msg += `\n💠 Chave Pix: ${CHAVE_PIX}\n`;
+          msg += `💰 Valor em Reais: R$ ${totalBrl} (Gs ${totalGeral.toLocaleString('es-PY')} ÷ ${COTACAO_REAL})\n`;
+      }
       if(pag === 'Transferencia') msg += `\n📎 Alias: ${ALIAS_PY}\n`;
       
       msg += `\n⚠️ ATENÇÃO: Envie o comprovante / Enviar comprobante.\n`;
@@ -1205,19 +1181,31 @@ function mostrarTracker(status, uid) {
 }
 
 function fecharTracker() {
+    // Fecha tanto o tracker antigo quanto o novo card
     const tracker = document.getElementById('pedido-tracker');
     if (tracker) tracker.style.display = 'none';
+    const card = document.getElementById('track-order-card');
+    if (card) card.style.display = 'none';
     if (_trackingChannel) {
         _trackingChannel.unsubscribe();
         _trackingChannel = null;
     }
+    if (_pollingTracker) {
+        clearInterval(_pollingTracker);
+        _pollingTracker = null;
+    }
+}
+
+// Alias para o botão × do card de tracking no index.html
+function fecharCardTracking() {
+    fecharTracker();
 }
 
 // Restaura tracking ao recarregar a página
 function restaurarTrackingSeExistir() {
-    // Card de rastreio SEMPRE visível (cliente pode digitar o número)
+    // Card de rastreio oculto por padrão - só aparece se houver pedido ativo
     const card = document.getElementById('track-order-card');
-    if (card) card.style.display = 'block';
+    if (card) card.style.display = 'none';
 
     const savedId  = localStorage.getItem('sushi_pedido_id');
     const savedUid = localStorage.getItem('sushi_pedido_uid');
@@ -1229,10 +1217,14 @@ function restaurarTrackingSeExistir() {
     supa.from('pedidos').select('status, motoboy_id').eq('id', savedId).single()
         .then(async ({ data, error }) => {
             if (error || !data) return;
+            // Se já foi entregue ou cancelado, limpa e não mostra tracker
             if (data.status === 'entregue' || data.status === 'cancelado') {
                 try { localStorage.removeItem('sushi_pedido_id'); localStorage.removeItem('sushi_pedido_uid'); } catch(e) {}
                 return;
             }
+
+            // Só mostra o card se houver pedido ativo
+            if (card) card.style.display = 'block';
 
             // Preenche input e abre resultado direto
             const input = document.getElementById('track-pedido-input');
@@ -1313,12 +1305,6 @@ function mostrarCardTracking(numeroPedido) {
         // Scroll suave até o card
         card.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-}
-
-// Fechar card de tracking
-function fecharCardTracking() {
-    const card = document.getElementById('track-order-card');
-    if (card) card.style.display = 'none';
 }
 
 // Voltar para busca

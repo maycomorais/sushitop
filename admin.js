@@ -118,9 +118,10 @@ function showTab(tabId, event) {
     if (realTabId === 'financeiro') calcularFinanceiro();
     if (realTabId === 'dashboard') carregarDashboard();
     if (realTabId === 'pdv') carregarPDV();
+    if (realTabId === 'equipe') carregarEquipe();
     if (realTabId === 'configuracoes') {
         carregarConfiguracoes();
-        carregarCupons(); // Carrega cupons também
+        carregarCupons();
     }
 }
 
@@ -222,11 +223,11 @@ async function carregarPedidos(silencioso = false) {
         if (typeof pararAlarme === 'function') pararAlarme();
     }
 
-    // 2. Busca Dados
+    // 2. Busca Dados - inclui cancelamento_solicitado para badge
     const { data: pedidos } = await supa
         .from('pedidos')
         .select('*')
-        .or('status.eq.pendente,status.eq.pronto_entrega')
+        .or('status.eq.pendente,status.eq.pronto_entrega,status.eq.cancelamento_solicitado')
         .order('id', { ascending: false });
 
     const tbody = document.getElementById('lista-pedidos');
@@ -237,13 +238,26 @@ async function carregarPedidos(silencioso = false) {
     const cardsDiv = document.getElementById('lista-pedidos-cards');
     if (cardsDiv) cardsDiv.innerHTML = '';
 
+    // Badge de cancelamento pendente para o dono
+    const badgeCancelPendente = perfilUsuario === 'dono' ? 
+        `<span style="background:#e74c3c;color:white;font-size:0.7rem;padding:2px 7px;border-radius:10px;margin-left:6px;vertical-align:middle;">CANC. PENDENTE</span>` : '';
+
     if (pedidos && pedidos.length > 0) {
         pedidos.forEach((p) => {
             let acoes = '';
             let linhaCor = '';
             let checkbox = '';
             
-            const btnPrint = `<button class="btn btn-sm btn-info" onclick="imprimirPedido(${p.id})" title="Imprimir"><i class="fas fa-print"></i> Imprimir</button>`;
+            const btnPrint = `<button class="btn btn-sm btn-info" onclick="imprimirPedido(${p.id})" title="Imprimir"><i class="fas fa-print"></i></button>`;
+            const temSolicitacaoCancelamento = p.cancelamento_solicitado;
+
+            // Badge cancelamento (só dono vê)
+            const badgeCancelRow = temSolicitacaoCancelamento && perfilUsuario === 'dono' 
+                ? `<div style="background:#fff0f0;border:1px solid #e74c3c;border-radius:6px;padding:4px 8px;font-size:0.75rem;margin-top:4px;color:#c0392b">
+                     🚫 <strong>Cancelamento solicitado:</strong> ${p.cancelamento_motivo || '-'}
+                     <br><button class="btn btn-danger btn-sm" onclick="aprovarCancelamento(${p.id})" style="margin-top:4px;font-size:0.7rem">✅ Aprovar</button>
+                     <button class="btn btn-secondary btn-sm" onclick="negarCancelamento(${p.id})" style="margin-top:4px;font-size:0.7rem">❌ Negar</button>
+                   </div>` : '';
 
             // PENDENTE
             if (p.status === 'pendente') {
@@ -251,38 +265,34 @@ async function carregarPedidos(silencioso = false) {
                 acoes = `
                     ${btnPrint}
                     <button class="btn btn-success btn-sm" onclick="mudarStatus(${p.id}, 'em_preparo')"><i class="fas fa-fire"></i> Cozinha</button>
-                    <button class="btn btn-danger btn-sm" onclick="mudarStatus(${p.id}, 'cancelado')"><i class="fas fa-times"></i> Cancelar</button>
+                    ${perfilUsuario === 'dono' 
+                        ? `<button class="btn btn-danger btn-sm" onclick="mudarStatus(${p.id}, 'cancelado')"><i class="fas fa-times"></i></button>` 
+                        : `<button class="btn btn-warning btn-sm" onclick="solicitarCancelamento(${p.id})"><i class="fas fa-ban"></i> Solicitar Cancel.</button>`
+                    }
                 `;
             } 
 
             if (p.status === 'saiu_entrega') {
-    acoes += `
-        <button class="btn btn-success" 
-                onclick="confirmarEntregaFuncionario(${p.id})" 
-                style="width:100%; margin-top:10px; padding:12px; background:#27ae60; 
-                       color:white; border:none; border-radius:8px; font-weight:600; 
-                       cursor:pointer; display:flex; align-items:center; justify-content:center; 
-                       gap:8px;">
-            <i class="fas fa-check-circle"></i>
-            Confirmar Entrega
-        </button>
-    `;
-}
+                acoes += `<button class="btn btn-success btn-sm" onclick="confirmarEntregaFuncionario(${p.id})"><i class="fas fa-check-circle"></i> Confirmar</button>`;
+            }
             // PRONTO
             else if (p.status === 'pronto_entrega') {
                 linhaCor = 'background-color: #d4edda;';
 
-                // Apenas DELIVERY pode ir na rota
+                // Botão cancelamento para pronto_entrega
+                const btnCancelar = perfilUsuario === 'dono'
+                    ? `<button class="btn btn-danger btn-sm" onclick="mudarStatus(${p.id}, 'cancelado')" title="Cancelar"><i class="fas fa-times"></i></button>`
+                    : (!temSolicitacaoCancelamento ? `<button class="btn btn-warning btn-sm" onclick="solicitarCancelamento(${p.id})"><i class="fas fa-ban"></i></button>` : '');
+
                 if (p.tipo_entrega === 'delivery') {
                     const jsonSeguro = encodeURIComponent(JSON.stringify(p));
                     checkbox = `<input type="checkbox" class="check-pedido" value="${jsonSeguro}" style="width:20px; height:20px;">`;
-                    acoes = `${btnPrint} <span style="color:#155724; font-weight:bold; font-size:0.9rem; margin-left:5px;"><i class="fas fa-motorcycle"></i> Aguardando Rota</span>`;
+                    acoes = `${btnPrint} ${btnCancelar} <span style="color:#155724; font-weight:bold; font-size:0.9rem; margin-left:5px;"><i class="fas fa-motorcycle"></i> Aguardando Rota</span>`;
                 } else {
-                    // Balcão ou Retirada - apenas mostra ícone e botão de baixar
                     const icone = p.tipo_entrega === 'balcao' ? 'fa-store' : 'fa-hand-holding';
                     const tipo = p.tipo_entrega === 'balcao' ? 'BALCÃO' : 'RETIRADA';
                     checkbox = `<div style="text-align:center; color:#e67e22; font-size:1.2rem"><i class="fas ${icone}" title="${tipo}"></i></div>`;
-                    acoes = `${btnPrint} <button class="btn btn-success btn-sm" onclick="finalizarMesa(${p.id})">Baixar</button>`;
+                    acoes = `${btnPrint} ${btnCancelar} <button class="btn btn-success btn-sm" onclick="finalizarMesa(${p.id})">Baixar</button>`;
                 }
             }
 
@@ -294,9 +304,11 @@ async function carregarPedidos(silencioso = false) {
                     <td>
                         <div style="font-weight:bold">${p.cliente_nome || 'Cliente'}</div>
                         <div style="font-size:0.8rem; color:#666">${p.endereco_entrega || ''}</div>
+                        ${badgeCancelRow}
                     </td>
-                    <td><span class="status-badge st-${p.status}">${p.status.toUpperCase().replace('_', ' ')}</span></td>
-                    <td>Gs ${p.total_geral.toLocaleString('es-PY')}</td>
+                    <td><span class="status-badge st-${p.status}">${p.status.toUpperCase().replace('_', ' ')}</span>
+                    ${temSolicitacaoCancelamento && perfilUsuario === 'dono' ? badgeCancelPendente : ''}</td>
+                    <td>Gs ${(p.total_geral||0).toLocaleString('es-PY')}</td>
                     <td class="actions-cell">${acoes}</td>
                 </tr>`;
 
@@ -310,7 +322,10 @@ async function carregarPedidos(silencioso = false) {
                     cardAcoes = `
                         <button class="btn btn-success btn-sm" onclick="mudarStatus(${p.id}, 'em_preparo')"><i class="fas fa-fire"></i> Cozinha</button>
                         <button class="btn btn-info btn-sm" onclick="imprimirPedido(${p.id})"><i class="fas fa-print"></i></button>
-                        <button class="btn btn-danger btn-sm" onclick="mudarStatus(${p.id}, 'cancelado')"><i class="fas fa-times"></i></button>`;
+                        ${perfilUsuario === 'dono' 
+                            ? `<button class="btn btn-danger btn-sm" onclick="mudarStatus(${p.id}, 'cancelado')"><i class="fas fa-times"></i></button>`
+                            : `<button class="btn btn-warning btn-sm" onclick="solicitarCancelamento(${p.id})"><i class="fas fa-ban"></i></button>`
+                        }`;
                 } else if (p.status === 'pronto_entrega' && p.tipo_entrega === 'balcao') {
                     cardAcoes = `<button class="btn btn-success btn-sm" onclick="finalizarMesa(${p.id})"><i class="fas fa-check"></i> Entregar</button>
                         <button class="btn btn-info btn-sm" onclick="imprimirPedido(${p.id})"><i class="fas fa-print"></i></button>`;
@@ -320,6 +335,14 @@ async function carregarPedidos(silencioso = false) {
                     </label>
                     <button class="btn btn-info btn-sm" onclick="imprimirPedido(${p.id})"><i class="fas fa-print"></i></button>`;
                 }
+
+                const badgeCancelCard = temSolicitacaoCancelamento && perfilUsuario === 'dono' ? `
+                    <div style="background:#fff0f0;border:1px solid #e74c3c;border-radius:6px;padding:6px 8px;font-size:0.75rem;color:#c0392b;margin-top:6px">
+                        🚫 Cancel. solicitado: ${p.cancelamento_motivo || '-'}
+                        <br><button class="btn btn-danger btn-sm" onclick="aprovarCancelamento(${p.id})" style="font-size:0.7rem;margin-top:4px">✅ Aprovar</button>
+                        <button class="btn btn-secondary btn-sm" onclick="negarCancelamento(${p.id})" style="font-size:0.7rem;margin-top:4px">❌ Negar</button>
+                    </div>` : '';
+
                 cardsDiv.innerHTML += `
                     <div style="background:${cardBg}; border-radius:10px; padding:14px 16px; box-shadow:0 2px 8px rgba(0,0,0,0.07); border-left:4px solid ${p.status==='pendente'?'#f59e0b':p.status==='pronto_entrega'?'#22c55e':'#94a3b8'};">
                         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
@@ -330,9 +353,10 @@ async function carregarPedidos(silencioso = false) {
                             <span class="status-badge st-${p.status}" style="font-size:0.7rem">${statusLabel}</span>
                         </div>
                         <div style="display:flex;justify-content:space-between;align-items:center;">
-                            <strong style="font-size:1rem;color:var(--dark)">Gs ${p.total_geral.toLocaleString('es-PY')}</strong>
+                            <strong style="font-size:1rem;color:var(--dark)">Gs ${(p.total_geral||0).toLocaleString('es-PY')}</strong>
                             <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">${cardAcoes}</div>
                         </div>
+                        ${badgeCancelCard}
                     </div>`;
             }
         });
@@ -342,12 +366,96 @@ async function carregarPedidos(silencioso = false) {
     }
 }
 
-async function mudarStatus(id, novoStatus) {
-    const { error } = await supa
-        .from('pedidos')
-        .update({ status: novoStatus })
-        .eq('id', id);
+// === CANCELAMENTO WORKFLOW ===
+async function solicitarCancelamento(pedidoId) {
+    const motivo = prompt('🚫 Solicitar cancelamento\n\nInforme o motivo do cancelamento:');
+    if (!motivo || !motivo.trim()) return;
 
+    const user = await supa.auth.getUser();
+    const email = user?.data?.user?.email || 'desconhecido';
+
+    const { error } = await supa.from('pedidos').update({
+        cancelamento_solicitado: true,
+        cancelamento_motivo: motivo.trim(),
+        cancelamento_solicitado_por: email,
+        cancelamento_solicitado_em: new Date().toISOString()
+    }).eq('id', pedidoId);
+
+    if (error) { alert('❌ Erro: ' + error.message); return; }
+
+    // Registra na tabela de solicitações
+    await supa.from('solicitacoes_cancelamento').insert([{
+        pedido_id: pedidoId,
+        motivo: motivo.trim(),
+        solicitado_por: email
+    }]);
+
+    alert('✅ Solicitação enviada! O dono será notificado para aprovar.');
+    carregarPedidos();
+}
+
+async function aprovarCancelamento(pedidoId) {
+    if (!confirm('⚠️ Confirma o CANCELAMENTO deste pedido?\nEsta ação não pode ser desfeita.')) return;
+
+    const user = await supa.auth.getUser();
+    const email = user?.data?.user?.email || 'dono';
+
+    const { error } = await supa.from('pedidos').update({
+        status: 'cancelado',
+        cancelamento_aprovado_por: email,
+        cancelamento_aprovado_em: new Date().toISOString()
+    }).eq('id', pedidoId);
+
+    if (error) { alert('❌ Erro: ' + error.message); return; }
+
+    // Marca como aprovada na tabela de solicitações
+    await supa.from('solicitacoes_cancelamento')
+        .update({ aprovado: true, aprovado_por: email, aprovado_em: new Date().toISOString() })
+        .eq('pedido_id', pedidoId).eq('aprovado', false);
+
+    alert('✅ Pedido cancelado com sucesso!');
+    carregarPedidos();
+}
+
+async function negarCancelamento(pedidoId) {
+    const obs = prompt('Motivo para NEGAR o cancelamento (opcional):') || '';
+    const user = await supa.auth.getUser();
+    const email = user?.data?.user?.email || 'dono';
+
+    await supa.from('pedidos').update({
+        cancelamento_solicitado: false,
+        cancelamento_motivo: null
+    }).eq('id', pedidoId);
+
+    await supa.from('solicitacoes_cancelamento')
+        .update({ negado: true, negado_por: email, negado_em: new Date().toISOString(), observacoes: obs })
+        .eq('pedido_id', pedidoId).eq('aprovado', false);
+
+    alert('✅ Solicitação de cancelamento negada.');
+    carregarPedidos();
+}
+
+
+
+async function mudarStatus(id, novoStatus) {
+    // Registra o timestamp do novo status no campo correspondente
+    const camposTimestamp = {
+        'em_preparo': ['tempo_confirmado', 'tempo_preparo_iniciado'], // aceita E começa a preparar
+        'pronto_entrega': 'tempo_pronto',
+        'saiu_entrega': 'tempo_saiu_entrega',
+        'entregue': 'tempo_entregue'
+    };
+
+    const updateData = { status: novoStatus };
+    const campos = camposTimestamp[novoStatus];
+    if (campos) {
+        const agora = new Date().toISOString();
+        if (Array.isArray(campos)) campos.forEach(c => updateData[c] = agora);
+        else updateData[campos] = agora;
+    }
+    // Status 'cancelado' mantém os timestamps existentes
+
+    const { error } = await supa.from('pedidos').update(updateData).eq('id', id);
     if (error) { console.error('Erro ao atualizar:', error); alert('Erro ao mudar status'); return; }
 
     if (typeof pararAlarme === 'function') pararAlarme();
@@ -360,25 +468,29 @@ async function mudarStatus(id, novoStatus) {
 
 // === FUNÇÃO DE IMPRESSÃO (RESTAURADA) ===
 async function imprimirPedido(id) {
-    const { data: p } = await supa.from('pedidos').select('*, clientes(nome, telefone)').eq('id', id).single();
+    const { data: p } = await supa.from('pedidos').select('*').eq('id', id).single();
     if (!p) return;
 
     const dados = {
-        id: p.uid_temporal,
-        cliente: { nome: p.cliente_nome || p.clientes?.nome, tel: p.cliente_telefone || p.clientes?.telefone },
+        id: p.id, // usa ID real do banco
+        cliente: { nome: p.cliente_nome, tel: p.cliente_telefone },
         entrega: { tipo: p.tipo_entrega, ref: p.endereco_entrega },
-        itens: p.itens.map((i) => ({ q: i.qtd, n: i.nome, p: i.preco, m: i.montagem, o: i.obs })),
+        itens: (p.itens || []).map((i) => ({ q: i.qtd || i.q || 1, n: i.nome || i.n, p: i.preco || i.p || 0, m: i.montagem || i.m, o: i.obs || i.o })),
         valores: { sub: p.subtotal, frete: p.frete_cobrado_cliente, total: p.total_geral },
         pagamento: { metodo: p.forma_pagamento, obs: p.obs_pagamento },
         factura: p.dados_factura,
-        data: new Date().toLocaleString('es-PY')
+        data: new Date(p.created_at || Date.now()).toLocaleString('pt-BR')
     };
 
     const jsonStr = JSON.stringify(dados);
-    const base64 = btoa(unescape(encodeURIComponent(jsonStr)));
+    // Base64 URL-safe: substitui +, / e = que quebram a URL
+    const base64 = btoa(unescape(encodeURIComponent(jsonStr)))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
     
-    // Abre a janela de impressão ajustada para 58mm
-    window.open(`imprimir.html?d=${base64}`, 'Print', 'width=400,height=600');
+    // Abre a janela de impressão
+    window.open(`imprimir.html?d=${base64}`, 'Print', 'width=420,height=700');
 }
 
 // =========================================
@@ -801,6 +913,51 @@ async function exportarFinanceiroXLSX() {
     XLSX.writeFile(wb, `Relatorio_${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}-${String(hoje.getDate()).padStart(2,'0')}.xlsx`);
 }
 
+// =====================================================
+// RELATÓRIO DETALHADO DE PEDIDOS
+// =====================================================
+async function abrirRelatorio() {
+    const modal = document.getElementById('modal-relatorio');
+    if (modal) {
+        modal.style.display = 'flex';
+        await carregarRelatorio();
+    }
+}
+
+async function carregarRelatorio() {
+    const filtroNum = document.getElementById('rel-filtro-numero')?.value?.trim();
+    const filtroInicio = document.getElementById('rel-filtro-inicio')?.value;
+    const filtroFim = document.getElementById('rel-filtro-fim')?.value;
+    const hoje = new Date().toISOString().split('T')[0];
+    let query = supa.from('pedidos').select('*').order('id', { ascending: false }).limit(100);
+    if (filtroNum) {
+        query = query.eq('id', parseInt(filtroNum));
+    } else {
+        const ini = filtroInicio || hoje;
+        const fim = filtroFim || hoje;
+        query = query.gte('created_at', ini + ' 00:00:00').lte('created_at', fim + ' 23:59:59');
+    }
+    const { data: pedidos, error } = await query;
+    if (error) { console.error(error); return; }
+    const tbody = document.getElementById('rel-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    const fmtDiff = (t1, t2) => {
+        if (!t1 || !t2) return '-';
+        const diff = Math.round((new Date(t2) - new Date(t1)) / 60000);
+        if (diff < 60) return diff + ' min';
+        return Math.floor(diff/60) + 'h ' + (diff%60) + 'm';
+    };
+    const fmtHora = (t) => t ? new Date(t).toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'}) : '-';
+    (pedidos || []).forEach(p => {
+        const statusBadge = { pendente:'🔔 Pendente',em_preparo:'🔥 Preparo',pronto_entrega:'📦 Pronto',saiu_entrega:'🛵 Saiu',entregue:'✅ Entregue',cancelado:'❌ Cancelado' }[p.status] || p.status;
+        const itensList = (p.itens || []).map(i => (i.qtd||i.q||1)+'x '+(i.nome||i.n||'?')).join(', ');
+        tbody.innerHTML += '<tr><td><strong>#'+p.id+'</strong></td><td>'+new Date(p.created_at).toLocaleString('pt-BR')+'</td><td><div style="font-weight:600">'+(p.cliente_nome||'-')+'</div><div style="font-size:0.75rem;color:#666">'+(p.cliente_telefone||'')+'</div></td><td style="font-size:0.8rem">'+(itensList||'-')+'</td><td>'+statusBadge+(p.cancelamento_solicitado&&p.status!=='cancelado'?' 🚫':'')+'</td><td>Gs '+(p.total_geral||0).toLocaleString('es-PY')+'</td><td style="font-size:0.78rem"><div>📥 Receb: '+fmtHora(p.tempo_recebido)+'</div><div>✅ Aceite: '+fmtHora(p.tempo_confirmado)+' ('+fmtDiff(p.tempo_recebido,p.tempo_confirmado)+')</div><div>🔥 Cozinha: '+fmtHora(p.tempo_preparo_iniciado)+'</div><div>📦 Pronto: '+fmtHora(p.tempo_pronto)+' ('+fmtDiff(p.tempo_preparo_iniciado,p.tempo_pronto)+')</div><div>🛵 Saiu: '+fmtHora(p.tempo_saiu_entrega)+'</div><div>✅ Entregue: '+fmtHora(p.tempo_entregue)+' ('+fmtDiff(p.tempo_saiu_entrega,p.tempo_entregue)+')</div><div><strong>⏱ Total: '+fmtDiff(p.tempo_recebido,p.tempo_entregue)+'</strong></div></td></tr>';
+    });
+    if (!pedidos||pedidos.length===0) tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:20px;color:#aaa">Nenhum pedido encontrado.</td></tr>';
+    const el=document.getElementById('rel-total-count'); if(el) el.textContent=(pedidos||[]).length+' pedidos encontrados';
+}
+
 function abrirModalCaixa(tipo) {
     document.getElementById('modal-caixa').style.display = 'flex';
     document.getElementById('tipo-caixa').value = tipo;
@@ -1028,10 +1185,11 @@ async function carregarProdutos() {
         (data || []).forEach(p => {
             const card = document.createElement('div');
             card.className = 'mobile-card';
+            const pausadoBadge = !p.ativo ? `<span style="background:#e74c3c;color:white;font-size:0.7rem;padding:2px 6px;border-radius:4px;margin-left:5px">⏸️ Pausado</span>` : '';
             card.innerHTML = `
                 <div class="mobile-card-header">
                     <div>
-                        <div class="mobile-card-title">${p.nome}</div>
+                        <div class="mobile-card-title">${p.nome}${pausadoBadge}</div>
                         <div style="font-size:0.75rem; color:var(--primary); font-weight:600">ID: #${p.id}</div>
                     </div>
                     ${p.imagem_url ? `<img src="${p.imagem_url}" style="width:50px;height:50px;object-fit:cover;border-radius:8px;">` : ''}
@@ -1049,6 +1207,9 @@ async function carregarProdutos() {
                 <div class="mobile-card-actions">
                     <button class="btn btn-info" onclick='editarProduto(${JSON.stringify(p).replace(/'/g, "&apos;").replace(/"/g, "&quot;")})'>
                         <i class="fas fa-edit"></i> Editar
+                    </button>
+                    <button class="btn ${p.ativo ? 'btn-warning' : 'btn-success'}" onclick="pausarProduto(${p.id}, ${p.ativo})">
+                        ${p.ativo ? '<i class="fas fa-pause"></i> Pausar' : '<i class="fas fa-play"></i> Ativar'}
                     </button>
                     <button class="btn btn-danger" onclick="deletarProduto(${p.id})">
                         <i class="fas fa-trash"></i> Excluir
@@ -1069,15 +1230,19 @@ async function carregarProdutos() {
     if(data) {
         data.forEach((p) => {
             const pJson = JSON.stringify(p).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
+            const pausadoBadge = !p.ativo ? `<span style="background:#e74c3c;color:white;font-size:0.7rem;padding:1px 5px;border-radius:3px;margin-left:4px">⏸️</span>` : '';
             tb.innerHTML += `
-                <tr>
+                <tr style="${!p.ativo ? 'opacity:0.6;' : ''}">
                     <td><strong style="color:var(--primary)">#${p.id}</strong></td>
                     <td><img src="${p.imagem_url}" width="30" style="border-radius:4px"></td>
-                    <td>${p.nome}</td>
+                    <td>${p.nome}${pausadoBadge}</td>
                     <td>${p.categoria_slug}</td>
                     <td>Gs ${p.preco.toLocaleString()}</td>
                     <td class="actions-cell">
                         <button class="btn btn-sm btn-primary" onclick='editarProduto(${pJson})'><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-sm ${p.ativo ? 'btn-warning' : 'btn-success'}" onclick="pausarProduto(${p.id}, ${p.ativo})" title="${p.ativo ? 'Pausar' : 'Ativar'}">
+                            <i class="fas fa-${p.ativo ? 'pause' : 'play'}"></i>
+                        </button>
                         <button class="btn btn-sm btn-danger" onclick="deletarProduto(${p.id})"><i class="fas fa-trash"></i></button>
                     </td>
                 </tr>`;
@@ -1110,10 +1275,10 @@ function editarProduto(p) {
 }
 
 async function deletarProduto(id) {
-    if (confirm('Excluir produto?')) {
-        await supa.from('produtos').delete().eq('id', id);
-        carregarProdutos();
-    }
+    if (!confirm('⚠️ ATENÇÃO: Deletar este produto?\n\nEsta ação não pode ser desfeita. O produto será removido permanentemente do sistema.')) return;
+    const { error } = await supa.from('produtos').delete().eq('id', id);
+    if (error) alert('❌ Erro ao deletar: ' + error.message);
+    else { alert('✅ Produto deletado!'); carregarProdutos(); }
 }
 
 function previewUpload(input) {
@@ -1346,24 +1511,27 @@ function editarCategoria(c) {
 }
 
 async function salvarCategoria() {
-    const slug = document.getElementById('cat-slug').value;
-    const nome = document.getElementById('cat-nome').value;
-    const ordem = document.getElementById('cat-ordem').value;
+    const slug = document.getElementById('cat-slug').value.trim().toLowerCase().replace(/\s+/g, '-');
+    const nome = document.getElementById('cat-nome').value.trim();
+    let ordemVal = parseInt(document.getElementById('cat-ordem').value);
     const modo = document.getElementById('cat-modo-edicao').value;
 
     if (!slug || !nome) return alert('Preencha o slug e o nome!');
     
-    // Mapeia para os nomes certos do banco
-    const dados = { slug: slug, nome_exibicao: nome, ordem: parseInt(ordem) || 0 };
+    // Se ordem não foi preenchida ou ficou 0 em modo inserção, busca a próxima automaticamente
+    if ((!ordemVal || ordemVal === 0) && modo !== 'sim') {
+        const { data: ult } = await supa.from('categorias').select('ordem').order('ordem', { ascending: false }).limit(1);
+        ordemVal = (ult && ult.length > 0 && ult[0].ordem != null) ? (ult[0].ordem + 1) : 1;
+    }
+    
+    const dados = { slug, nome_exibicao: nome, ordem: ordemVal };
     
     let erro = null;
-
-    if(modo === 'sim') {
-        // Update
-        const { error } = await supa.from('categorias').update(dados).eq('slug', slug);
+    if (modo === 'sim') {
+        const slugOriginal = document.getElementById('cat-slug').dataset.slugOriginal || slug;
+        const { error } = await supa.from('categorias').update({ nome_exibicao: nome, ordem: ordemVal }).eq('slug', slugOriginal);
         erro = error;
     } else {
-        // Insert
         const { error } = await supa.from('categorias').insert([dados]);
         erro = error;
     }
@@ -1372,13 +1540,22 @@ async function salvarCategoria() {
     else { fecharModal('modal-cat'); carregarCategorias(); }
 }
 
-function abrirModalCategoria() {
+async function abrirModalCategoria() {
     document.getElementById('titulo-modal-cat').innerText = 'Nova Categoria';
     document.getElementById('cat-modo-edicao').value = 'nao';
     document.getElementById('cat-slug').value = '';
     document.getElementById('cat-slug').readOnly = false;
     document.getElementById('cat-nome').value = '';
-    document.getElementById('cat-ordem').value = '';
+    
+    // Auto-preenche a ordem com o próximo número
+    try {
+        const { data } = await supa.from('categorias').select('ordem').order('ordem', { ascending: false }).limit(1);
+        const proximaOrdem = (data && data.length > 0 && data[0].ordem != null) ? (data[0].ordem + 1) : 1;
+        document.getElementById('cat-ordem').value = proximaOrdem;
+    } catch(e) {
+        document.getElementById('cat-ordem').value = '';
+    }
+    
     document.getElementById('modal-cat').style.display = 'flex';
 }
 
@@ -1396,6 +1573,20 @@ async function deletarProduto(id) {
         }
     } catch (e) {
         alert('❌ Erro inesperado: ' + e.message);
+    }
+}
+
+async function pausarProduto(id, ativoAtual) {
+    const novoStatus = !ativoAtual;
+    const acao = novoStatus ? 'reativar' : 'pausar';
+    if (!confirm(`Deseja ${acao} este produto?`)) return;
+    
+    const { error } = await supa.from('produtos').update({ ativo: novoStatus }).eq('id', id);
+    if (error) {
+        alert('❌ Erro: ' + error.message);
+    } else {
+        alert(novoStatus ? '✅ Produto reativado!' : '⏸️ Produto pausado!');
+        carregarProdutos();
     }
 }
 
@@ -1423,7 +1614,11 @@ async function deletarMotoboy(id) {
     try {
         const { error } = await supa.from('motoboys').delete().eq('id', id);
         if (error) {
-            alert('❌ Erro ao deletar: ' + error.message);
+            if (error.code === '23503' || (error.message && error.message.includes('foreign key'))) {
+                alert('❌ Não é possível excluir este motoboy pois ele possui pedidos vinculados.\n\nDica: Você pode desativar o motoboy em vez de excluir.');
+            } else {
+                alert('❌ Erro ao deletar: ' + error.message);
+            }
         } else {
             alert('✅ Motoboy deletado com sucesso!');
             carregarMotoboys();
@@ -1436,7 +1631,8 @@ async function deletarMotoboy(id) {
 async function carregarMotoboys() {
     const { data, error } = await supa.from('motoboys').select('*').order('nome');
     
-    console.log('📍 carregarMotoboys chamado. Data:', data, 'Error:', error);
+    // Log limpo: só mostra se houver erro real
+    if (error) console.error('❌ carregarMotoboys error:', error);
     
     const isMobile = window.innerWidth <= 768;
     
@@ -1889,9 +2085,16 @@ let produtosCachePDV = [];
 let _cotacaoPDV = 1100;
 
 async function carregarPDV() {
-    // Sempre recarrega para pegar novos produtos
-    const { data } = await supa.from('produtos').select('*').eq('ativo', true).order('nome');
+    // PDV carrega TODOS os produtos ativos (incluindo somente_balcao e pausados não)
+    const { data } = await supa.from('produtos').select('*')
+        .eq('ativo', true)
+        .neq('pausado', true)
+        .order('categoria_slug').order('nome');
     produtosCachePDV = data || [];
+
+    // Carrega categorias para exibir no PDV
+    const { data: cats } = await supa.from('categorias').select('*').order('ordem');
+    produtosCatsPDV = cats || [];
 
     // Carrega cotação atual das configurações
     const { data: cfg } = await supa.from('configuracoes').select('cotacao_real').single();
@@ -1900,22 +2103,60 @@ async function carregarPDV() {
     renderizarGridPDV();
 }
 
+let produtosCatsPDV = [];
+
 function renderizarGridPDV() {
     const grid = document.getElementById('pdv-grid');
     if (!grid) return;
     grid.innerHTML = '';
 
+    // Agrupa produtos por categoria
+    const porCategoria = {};
     produtosCachePDV.forEach(p => {
-        const img = p.imagem_url || 'https://via.placeholder.com/100?text=🍣';
-        const card = document.createElement('div');
-        card.className = 'pdv-card';
-        card.style.backgroundImage = `url('${img}')`;
-        card.onclick = () => adicionarItemPDV(p);
-        card.innerHTML = `
-            <div class="pdv-card-price">Gs ${p.preco.toLocaleString('es-PY')}</div>
-            <div class="pdv-card-overlay">${p.nome}</div>
-        `;
-        grid.appendChild(card);
+        const cat = p.categoria_slug || 'outros';
+        if (!porCategoria[cat]) porCategoria[cat] = [];
+        porCategoria[cat].push(p);
+    });
+
+    // Ordena categorias pela ordem definida
+    const ordemCats = produtosCatsPDV.map(c => c.slug);
+    const slugsOrdenados = Object.keys(porCategoria).sort((a, b) => {
+        const ia = ordemCats.indexOf(a);
+        const ib = ordemCats.indexOf(b);
+        if (ia === -1 && ib === -1) return a.localeCompare(b);
+        if (ia === -1) return 1;
+        if (ib === -1) return -1;
+        return ia - ib;
+    });
+
+    slugsOrdenados.forEach(slug => {
+        const catInfo = produtosCatsPDV.find(c => c.slug === slug);
+        const catNome = catInfo ? catInfo.nome_exibicao : slug;
+
+        // Título da categoria
+        const h = document.createElement('div');
+        h.style.cssText = 'width:100%; padding:8px 4px 4px; font-weight:700; font-size:0.85rem; color:#555; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #eee; margin-bottom:4px;';
+        h.textContent = catNome;
+        grid.appendChild(h);
+
+        // Cards dos produtos
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;';
+
+        porCategoria[slug].forEach(p => {
+            const img = p.imagem_url || 'https://via.placeholder.com/100?text=🍣';
+            const card = document.createElement('div');
+            card.className = 'pdv-card';
+            card.style.backgroundImage = `url('${img}')`;
+            card.onclick = () => adicionarItemPDV(p);
+            card.innerHTML = `
+                <div class="pdv-card-price">Gs ${p.preco.toLocaleString('es-PY')}</div>
+                <div class="pdv-card-overlay">${p.nome}</div>
+            `;
+            row.appendChild(card);
+        });
+
+        grid.appendChild(row);
     });
 }
 
@@ -2105,10 +2346,10 @@ document.addEventListener('keydown', function(event) {
 });
 
 // =========================================
-// 10. GESTÃO DE EQUIPE (Estava faltando)
+// 10. GESTÃO DE EQUIPE
 // =========================================
 async function carregarEquipe() {
-    const { data } = await supa.from('perfis_acesso').select('*'); 
+    const { data } = await supa.from('perfis_acesso').select('*').order('cargo'); 
     
     const tbody = document.getElementById('lista-equipe');
     if (!tbody) return;
@@ -2116,39 +2357,101 @@ async function carregarEquipe() {
     tbody.innerHTML = '';
     if (data) {
         data.forEach(u => {
-            // Proteção: Se não tiver data, mostra traço
-            const dataCriacao = u.created_at ? new Date(u.created_at).toLocaleDateString() : '-';
-            tbody.innerHTML += `<tr><td>${u.email}</td><td>${u.cargo}</td><td>${dataCriacao}</td></tr>`;
+            const dataCriacao = u.created_at ? new Date(u.created_at).toLocaleDateString('pt-BR') : '-';
+            const ehDono = u.cargo === 'dono';
+            const ehGerente = u.cargo === 'gerente';
+            const ehFuncionario = u.cargo === 'funcionario';
+            
+            // Botão de promoção/rebaixamento (só dono pode gerenciar)
+            let acaoCargo = '';
+            if (!ehDono && perfilUsuario === 'dono') {
+                if (ehFuncionario) {
+                    acaoCargo = `<button class="btn btn-sm btn-success" onclick="promoverUsuario('${u.id}', 'gerente')" title="Promover a Gerente"><i class="fas fa-arrow-up"></i> Gerente</button>`;
+                } else if (ehGerente) {
+                    acaoCargo = `<button class="btn btn-sm btn-warning" onclick="promoverUsuario('${u.id}', 'funcionario')" title="Rebaixar a Funcionário"><i class="fas fa-arrow-down"></i> Funcionário</button>`;
+                }
+                acaoCargo += ` <button class="btn btn-sm btn-danger" onclick="excluirUsuario('${u.id}', '${u.email}')" title="Excluir"><i class="fas fa-trash"></i></button>`;
+            }
+            
+            const cargoBadge = ehDono ? '🔑 Dono' : (ehGerente ? '👔 Gerente' : '👷 Funcionário');
+            tbody.innerHTML += `<tr>
+                <td>${u.email}</td>
+                <td>${cargoBadge}</td>
+                <td>${dataCriacao}</td>
+                <td>${acaoCargo}</td>
+            </tr>`;
         });
     }
 }
 
-async function cadastrarUsuario() {
-    const email = document.getElementById('novo-user-email').value;
-    const senha = document.getElementById('novo-user-senha').value;
-    const cargo = document.getElementById('novo-user-cargo').value;
-
-    if (!email || !senha || senha.length < 6) return alert('Email e senha (min 6) obrigatórios');
-
-    // 1. Cria usuário na Autenticação
-    const { data, error } = await supa.auth.signUp({ email: email, password: senha });
+async function promoverUsuario(id, novoCargo) {
+    const msg = novoCargo === 'gerente' ? 'Promover este usuário a Gerente?' : 'Rebaixar este usuário a Funcionário?';
+    if (!confirm(msg)) return;
     
-    if (error) return alert('Erro Auth: ' + error.message);
-
-    // 2. Cria registro no banco (perfil)
-    if (data.user) {
-        const { error: errPerfil } = await supa.from('perfis_acesso').insert([{ id: data.user.id, email: email, cargo: cargo }]);
-        
-        if (errPerfil) {
-            alert('Usuário criado, mas erro ao salvar perfil: ' + errPerfil.message);
-        } else {
-            alert('Usuário cadastrado com sucesso!');
-            document.getElementById('novo-user-email').value = '';
-            document.getElementById('novo-user-senha').value = '';
-            carregarEquipe();
-        }
+    const { error } = await supa.from('perfis_acesso').update({ cargo: novoCargo }).eq('id', id);
+    if (error) {
+        alert('❌ Erro: ' + error.message);
+    } else {
+        alert(`✅ Cargo alterado para ${novoCargo}!`);
+        carregarEquipe();
     }
 }
+
+async function excluirUsuario(id, email) {
+    if (!confirm(`⚠️ Excluir o usuário "${email}"?\n\nEsta ação remove apenas o perfil. O acesso de autenticação pode precisar ser revogado no Supabase Dashboard.`)) return;
+    
+    const { error } = await supa.from('perfis_acesso').delete().eq('id', id);
+    if (error) {
+        alert('❌ Erro ao excluir: ' + error.message);
+    } else {
+        alert('✅ Usuário excluído com sucesso!');
+        carregarEquipe();
+    }
+}
+
+async function cadastrarUsuario() {
+    const email = document.getElementById('novo-user-email')?.value?.trim();
+    const senha = document.getElementById('novo-user-senha')?.value;
+    const cargo = document.getElementById('novo-user-cargo')?.value;
+
+    if (!email || !senha || senha.length < 6) return alert('Email e senha (mín. 6 caracteres) são obrigatórios');
+
+    const btn = event?.target;
+    if (btn) { btn.disabled = true; btn.innerText = 'Criando...'; }
+
+    try {
+        // 1. Cria usuário na Autenticação do Supabase
+        const { data, error } = await supa.auth.signUp({ email, password: senha });
+        
+        if (error) {
+            alert('❌ Erro ao criar usuário: ' + error.message);
+            return;
+        }
+
+        if (data.user) {
+            // 2. Salva perfil no banco usando upsert para evitar duplicata de chave
+            const { error: errPerfil } = await supa.from('perfis_acesso')
+                .upsert([{ id: data.user.id, email, cargo }], { onConflict: 'id' });
+            
+            if (errPerfil) {
+                alert('⚠️ Usuário de autenticação criado, mas erro ao salvar perfil: ' + errPerfil.message);
+            } else {
+                alert('✅ Usuário cadastrado com sucesso!\n\nO usuário receberá um email de confirmação.');
+                document.getElementById('novo-user-email').value = '';
+                document.getElementById('novo-user-senha').value = '';
+                carregarEquipe();
+            }
+        } else {
+            alert('⚠️ Usuário criado. Aguardando confirmação de email para ativar.');
+        }
+    } catch(e) {
+        alert('❌ Erro inesperado: ' + e.message);
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-user-plus"></i> Criar'; }
+    }
+}
+
+
 
 function addBuilderStep(titulo = '', max = 1, itens = []) {
     const container = document.getElementById('builder-steps');

@@ -7,10 +7,9 @@
     <style>
         body { font-family: 'Courier New', Courier, monospace; background: #eee; padding: 20px; }
         
-        /* Estilo da Folha na Tela */
         .ticket {
             background: #fff;
-            max-width: 300px; /* Largura padrão 80mm */
+            max-width: 300px;
             margin: 0 auto;
             padding: 10px;
             box-shadow: 0 4px 10px rgba(0,0,0,0.1);
@@ -38,12 +37,11 @@
             cursor: pointer; margin-top: 20px; border-radius: 8px;
         }
 
-        /* CONFIGURAÇÃO EXCLUSIVA DE IMPRESSÃO */
         @media print {
             body { background: none; padding: 0; margin: 0; }
-            .btn-print { display: none; } /* Esconde o botão */
+            .btn-print { display: none; }
             .ticket { box-shadow: none; max-width: 100%; width: 100%; margin: 0; }
-            @page { margin: 0; } /* Remove margens do papel */
+            @page { margin: 0; }
         }
     </style>
 </head>
@@ -51,23 +49,23 @@
 
     <div class="ticket">
         <h3>SUSHITERIA DELIVERY</h3>
-        <p class="centered" style="font-weight:bold; font-size:14px; margin-top:5px;">PEDIDO #<span id="id-pedido"></span></p>
-        <p class="centered">Mariano Roque ALonso</p>
+        <p class="centered" style="font-weight:bold; font-size:14px; margin-top:5px;">PEDIDO #<span id="id-pedido">---</span></p>
+        <p class="centered">Mariano Roque Alonso</p>
         <p class="centered">Tel: +595976771714</p>
         <hr>
         
         <div class="info-group">
-            <strong>Data:</strong> <span id="data-hora"></span><br>
-            <strong>Cliente:</strong> <span id="nome"></span><br>
-            <strong>Tel:</strong> <span id="tel"></span>
+            <strong>Data:</strong> <span id="data-hora">---</span><br>
+            <strong>Cliente:</strong> <span id="nome">---</span><br>
+            <strong>Tel:</strong> <span id="tel">---</span>
         </div>
         <hr>
 
         <div style="text-align:center; font-weight:bold; font-size:14px; margin:5px 0;">
-            <span id="tipo-entrega"></span>
+            <span id="tipo-entrega">---</span>
         </div>
         <div id="endereco-box" style="font-size:11px; margin-bottom:5px; display:none;">
-            Ref: <span id="ref-entrega"></span>
+            Ref: <span id="ref-entrega">---</span>
         </div>
         <hr>
 
@@ -80,26 +78,27 @@
                 </tr>
             </thead>
             <tbody id="lista-itens">
-                </tbody>
+                <tr><td colspan="3" style="text-align:center;padding:10px;">Carregando...</td></tr>
+            </tbody>
         </table>
         <hr>
 
         <div class="totals">
-            Subtotal: <span id="subtotal">0</span><br>
-            Frete: <span id="frete">0</span><br>
-            <div class="total-final">TOTAL: <span id="total-geral">0</span></div>
+            Subtotal: <span id="subtotal">Gs 0</span><br>
+            Frete: <span id="frete">Gs 0</span><br>
+            <div class="total-final">TOTAL: <span id="total-geral">Gs 0</span></div>
         </div>
         <hr>
 
         <div class="info-group">
-            <strong>Pagto:</strong> <span id="forma-pag"></span><br>
+            <strong>Pagto:</strong> <span id="forma-pag">---</span><br>
             <div id="obs-pag" style="margin-top:2px; font-style:italic;"></div>
         </div>
 
         <div id="box-factura" style="display:none; margin-top:10px; border:1px solid #000; padding:5px;">
             <strong>DADOS FACTURA:</strong><br>
-            RUC: <span id="ruc"></span><br>
-            Razão: <span id="razao"></span>
+            RUC: <span id="ruc">---</span><br>
+            Razão: <span id="razao">---</span>
         </div>
 
         <br>
@@ -110,7 +109,6 @@
 
     <script>
         window.onload = function() {
-            // Pega o parâmetro 'd' da URL
             const params = new URLSearchParams(window.location.search);
             const codigoBase64 = params.get('d');
             
@@ -120,74 +118,110 @@
             }
 
             try {
-                // --- DESCODIFICA A MÁGICA (Base64 -> JSON) ---
-                const jsonString = decodeURIComponent(escape(atob(codigoBase64)));
+                // Decodifica Base64 URL-safe -> JSON
+                // Reverte substituições: - volta para +, _ volta para /
+                const base64Normal = codigoBase64
+                    .replace(/-/g, '+')
+                    .replace(/_/g, '/');
+                // Adiciona padding = se necessário
+                const pad = base64Normal.length % 4;
+                const base64Padded = pad ? base64Normal + '='.repeat(4 - pad) : base64Normal;
+                
+                const jsonString = decodeURIComponent(escape(atob(base64Padded)));
                 const pedido = JSON.parse(jsonString);
+                
+                console.log('Pedido recebido:', pedido);
 
                 // ID DO PEDIDO
-                document.getElementById('id-pedido').innerText = pedido.id || '---';
+                document.getElementById('id-pedido').innerText = pedido.id || 'S/N';
 
                 // 1. Cabeçalho
-                document.getElementById('data-hora').innerText = new Date().toLocaleString('pt-BR');
-                document.getElementById('nome').innerText = pedido.cliente.nome;
-                document.getElementById('tel').innerText = pedido.cliente.tel;
+                document.getElementById('data-hora').innerText = pedido.data || new Date().toLocaleString('pt-BR');
+                document.getElementById('nome').innerText = pedido.cliente?.nome || 'Cliente';
+                document.getElementById('tel').innerText = pedido.cliente?.tel || 'S/N';
 
                 // 2. Entrega
-                document.getElementById('tipo-entrega').innerText = pedido.entrega.tipo.toUpperCase();
-                if(pedido.entrega.tipo === 'delivery') {
+                const tipoEntrega = pedido.entrega?.tipo || 'delivery';
+                document.getElementById('tipo-entrega').innerText = tipoEntrega.toUpperCase();
+                
+                if(tipoEntrega === 'delivery') {
                     document.getElementById('endereco-box').style.display = 'block';
-                    document.getElementById('ref-entrega').innerText = pedido.entrega.ref;
+                    document.getElementById('ref-entrega').innerText = pedido.entrega?.ref || 'Não informado';
                 }
 
                 // 3. Itens 
                 const tbody = document.getElementById('lista-itens');
-                pedido.itens.forEach(item => {
-                    const tr = document.createElement('tr');
-                    
-                    // Tratamento de Variações
-                    let detalhes = '';
-                    if (item.t && item.t !== 'Padrão' && item.t !== 'Montado') detalhes += `<br><small>(${item.t})</small>`;
-                    
-                    // Tratamento de Montagem (Poke)
-                    if (item.m && item.m.length > 0) {
-                        detalhes += `<br><small style="font-style:italic">Ing: ${item.m.join(', ')}</small>`;
-                    }
-
-                    // Tratamento de Observação
-                    if (item.o) {
-                        detalhes += `<br><strong style="font-size:10px">OBS: ${item.o}</strong>`;
-                    }
-                    
-                    tr.innerHTML = `
-                        <td style="vertical-align:top">${item.q}x</td>
-                        <td>${item.n} ${detalhes}</td>
-                        <td style="text-align:right">Gs ${(item.p * item.q).toLocaleString('es-PY')}</td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-
-                // 4. Totais
-                document.getElementById('subtotal').innerText = `Gs ${pedido.valores.sub.toLocaleString('es-PY')}`;
-                document.getElementById('frete').innerText = `Gs ${pedido.valores.frete.toLocaleString('es-PY')}`;
-                document.getElementById('total-geral').innerText = `Gs ${pedido.valores.total.toLocaleString('es-PY')}`;
-
-                // 5. Pagamento
-                document.getElementById('forma-pag').innerText = pedido.pagamento.metodo;
-                document.getElementById('obs-pag').innerText = pedido.pagamento.obs || '';
-
-                // 6. Factura
-                if(pedido.factura) {
-                    document.getElementById('box-factura').style.display = 'block';
-                    document.getElementById('ruc').innerText = pedido.factura.ruc;
-                    document.getElementById('razao').innerText = pedido.factura.razao;
+                tbody.innerHTML = '';
+                
+                console.log('🍣 Itens recebidos:', JSON.stringify(pedido.itens));
+                
+                const itens = Array.isArray(pedido.itens) ? pedido.itens : [];
+                if (itens.length > 0) {
+                    itens.forEach((item, idx) => {
+                        console.log('Item '+idx+':', JSON.stringify(item));
+                        const tr = document.createElement('tr');
+                        
+                        // Extrai quantidade: aceita q, qtd, quantidade — fallback 1
+                        const quantidade = (item.q !== undefined ? item.q : null) 
+                                        || (item.qtd !== undefined ? item.qtd : null)
+                                        || (item.quantidade !== undefined ? item.quantidade : null)
+                                        || 1;
+                        
+                        // Extrai nome
+                        const nomeItem = item.n || item.nome || item.name || ('Item '+(idx+1));
+                        
+                        // Extrai preço — usa parseFloat para garantir número
+                        const preco = parseFloat(item.p !== undefined ? item.p : (item.preco !== undefined ? item.preco : (item.valor || 0))) || 0;
+                        
+                        const montagem = item.m || item.montagem || [];
+                        const observacao = item.o || item.obs || item.observacao || '';
+                        const tipo = item.t || item.tipo || '';
+                        
+                        let detalhes = '';
+                        if (tipo && tipo !== 'Padrão' && tipo !== 'Montado') detalhes += '<br><small>('+tipo+')</small>';
+                        if (Array.isArray(montagem) && montagem.length > 0) detalhes += '<br><small style="font-style:italic">Ing: '+montagem.join(', ')+'</small>';
+                        if (observacao) detalhes += '<br><strong style="font-size:10px">OBS: '+observacao+'</strong>';
+                        
+                        const total = (preco * quantidade).toLocaleString('es-PY');
+                        tr.innerHTML = '<td style="vertical-align:top">'+quantidade+'x</td><td>'+nomeItem+detalhes+'</td><td style="text-align:right">Gs '+total+'</td>';
+                        tbody.appendChild(tr);
+                    });
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#e74c3c;">Nenhum item encontrado</td></tr>';
                 }
 
-                // Opcional: Imprimir automático
+                // 4. Totais
+                const valores = pedido.valores || {};
+                document.getElementById('subtotal').innerText = `Gs ${(valores.sub || valores.subtotal || 0).toLocaleString('es-PY')}`;
+                document.getElementById('frete').innerText = `Gs ${(valores.frete || valores.frete_cobrado_cliente || 0).toLocaleString('es-PY')}`;
+                document.getElementById('total-geral').innerText = `Gs ${(valores.total || valores.total_geral || 0).toLocaleString('es-PY')}`;
+
+                // 5. Pagamento
+                const pagamento = pedido.pagamento || {};
+                document.getElementById('forma-pag').innerText = pagamento.metodo || pagamento.forma_pagamento || 'Não informado';
+                document.getElementById('obs-pag').innerText = pagamento.obs || pagamento.obs_pagamento || '';
+
+                // 6. Factura
+                if(pedido.factura && (pedido.factura.ruc || pedido.factura.razao)) {
+                    document.getElementById('box-factura').style.display = 'block';
+                    document.getElementById('ruc').innerText = pedido.factura.ruc || 'S/N';
+                    document.getElementById('razao').innerText = pedido.factura.razao || 'S/N';
+                }
+
+                // Opcional: Imprimir automático após 800ms
                 // setTimeout(() => window.print(), 800);
 
             } catch (e) {
-                alert("Erro ao ler o pedido. O link pode estar cortado.");
-                console.error(e);
+                console.error('Erro ao processar pedido:', e);
+                document.body.innerHTML = `
+                    <h3 style='text-align:center; color:red; margin-top:50px'>
+                        Erro ao ler o pedido.<br><br>
+                        <small>O link pode estar incompleto ou corrompido.</small><br><br>
+                        <button onclick="window.close()" style="padding:10px 20px; background:#FF441F; color:white; border:none; border-radius:5px; cursor:pointer;">
+                            Fechar
+                        </button>
+                    </h3>
+                `;
             }
         }
     </script>
