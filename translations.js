@@ -84,7 +84,7 @@ const translations = {
         orders: "Pedidos",
         kitchen: "Cocina",
         products: "Productos",
-        categories: "Categorías",
+        categories_admin: "Categorías",
         delivery_drivers: "Motoqueros",
         financial: "Financiero",
         settings: "Configuraciones",
@@ -93,10 +93,7 @@ const translations = {
         // Status
         pending: "Pendiente",
         confirmed: "Confirmado",
-        preparing: "Preparando",
         ready_delivery: "Listo para Entrega",
-        out_delivery: "En Camino",
-        delivered: "Entregado",
         cancelled: "Cancelado",
         
         // Botões
@@ -195,7 +192,7 @@ const translations = {
         orders: "Pedidos",
         kitchen: "Cozinha",
         products: "Produtos",
-        categories: "Categorias",
+        categories_admin: "Categorias",
         delivery_drivers: "Motoboys",
         financial: "Financeiro",
         settings: "Configurações",
@@ -204,10 +201,7 @@ const translations = {
         // Status
         pending: "Pendente",
         confirmed: "Confirmado",
-        preparing: "Preparando",
         ready_delivery: "Pronto para Entrega",
-        out_delivery: "A Caminho",
-        delivered: "Entregue",
         cancelled: "Cancelado",
         
         // Botões
@@ -306,7 +300,7 @@ const translations = {
         orders: "Orders",
         kitchen: "Kitchen",
         products: "Products",
-        categories: "Categories",
+        categories_admin: "Categories",
         delivery_drivers: "Drivers",
         financial: "Financial",
         settings: "Settings",
@@ -315,10 +309,7 @@ const translations = {
         // Status
         pending: "Pending",
         confirmed: "Confirmed",
-        preparing: "Preparing",
         ready_delivery: "Ready for Delivery",
-        out_delivery: "On the Way",
-        delivered: "Delivered",
         cancelled: "Cancelled",
         
         // Botões
@@ -417,7 +408,7 @@ const translations = {
         orders: "Bestellungen",
         kitchen: "Küche",
         products: "Produkte",
-        categories: "Kategorien",
+        categories_admin: "Kategorien",
         delivery_drivers: "Fahrer",
         financial: "Finanzen",
         settings: "Einstellungen",
@@ -426,10 +417,7 @@ const translations = {
         // Status
         pending: "Ausstehend",
         confirmed: "Bestätigt",
-        preparing: "In Vorbereitung",
         ready_delivery: "Bereit zur Lieferung",
-        out_delivery: "Unterwegs",
-        delivered: "Geliefert",
         cancelled: "Storniert",
         
         // Botões
@@ -467,12 +455,16 @@ function t(key) {
 
 // Função para atualizar toda a página
 function updatePageLanguage() {
+    const lang = getCurrentLanguage();
+    
     document.querySelectorAll('[data-i18n]').forEach(el => {
         const key = el.getAttribute('data-i18n');
-        if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-            el.placeholder = t(key);
-        } else {
-            el.textContent = t(key);
+        if (translations[lang][key]) {
+            if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+                el.placeholder = translations[lang][key];
+            } else {
+                el.textContent = translations[lang][key];
+            }
         }
     });
     
@@ -480,11 +472,22 @@ function updatePageLanguage() {
     const pageTitle = document.querySelector('[data-i18n-title]');
     if (pageTitle) {
         const key = pageTitle.getAttribute('data-i18n-title');
-        document.title = t(key);
+        if (translations[lang][key]) {
+            document.title = translations[lang][key];
+        }
     }
+    
+    // Atualizar opções de select
+    document.querySelectorAll('select[data-i18n-options] option').forEach(opt => {
+        const key = opt.getAttribute('data-i18n');
+        if (key && translations[lang][key]) {
+            opt.textContent = translations[lang][key];
+        }
+    });
 }
 
 // Inicializar ao carregar página
 document.addEventListener('DOMContentLoaded', () => {
+    // Aplica o idioma atual imediatamente
     updatePageLanguage();
 });

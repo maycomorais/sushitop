@@ -279,14 +279,24 @@ async function verificarHorario() {
 
   const badge = document.querySelector('.badge-status');
   if(badge) {
+      // Obtém o idioma atual para traduzir Aberto/Fechado
+      const lang = localStorage.getItem('language') || 'es';
+      const textos = {
+        es: { aberto: 'Abierto', fechado: 'Cerrado' },
+        pt: { aberto: 'Aberto', fechado: 'Fechado' },
+        en: { aberto: 'Open', fechado: 'Closed' },
+        de: { aberto: 'Geöffnet', fechado: 'Geschlossen' }
+      };
+      const t = textos[lang] || textos.es;
+      
       if (estaAberto) {
-        badge.innerText = 'Aberto';
-        badge.style.background = '#e6ffea';
-        badge.style.color = '#28a745';
+        badge.innerText = t.aberto;
+        badge.classList.remove('closed');
+        badge.classList.add('open');
       } else {
-        badge.innerText = 'Fechado';
-        badge.style.background = '#ffebee';
-        badge.style.color = '#c0392b';
+        badge.innerText = t.fechado;
+        badge.classList.remove('open');
+        badge.classList.add('closed');
       }
   }
 

@@ -28,7 +28,9 @@ main.menu-container { flex: 1; }
 .logo-area { display: flex; align-items: center; gap: 10px; }
 .logo-area img { width: 40px; height: 40px; border-radius: 50%; }
 .store-details h1 { font-size: 1.1rem; color: var(--dark); }
-.badge-status { font-size: 0.7rem; color: #28a745; font-weight: 600; background: #e6ffea; padding: 2px 8px; border-radius: 4px; }
+.badge-status { font-size: 0.7rem; font-weight: 600; padding: 2px 8px; border-radius: 4px; transition: all 0.3s ease; }
+.badge-status.open { color: #28a745; background: #e6ffea; }
+.badge-status.closed { color: #c0392b; background: #ffebee; }
 .header-info p { font-size: 0.8rem; color: var(--gray); text-align: right; }
 
 /* Banner */

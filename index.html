@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="es-PY">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -9,12 +9,14 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Sushiteria">
     <link rel="manifest" href="manifest.json">
-    <link rel="apple-touch-icon" href="https://img.freepik.com/vetores-gratis/desenho-de-modelo-de-logotipo-de-sushi_742173-17797.jpg">
+    <link rel="apple-touch-icon" href=https://files.menudino.com/merchants/0643ce70-ba76-4ae1-b5b8-06373cc01c75/logo.png">
     <title>Sushitop Loma-Mariano</title>
+    <link rel="shortcut icon" href="fhttps://files.menudino.com/merchants/0643ce70-ba76-4ae1-b5b8-06373cc01c75/logo.png" type="image/x-icon">
     <link rel="stylesheet" href="style.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700&display=swap" rel="stylesheet">
     <script src="translations.js"></script>
+<base target="_blank">
 </head>
 <body>
     <header class="app-header sticky">
@@ -23,7 +25,7 @@
                 <img src="https://img.freepik.com/vetores-gratis/desenho-de-modelo-de-logotipo-de-sushi_742173-17797.jpg" alt="Logo">
                 <div class="store-details">
                     <h1>Sushiteria</h1>
-                    <span class="badge-status">Aberto</span>
+                    <span class="badge-status open" data-lang-key="header-aberto">Abierto</span>
                 </div>
             </div>
             <div class="language-selector" style="position:absolute; top:15px; right:15px; z-index:1000;">
@@ -86,7 +88,7 @@
 }
 </style>
 
-<!-- CSS p  ara o botão de idioma -->
+<!-- CSS para o botão de idioma -->
 <style>
 .lang-option:hover {
     background: #f8f9fa !important;
@@ -134,21 +136,54 @@ const _traducoes = {
         'header-aberto':     'Abierto',
         'header-fechado':    'Cerrado',
         'track-title':       '🚚 Rastrear Pedido',
-        'track-placeholder': 'Número do pedido',
+        'track-placeholder': 'Número del pedido',
         'track-btn':         'Buscar',
-        'track-outro':       'Rastrear Outro Pedido',
+        'track-outro':       'Rastrear Otro Pedido',
         'cart-title':        'Mi Pedido',
+        'cart-empty':        'Tu carrito está vacío',
+        'cart-empty-sub':    'Agrega items del menú',
         'btn-delivery':      '🛵 Delivery',
-        'btn-retirada':      '🏃 Retirada',
-        'btn-balcao':        '🏪 Balcão',
-        'checkout-title':    'Seus Dados',
+        'btn-retirada':      '🏃 Retiro',
+        'btn-balcao':        '🏪 Balcón',
+        'checkout-title':    'Finalizar Pedido',
         'label-nome':        'Nombre Completo *',
         'label-zap':         'WhatsApp *',
-        'label-end':         'Endereço de Entrega *',
-        'label-ref':         'Ponto de Referência',
+        'label-end':         'Dirección de Entrega *',
+        'label-ref':         'Punto de Referencia',
         'label-pag':         'Forma de Pago *',
-        'btn-finalizar':     '✅ Finalizar Pedido',
+        'btn-finalizar':     '✅ Confirmar Pedido',
         'label-cupom':       'Cupón de Descuento',
+        'btn-limpar':        'Limpiar',
+        'modal-obs':         '¿Alguna observación?',
+        'modal-obs-ph':      'Ej: Sin cebollín, Salmón Maçaricado, Capricha en la salsa...',
+        'modal-add':         'Agregar',
+        'ultimo-pedido':     'Último Pedido',
+        'ultimo-pedido-sub': '¿Te gustó? ¡Pide de nuevo!',
+        'btn-repetir':       'Agregar Todo al Carrito',
+        'btn-calcular':      '📍 Calcular Envío (Obligatorio)',
+        'frete-msg':         'Calculando...',
+        'gps-erro-titulo':   '¿GPS no funcionó?',
+        'gps-erro-texto':    '¡Sin problemas! Marca la opción abajo para combinar el valor de la entrega por WhatsApp.',
+        'gps-erro-check':    'Enviaré mi ubicación por WhatsApp',
+        'forma-pag':         'Seleccione la forma de pago...',
+        'pag-dinheiro':      'Efectivo (Guaraníes)',
+        'pag-cartao':        'Tarjeta de Crédito/Débito',
+        'pag-pix':           'Pix (BR)',
+        'pag-transfer':      'Transferencia / Alias (PY)',
+        'label-troco':       '¿Cuánto vuelto necesitas?',
+        'label-factura':     'Necesito Factura',
+        'label-ruc':         'RUC o CI',
+        'label-razao':       'Razón Social',
+        'subtotal':          'Subtotal',
+        'delivery':          'Envío',
+        'desconto':          'Descuento',
+        'total':             'Total',
+        'turbine':           'Bebidas & Extras',
+        'como-receber':      '¿Cómo desea recibir?',
+        'entrega':           'Entrega',
+        'retiro':            'Retiro',
+        'seus-dados':        'Sus Datos',
+        'pagamento':         'Pago'
     },
     pt: {
         'header-aberto':     'Aberto',
@@ -158,17 +193,50 @@ const _traducoes = {
         'track-btn':         'Buscar',
         'track-outro':       'Rastrear Outro Pedido',
         'cart-title':        'Meu Pedido',
+        'cart-empty':        'Seu carrinho está vazio',
+        'cart-empty-sub':    'Adicione itens do menu',
         'btn-delivery':      '🛵 Delivery',
         'btn-retirada':      '🏃 Retirada',
         'btn-balcao':        '🏪 Balcão',
-        'checkout-title':    'Seus Dados',
+        'checkout-title':    'Finalizar Pedido',
         'label-nome':        'Nome Completo *',
         'label-zap':         'WhatsApp *',
         'label-end':         'Endereço de Entrega *',
         'label-ref':         'Ponto de Referência',
         'label-pag':         'Forma de Pagamento *',
-        'btn-finalizar':     '✅ Finalizar Pedido',
+        'btn-finalizar':     '✅ Confirmar Pedido',
         'label-cupom':       'Cupom de Desconto',
+        'btn-limpar':        'Limpar',
+        'modal-obs':         'Alguma observação?',
+        'modal-obs-ph':      'Ex: Sem cebolinha, Salmão Maçaricado, Capricha no molho...',
+        'modal-add':         'Adicionar',
+        'ultimo-pedido':     'Último Pedido',
+        'ultimo-pedido-sub': 'Gostou? Peça de novo!',
+        'btn-repetir':       'Adicionar Tudo ao Carrinho',
+        'btn-calcular':      '📍 Calcular Frete (Obrigatório)',
+        'frete-msg':         'Calculando...',
+        'gps-erro-titulo':   'GPS não funcionou?',
+        'gps-erro-texto':    'Sem problemas! Marque a opção abaixo para combinar o valor da entrega pelo WhatsApp.',
+        'gps-erro-check':    'Vou enviar minha localização pelo WhatsApp',
+        'forma-pag':         'Selecione a forma de pagamento...',
+        'pag-dinheiro':      'Dinheiro (Guaranis)',
+        'pag-cartao':        'Cartão de Crédito/Débito',
+        'pag-pix':           'Pix (BR)',
+        'pag-transfer':      'Transferência / Alias (PY)',
+        'label-troco':       'Troco para quanto?',
+        'label-factura':     'Preciso de Nota Fiscal',
+        'label-ruc':         'RUC ou CI',
+        'label-razao':       'Razão Social',
+        'subtotal':          'Subtotal',
+        'delivery':          'Entrega',
+        'desconto':          'Desconto',
+        'total':             'Total',
+        'turbine':           'Bebidas & Extras',
+        'como-receber':      'Como deseja receber?',
+        'entrega':           'Entrega',
+        'retiro':            'Retirada',
+        'seus-dados':        'Seus Dados',
+        'pagamento':         'Pagamento'
     },
     en: {
         'header-aberto':     'Open',
@@ -178,10 +246,12 @@ const _traducoes = {
         'track-btn':         'Search',
         'track-outro':       'Track Another Order',
         'cart-title':        'My Order',
+        'cart-empty':        'Your cart is empty',
+        'cart-empty-sub':    'Add items from the menu',
         'btn-delivery':      '🛵 Delivery',
         'btn-retirada':      '🏃 Pickup',
         'btn-balcao':        '🏪 Counter',
-        'checkout-title':    'Your Details',
+        'checkout-title':    'Checkout',
         'label-nome':        'Full Name *',
         'label-zap':         'WhatsApp *',
         'label-end':         'Delivery Address *',
@@ -189,6 +259,37 @@ const _traducoes = {
         'label-pag':         'Payment Method *',
         'btn-finalizar':     '✅ Place Order',
         'label-cupom':       'Discount Coupon',
+        'btn-limpar':        'Clear',
+        'modal-obs':         'Any observations?',
+        'modal-obs-ph':      'Ex: No green onions, Grilled Salmon, Extra sauce...',
+        'modal-add':         'Add',
+        'ultimo-pedido':     'Last Order',
+        'ultimo-pedido-sub': 'Liked it? Order again!',
+        'btn-repetir':       'Add Everything to Cart',
+        'btn-calcular':      '📍 Calculate Delivery (Required)',
+        'frete-msg':         'Calculating...',
+        'gps-erro-titulo':   'GPS did not work?',
+        'gps-erro-texto':    'No problem! Check the option below to arrange delivery fee via WhatsApp.',
+        'gps-erro-check':    'I will send my location via WhatsApp',
+        'forma-pag':         'Select payment method...',
+        'pag-dinheiro':      'Cash (Guaranies)',
+        'pag-cartao':        'Credit/Debit Card',
+        'pag-pix':           'Pix (BR)',
+        'pag-transfer':      'Transfer / Alias (PY)',
+        'label-troco':       'Change for how much?',
+        'label-factura':     'I need an Invoice',
+        'label-ruc':         'RUC or ID',
+        'label-razao':       'Business Name',
+        'subtotal':          'Subtotal',
+        'delivery':          'Delivery',
+        'desconto':          'Discount',
+        'total':             'Total',
+        'turbine':           'Drinks & Extras',
+        'como-receber':      'How would you like to receive?',
+        'entrega':           'Delivery',
+        'retiro':            'Pickup',
+        'seus-dados':        'Your Information',
+        'pagamento':         'Payment'
     },
     de: {
         'header-aberto':     'Geöffnet',
@@ -198,10 +299,12 @@ const _traducoes = {
         'track-btn':         'Suchen',
         'track-outro':       'Andere Bestellung verfolgen',
         'cart-title':        'Meine Bestellung',
+        'cart-empty':        'Ihr Warenkorb ist leer',
+        'cart-empty-sub':    'Fügen Sie Artikel aus dem Menü hinzu',
         'btn-delivery':      '🛵 Lieferung',
         'btn-retirada':      '🏃 Abholung',
         'btn-balcao':        '🏪 Theke',
-        'checkout-title':    'Ihre Daten',
+        'checkout-title':    'Bestellung abschließen',
         'label-nome':        'Vollständiger Name *',
         'label-zap':         'WhatsApp *',
         'label-end':         'Lieferadresse *',
@@ -209,20 +312,43 @@ const _traducoes = {
         'label-pag':         'Zahlungsmethode *',
         'btn-finalizar':     '✅ Bestellen',
         'label-cupom':       'Rabattcoupon',
+        'btn-limpar':        'Löschen',
+        'modal-obs':         'Anmerkungen?',
+        'modal-obs-ph':      'Z.B.: Ohne Frühlingszwiebeln, Gegrillter Lachs, Extra Sauce...',
+        'modal-add':         'Hinzufügen',
+        'ultimo-pedido':     'Letzte Bestellung',
+        'ultimo-pedido-sub': 'Hat es Ihnen gefallen? Bestellen Sie erneut!',
+        'btn-repetir':       'Alles in den Warenkorb legen',
+        'btn-calcular':      '📍 Lieferung berechnen (Erforderlich)',
+        'frete-msg':         'Berechnung...',
+        'gps-erro-titulo':   'GPS hat nicht funktioniert?',
+        'gps-erro-texto':    'Kein Problem! Aktivieren Sie die Option unten, um die Liefergebühr per WhatsApp zu vereinbaren.',
+        'gps-erro-check':    'Ich sende meinen Standort per WhatsApp',
+        'forma-pag':         'Zahlungsmethode wählen...',
+        'pag-dinheiro':      'Bargeld (Guaranies)',
+        'pag-cartao':        'Kredit-/Debitkarte',
+        'pag-pix':           'Pix (BR)',
+        'pag-transfer':      'Überweisung / Alias (PY)',
+        'label-troco':       'Wechselgeld für wie viel?',
+        'label-factura':     'Ich brauche eine Rechnung',
+        'label-ruc':         'RUC oder ID',
+        'label-razao':       'Firmenname',
+        'subtotal':          'Zwischensumme',
+        'delivery':          'Lieferung',
+        'desconto':          'Rabatt',
+        'total':             'Gesamt',
+        'turbine':           'Getränke & Extras',
+        'como-receber':      'Wie möchten Sie erhalten?',
+        'entrega':           'Lieferung',
+        'retiro':            'Abholung',
+        'seus-dados':        'Ihre Daten',
+        'pagamento':         'Zahlung'
     }
 };
 
 function _aplicarIdioma(lang) {
     const t = _traducoes[lang] || _traducoes['es'];
-    const setText = (sel, txt) => {
-        const el = typeof sel === 'string' ? document.querySelector(sel) : sel;
-        if (el) el.textContent = txt;
-    };
-    const setAttr = (sel, attr, val) => {
-        const el = document.querySelector(sel);
-        if (el) el.setAttribute(attr, val);
-    };
-
+    
     // Aplicar por data-lang-key (elementos com esse atributo são traduzidos automaticamente)
     document.querySelectorAll('[data-lang-key]').forEach(el => {
         const key = el.getAttribute('data-lang-key');
@@ -250,6 +376,25 @@ function changeLanguage(lang) {
     if (typeof setLanguage === 'function') setLanguage(lang);
     // 2. Aplica traduções diretas dos elementos sem data-i18n
     _aplicarIdioma(lang);
+    
+    // 3. Atualizar textos dinâmicos do app.js se necessário
+    atualizarTextosDinamicos(lang);
+}
+
+// Atualiza textos que são inseridos dinamicamente pelo JavaScript
+function atualizarTextosDinamicos(lang) {
+    const t = _traducoes[lang] || _traducoes['es'];
+    
+    // Atualizar botão flutuante do carrinho
+    const cartText = document.querySelector('.cart-text');
+    if (cartText) cartText.textContent = t['track-title'] ? t['track-title'].replace('🚚 ', '') : 'Ver mi pedido';
+    
+    // Atualizar placeholders de formulários
+    const nomeInput = document.getElementById('cli-nome');
+    if (nomeInput && !nomeInput.value) nomeInput.placeholder = 'Ej: Juan Pérez';
+    
+    const refInput = document.getElementById('cli-ref');
+    if (refInput) refInput.placeholder = t['label-ref'] ? t['label-ref'].replace('Punto de Referencia', 'Ej: Casa azul, portón negro') : 'Punto de Referencia';
 }
 
 // Fecha menu ao clicar fora
@@ -269,13 +414,15 @@ window.addEventListener('DOMContentLoaded', () => {
     const codeEl = document.getElementById('current-lang-code');
     if (flagEl) flagEl.textContent = data.flag;
     if (codeEl) codeEl.textContent = data.code;
-    // Aplica traduções se idioma salvo não for o padrão
-    if (savedLang !== 'es') {
-        setTimeout(() => {
-            if (typeof setLanguage === 'function') setLanguage(savedLang);
-            _aplicarIdioma(savedLang);
-        }, 400); // aguarda app.js carregar
-    }
+    
+    // Aplica traduções imediatamente
+    _aplicarIdioma(savedLang);
+    
+    // Aguarda app.js carregar e aplica novamente
+    setTimeout(() => {
+        if (typeof setLanguage === 'function') setLanguage(savedLang);
+        _aplicarIdioma(savedLang);
+    }, 100);
 });
 </script>
             <div class="header-info">
@@ -306,7 +453,7 @@ window.addEventListener('DOMContentLoaded', () => {
     <!-- ===== RASTREADOR DE PEDIDO (CARD FIXO) ===== -->
     <div id="track-order-card" style="display: none; margin: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 16px; box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3); color: white;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-            <h3 style="margin: 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;">
+            <h3 style="margin: 0; font-size: 1.1rem; display: flex; align-items: center; gap: 8px;" data-lang-key="track-title">
                 <i class="fas fa-shipping-fast"></i> Rastrear Pedido
             </h3>
             <button onclick="fecharCardTracking()" style="background: rgba(255,255,255,0.2); border: none; width: 32px; height: 32px; border-radius: 50%; color: white; cursor: pointer; font-size: 1.2rem;">×</button>
@@ -314,10 +461,10 @@ window.addEventListener('DOMContentLoaded', () => {
         
         <!-- Formulário de busca -->
         <div id="track-form" style="display: block;">
-            <p style="margin: 0 0 12px 0; font-size: 0.9rem; opacity: 0.9;">Digite o número do seu pedido para acompanhar:</p>
+            <p style="margin: 0 0 12px 0; font-size: 0.9rem; opacity: 0.9;">Ingrese el número de su pedido para seguirlo:</p>
             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <input type="number" id="track-pedido-input" data-lang-key-placeholder="track-placeholder" placeholder="Ex: 81" style="flex: 1; min-width: 80px; padding: 12px; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600;">
-                <button onclick="buscarPedido()" style="padding: 12px 16px; background: white; color: #667eea; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; white-space: nowrap; flex-shrink: 0;">
+                <input type="number" id="track-pedido-input" data-lang-key-placeholder="track-placeholder" placeholder="Ej: 81" style="flex: 1; min-width: 80px; padding: 12px; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600;">
+                <button onclick="buscarPedido()" style="padding: 12px 16px; background: white; color: #667eea; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; white-space: nowrap; flex-shrink: 0;" data-lang-key="track-btn">
                     <i class="fas fa-search"></i> Buscar
                 </button>
             </div>
@@ -330,7 +477,7 @@ window.addEventListener('DOMContentLoaded', () => {
                     <span id="track-icon" style="font-size: 2rem;">📦</span>
                     <div style="flex: 1;">
                         <div style="font-size: 0.8rem; opacity: 0.8;">Pedido #<span id="track-numero">-</span></div>
-                        <div id="track-status-msg" style="font-weight: 700; font-size: 1.05rem;">Carregando...</div>
+                        <div id="track-status-msg" style="font-weight: 700; font-size: 1.05rem;">Cargando...</div>
                     </div>
                 </div>
                 
@@ -347,31 +494,31 @@ window.addEventListener('DOMContentLoaded', () => {
             <div id="track-motoboy-info" style="display: none; background: rgba(255,255,255,0.95); color: #333; padding: 12px; border-radius: 10px;">
                 <div style="font-weight: 700; font-size: 0.9rem; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
                     <i class="fas fa-motorcycle" style="color: var(--primary);"></i>
-                    <span>Saiu para Entrega</span>
+                    <span>Salió para Entrega</span>
                 </div>
                 <div style="font-size: 0.85rem; line-height: 1.6;">
                     <strong>Motoboy:</strong> <span id="track-motoboy-nome">-</span><br>
-                    <strong>Contato:</strong> <a id="track-motoboy-tel" href="#" style="color: var(--primary); text-decoration: none; font-weight: 600;">-</a>
+                    <strong>Contacto:</strong> <a id="track-motoboy-tel" href="#" style="color: var(--primary); text-decoration: none; font-weight: 600;">-</a>
                 </div>
             </div>
             
-            <button onclick="voltarBusca()" style="width: 100%; padding: 10px; background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; font-weight: 600; cursor: pointer; margin-top: 10px;">
-                Rastrear Outro Pedido
+            <button onclick="voltarBusca()" style="width: 100%; padding: 10px; background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); border-radius: 8px; font-weight: 600; cursor: pointer; margin-top: 10px;" data-lang-key="track-outro">
+                Rastrear Otro Pedido
             </button>
         </div>
     </div>
 
     <div id="buy-again-container" style="display: none; margin: 20px 20px 0; background: #fff; padding: 15px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #eee;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-            <h3 style="margin:0; font-size:1rem; color:#333;"><i class="fas fa-history" style="color:var(--primary)"></i> Último Pedido</h3>
-            <span style="font-size:0.8rem; color:#888;">Gostou? Peça de novo!</span>
+            <h3 style="margin:0; font-size:1rem; color:#333;" data-lang-key="ultimo-pedido"><i class="fas fa-history" style="color:var(--primary)"></i> Último Pedido</h3>
+            <span style="font-size:0.8rem; color:#888;" data-lang-key="ultimo-pedido-sub">¿Te gustó? ¡Pide de nuevo!</span>
         </div>
         
         <ul id="last-order-list" style="list-style:none; padding:0; margin:0 0 15px 0; font-size:0.9rem; color:#555; background:#f9f9f9; padding:10px; border-radius:8px;">
             </ul>
 
-        <button onclick="repetirPedido()" style="width:100%; padding:12px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer; display:flex; justify-content:center; align-items:center; gap:8px;">
-            <i class="fas fa-redo"></i> Adicionar Tudo ao Carrinho
+        <button onclick="repetirPedido()" style="width:100%; padding:12px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer; display:flex; justify-content:center; align-items:center; gap:8px;" data-lang-key="btn-repetir">
+            <i class="fas fa-redo"></i> Agregar Todo al Carrito
         </button>
     </div>
 
@@ -382,21 +529,21 @@ window.addEventListener('DOMContentLoaded', () => {
     <!-- CARRINHO SIDEBAR (visível só no desktop) -->
     <div class="desktop-right" id="desktop-cart-sidebar">
         <div class="desktop-cart-header">
-            <i class="fas fa-shopping-bag"></i> Meu Pedido
+            <i class="fas fa-shopping-bag"></i> <span data-lang-key="cart-title">Mi Pedido</span>
         </div>
         <div class="desktop-cart-body" id="desktop-cart-body">
             <div class="desktop-cart-empty" id="desktop-cart-empty">
                 <i class="fas fa-utensils"></i>
-                <div>Seu carrinho está vazio</div>
-                <small>Adicione itens do menu</small>
+                <div data-lang-key="cart-empty">Tu carrito está vacío</div>
+                <small data-lang-key="cart-empty-sub">Agrega items del menú</small>
             </div>
             <div id="desktop-cart-items"></div>
         </div>
         <div class="desktop-cart-total" id="desktop-cart-total-row" style="display:none">
-            <span>Total</span>
+            <span data-lang-key="total">Total</span>
             <span id="desktop-cart-total-val">Gs 0</span>
         </div>
-        <button class="desktop-cart-btn" id="desktop-cart-btn" onclick="abrirCheckout()" disabled>
+        <button class="desktop-cart-btn" id="desktop-cart-btn" onclick="abrirCheckout()" disabled data-lang-key="checkout-title">
             Finalizar Pedido
         </button>
     </div>
@@ -405,7 +552,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     <div class="cart-float" id="cart-bar" onclick="abrirCheckout()">
         <div class="cart-count" id="cart-count">0</div>
-        <div class="cart-text">Ver meu pedido</div>
+        <div class="cart-text" data-lang-key="cart-title">Ver mi pedido</div>
         <div class="cart-total" id="cart-total">Gs 0</div>
     </div>
 
@@ -414,8 +561,8 @@ window.addEventListener('DOMContentLoaded', () => {
             <button class="close-modal" onclick="fecharModalProduto()">×</button>
             
             <div class="modal-header-prod">
-                <h3 id="modal-title">Nome do Produto</h3>
-                <p id="modal-desc">Descrição...</p>
+                <h3 id="modal-title">Nombre del Producto</h3>
+                <p id="modal-desc">Descripción...</p>
             </div>
 
             <div class="modal-scroll-area">
@@ -428,8 +575,8 @@ window.addEventListener('DOMContentLoaded', () => {
                 <div id="pizza-resumo" style="display:none; margin:12px 0; background:#fff8f0; border:1px solid #fde8d0; border-radius:12px; overflow:hidden;"></div>
 
                 <div class="obs-area">
-                    <label>Alguma observação?</label>
-                    <textarea id="modal-obs" placeholder="Ex: Sem cebolinha, Salmão Maçaricado, Capricha no molho..."></textarea>
+                    <label data-lang-key="modal-obs">¿Alguna observación?</label>
+                    <textarea id="modal-obs" data-lang-key-placeholder="modal-obs-ph" placeholder="Ej: Sin cebollín, Salmón Maçaricado, Capricha en la salsa..."></textarea>
                 </div>
 
             </div>
@@ -441,7 +588,7 @@ window.addEventListener('DOMContentLoaded', () => {
                     <button onclick="mudarQtd(1)">+</button>
                 </div>
                 <button class="btn-add" onclick="adicionarDoModal()">
-                    Adicionar <span id="modal-price">Gs 0</span>
+                    <span data-lang-key="modal-add">Agregar</span> <span id="modal-price">Gs 0</span>
                 </button>
             </div>
         </div>
@@ -451,8 +598,8 @@ window.addEventListener('DOMContentLoaded', () => {
         <div class="modal-bottom-sheet full-height">
             
             <div class="checkout-header">
-                <button class="btn-limpar" onclick="limparCarrinho()">Limpar</button>
-                <h3>Finalizar Pedido</h3>
+                <button class="btn-limpar" onclick="limparCarrinho()" data-lang-key="btn-limpar">Limpiar</button>
+                <h3 data-lang-key="checkout-title">Finalizar Pedido</h3>
                 <button class="btn-fechar" onclick="fecharCheckout()">&times;</button>
             </div>
             
@@ -462,45 +609,45 @@ window.addEventListener('DOMContentLoaded', () => {
                 
                 <!-- CUPOM DE DESCONTO -->
                 <div class="cupom-area">
-                    <h4 style="margin-bottom:10px; font-size:1rem; color:#333;">🎟️ Cupom de Desconto</h4>
+                    <h4 style="margin-bottom:10px; font-size:1rem; color:#333;" data-lang-key="label-cupom">🎟️ Cupón de Descuento</h4>
                     <div class="cupom-input-group">
-                        <input type="text" id="cupom-codigo" placeholder="Digite o código" maxlength="20">
+                        <input type="text" id="cupom-codigo" data-lang-key-placeholder="label-cupom" placeholder="Ingrese el código" maxlength="20">
                         <button onclick="aplicarCupom()">Aplicar</button>
                     </div>
                     <div id="cupom-msg"></div>
                 </div>
                 
                 <div class="upsell-area mt-10">
-                    <h4 style="margin-bottom:10px; font-size:0.9rem; color:#666;">Bebidas & Extras</h4>
+                    <h4 style="margin-bottom:10px; font-size:0.9rem; color:#666;" data-lang-key="turbine">Bebidas & Extras</h4>
                     <div id="lista-upsell" class="scroll-horizontal"></div>
                 </div>
 
                 <div class="form-section mt-20">
-                    <h4 style="font-size: 1.1rem; color: #2D5A27; margin-bottom: 10px; text-align: center;">
-                        <i class="fas fa-hand-point-down"></i> Como deseja receber?
+                    <h4 style="font-size: 1.1rem; color: #2D5A27; margin-bottom: 10px; text-align: center;" data-lang-key="como-receber">
+                        <i class="fas fa-hand-point-down"></i> ¿Cómo desea recibir?
                     </h4>
                     <div class="delivery-toggle">
                         <button id="btn-delivery" class="active" onclick="mudarModoEntrega('delivery')">
-                            <i class="fas fa-motorcycle"></i> Entrega
+                            <i class="fas fa-motorcycle"></i> <span data-lang-key="entrega">Entrega</span>
                         </button>
                         <button id="btn-retirada" onclick="mudarModoEntrega('retirada')">
-                            <i class="fas fa-store"></i> Retirada
+                            <i class="fas fa-store"></i> <span data-lang-key="retiro">Retiro</span>
                         </button>
                     </div>
                 </div>
 
                 <div class="upsell-section">
-                    <h4>Turbine seu pedido 🥤</h4>
+                    <h4 data-lang-key="turbine">Turbine su pedido 🥤</h4>
                     <div id="upsell-list" class="upsell-scroller"></div>
                 </div>
 
                 <div class="form-section">
-                    <h4>Seus Dados</h4>
-                    <label style="font-size: 0.8rem; color: #666;">Nome Completo</label>
-                    <input type="text" id="cli-nome" placeholder="Ex: João da Silva" class="input-field">
-                    <span id="erro-nome" class="msg-erro-texto">Nome é obrigatório</span>
+                    <h4 data-lang-key="seus-dados">Sus Datos</h4>
+                    <label style="font-size: 0.8rem; color: #666;" data-lang-key="label-nome">Nombre Completo</label>
+                    <input type="text" id="cli-nome" placeholder="Ej: Juan Pérez" class="input-field">
+                    <span id="erro-nome" class="msg-erro-texto">El nombre es obligatorio</span>
                     
-                    <label style="font-size: 0.8rem; color: #666;">WhatsApp</label>
+                    <label style="font-size: 0.8rem; color: #666;" data-lang-key="label-zap">WhatsApp</label>
                     <div class="row">
                         <select id="cli-ddi" class="input-field small">
                             <option value="+595">🇵🇾 +595 (PY)</option>
@@ -516,54 +663,54 @@ window.addEventListener('DOMContentLoaded', () => {
                             <option value="+58">🇻🇪 +58 (VE)</option>
                         </select>
                         <input type="tel" id="cli-tel" placeholder="99123-4567" class="input-field">
-                        <span id="erro-nome" class="msg-erro-texto">Telefone é obrigatório</span>
+                        <span id="erro-tel" class="msg-erro-texto">El teléfono es obligatorio</span>
                     </div>
                 </div>
 
                 <div class="form-section" id="box-endereco">
-                    <h4>Endereço de Entrega</h4>
-                    <button id="btn-gps" onclick="calcularFrete()" class="btn-gps">
-                        <i class="fas fa-map-marker-alt"></i> Calcular Frete (Obrigatório)
+                    <h4 data-lang-key="label-end">Dirección de Entrega</h4>
+                    <button id="btn-gps" onclick="calcularFrete()" class="btn-gps" data-lang-key="btn-calcular">
+                        <i class="fas fa-map-marker-alt"></i> Calcular Envío (Obligatorio)
                     </button>
                     <div id="frete-msg" class="frete-info"></div>
 
                     <div id="box-erro-gps" style="display:none; background:#fff3cd; color:#856404; padding:10px; border:1px solid #ffeeba; border-radius:5px; margin-top:10px; font-size:0.9rem;">
-                        <p><strong><i class="fas fa-info-circle"></i> GPS não funcionou?</strong></p>
-                        <p>Sem problemas! Marque a opção abaixo para combinar o valor da entrega pelo WhatsApp.</p>
+                        <p><strong><i class="fas fa-info-circle"></i> <span data-lang-key="gps-erro-titulo">¿GPS no funcionó?</span></strong></p>
+                        <p data-lang-key="gps-erro-texto">¡Sin problemas! Marca la opción abajo para combinar el valor de la entrega por WhatsApp.</p>
                         
                         <label style="display:flex; align-items:center; gap:10px; margin-top:5px; cursor:pointer;">
                             <input type="checkbox" id="check-sem-gps" style="width:20px; height:20px;">
-                            <span>Vou enviar minha localização pelo WhatsApp</span>
+                            <span data-lang-key="gps-erro-check">Enviaré mi ubicación por WhatsApp</span>
                         </label>
                     </div>
 
-                    <input type="text" id="cli-ref" placeholder="Ponto de Referência (Ex: Casa azul, portão preto)" class="input-field mt-10">
+                    <input type="text" id="cli-ref" data-lang-key-placeholder="label-ref" placeholder="Punto de Referencia (Ej: Casa azul, portón negro)" class="input-field mt-10">
                 </div>
 
                 <div class="form-section">
-                    <h4>Pagamento</h4>
+                    <h4 data-lang-key="pagamento">Pago</h4>
                         <select id="forma-pag" class="input-field" onchange="verificarPagamento()">
-                            <option value="">Selecione a forma de pagamento...</option>
-                            <option value="Efetivo">Efectivo (Guaraníes)</option>
-                            <option value="Cartao">Tarjeta de Crédito/Débito</option>
-                            <option value="Pix">Pix (BR)</option>
-                            <option value="Transferencia">Transferéncia / Alias (PY)</option>
+                            <option value="" data-lang-key="forma-pag">Seleccione la forma de pago...</option>
+                            <option value="Efetivo" data-lang-key="pag-dinheiro">Efectivo (Guaraníes)</option>
+                            <option value="Cartao" data-lang-key="pag-cartao">Tarjeta de Crédito/Débito</option>
+                            <option value="Pix" data-lang-key="pag-pix">Pix (BR)</option>
+                            <option value="Transferencia" data-lang-key="pag-transfer">Transferencia / Alias (PY)</option>
                         </select>
 
                         <div id="info-pagamento-extra" class="payment-info-box" style="display:none;"></div>
 
                         <div id="box-troco" class="hidden mt-10">
-                            <label style="font-size: 0.8rem;">¿Cuánto vuelta necesitas?</label>
-                            <input type="text" id="troco-valor" placeholder="Ex: 100.000" class="input-field">
+                            <label style="font-size: 0.8rem;" data-lang-key="label-troco">¿Cuánto vuelto necesitas?</label>
+                            <input type="text" id="troco-valor" placeholder="Ej: 100.000" class="input-field">
                         </div>
 
                     <div class="row-check mt-10" style="display:flex; align-items:center; gap:10px; padding: 10px; background: #f9f9f9; border-radius: 8px;">
                         <input type="checkbox" id="check-factura" onchange="toggleFactura()" style="width: 20px; height: 20px;">
-                        <label for="check-factura" style="font-weight: 600;">Necesito Factura</label>
+                        <label for="check-factura" style="font-weight: 600;" data-lang-key="label-factura">Necesito Factura</label>
                     </div>
                     <div id="box-ruc" class="hidden mt-10">
-                        <input type="text" id="cli-ruc" placeholder="RUC ou CI" class="input-field">
-                        <input type="text" id="cli-zao" placeholder="Razão Social" class="input-field mt-10">
+                        <input type="text" id="cli-ruc" data-lang-key-placeholder="label-ruc" placeholder="RUC o CI" class="input-field">
+                        <input type="text" id="cli-zao" data-lang-key-placeholder="label-razao" placeholder="Razón Social" class="input-field mt-10">
                     </div>
                 </div>
 
@@ -573,7 +720,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 <div id="total-final-checkout" style="width:100%; padding: 15px 0;">
                     <!-- Será preenchido dinamicamente pelo JavaScript -->
                 </div>
-                <button class="btn-finish" onclick="enviarZap()">
+                <button class="btn-finish" onclick="enviarZap()" data-lang-key="btn-finalizar">
                     Confirmar Pedido <i class="fab fa-whatsapp"></i>
                 </button>
             </div>
@@ -595,6 +742,23 @@ window.addEventListener('DOMContentLoaded', () => {
         </p>
     </footer>
 
+    <!-- ===== BANNER DE INSTALAÇÃO PWA ===== -->
+    <div id="pwa-install-banner" style="display:none; position:fixed; bottom:0; left:0; right:0; background:linear-gradient(135deg, #FF441F 0%, #e63b1f 100%); color:white; padding:15px 20px; z-index:1000; box-shadow:0 -4px 20px rgba(0,0,0,0.2);">
+        <div style="display:flex; align-items:center; justify-content:space-between; max-width:600px; margin:0 auto;">
+            <div style="display:flex; align-items:center; gap:15px;">
+                <img src="https://img.freepik.com/vetores-gratis/desenho-de-modelo-de-logotipo-de-sushi_742173-17797.jpg" style="width:45px; height:45px; border-radius:10px; background:white; padding:3px;">
+                <div>
+                    <div style="font-weight:700; font-size:1rem;">📲 Instalar Sushiteria</div>
+                    <div style="font-size:0.85rem; opacity:0.9;">Accede más rápido desde tu pantalla de inicio</div>
+                </div>
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button onclick="dismissPWAInstall()" style="background:rgba(255,255,255,0.2); border:none; color:white; padding:10px 15px; border-radius:8px; font-weight:600; cursor:pointer;">Ahora no</button>
+                <button onclick="installPWA()" style="background:white; border:none; color:#FF441F; padding:10px 20px; border-radius:8px; font-weight:700; cursor:pointer;">Instalar</button>
+            </div>
+        </div>
+    </div>
+
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script src="supabaseClient.js"></script>
     <script src="app.js"></script>
@@ -603,6 +767,64 @@ window.addEventListener('DOMContentLoaded', () => {
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js').catch(() => {});
         }
+        
+        // ===== PWA INSTALL PROMPT =====
+        let deferredPrompt;
+        const pwaBanner = document.getElementById('pwa-install-banner');
+        
+        // Captura o evento beforeinstallprompt
+        window.addEventListener('beforeinstallprompt', (e) => {
+            // Previne o prompt padrão do Chrome
+            e.preventDefault();
+            // Guarda o evento para usar depois
+            deferredPrompt = e;
+            // Mostra o banner customizado
+            if (pwaBanner) {
+                pwaBanner.style.display = 'block';
+            }
+        });
+        
+        // Função para instalar o PWA
+        function installPWA() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('✅ Usuário instalou o PWA');
+                    } else {
+                        console.log('❌ Usuário recusou a instalação');
+                    }
+                    deferredPrompt = null;
+                    if (pwaBanner) pwaBanner.style.display = 'none';
+                });
+            }
+        }
+        
+        // Função para dispensar o banner
+        function dismissPWAInstall() {
+            if (pwaBanner) pwaBanner.style.display = 'none';
+            // Salva no localStorage para não mostrar novamente por 7 dias
+            localStorage.setItem('pwa_dismissed', Date.now().toString());
+        }
+        
+        // Verifica se o usuário já dispensou o banner recentemente
+        window.addEventListener('DOMContentLoaded', () => {
+            const dismissed = localStorage.getItem('pwa_dismissed');
+            if (dismissed) {
+                const daysSince = (Date.now() - parseInt(dismissed)) / (1000 * 60 * 60 * 24);
+                if (daysSince < 7) {
+                    // Não mostra o banner se foi dispensado há menos de 7 dias
+                    if (pwaBanner) pwaBanner.style.display = 'none';
+                }
+            }
+        });
+        
+        // Detecta quando o app é instalado
+        window.addEventListener('appinstalled', () => {
+            console.log('🎉 PWA instalado com sucesso!');
+            if (pwaBanner) pwaBanner.style.display = 'none';
+            deferredPrompt = null;
+        });
     </script>
 </body>
 </html>
