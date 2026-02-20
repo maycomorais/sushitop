@@ -2828,3 +2828,172 @@ hr.modal-divisor {
     margin-left: 6px;
     vertical-align: middle;
 }
+/* =============================================
+   CATEGORIAS — CARD GRID (novo design)
+   ============================================= */
+
+.cat-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 4px 0 20px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.cat-section-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #2c3e50;
+  margin: 0 0 4px;
+}
+.cat-section-subtitle {
+  font-size: 0.82rem;
+  color: #95a5a6;
+  margin: 0;
+}
+.cat-btn-nova {
+  white-space: nowrap;
+  border-radius: 10px;
+  padding: 10px 18px;
+}
+
+/* Grid responsivo */
+.cat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+  margin-top: 4px;
+}
+
+/* Card individual */
+.cat-card {
+  background: #fff;
+  border-radius: 14px;
+  border-top: 4px solid #ccc;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: box-shadow 0.2s, transform 0.15s;
+}
+.cat-card:hover {
+  box-shadow: 0 6px 24px rgba(0,0,0,0.12);
+  transform: translateY(-2px);
+}
+
+/* Topo do card */
+.cat-card-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cat-card-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+.cat-card-info {
+  flex: 1;
+  min-width: 0;
+}
+.cat-card-nome {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #2c3e50;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cat-card-slug {
+  font-size: 0.72rem;
+  color: #95a5a6;
+  background: #f4f6f8;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.cat-card-ordem {
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 20px;
+  flex-shrink: 0;
+}
+
+/* Badge de horário */
+.cat-card-mid {
+  line-height: 1;
+}
+.cat-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.77rem;
+  font-weight: 600;
+}
+.cat-badge-horario {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+.cat-badge-sempre {
+  background: #f0f0f0;
+  color: #888;
+}
+
+/* Ações do card */
+.cat-card-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: auto;
+}
+.cat-btn {
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 7px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: opacity 0.15s, transform 0.1s;
+  color: #fff;
+}
+.cat-btn:hover { opacity: 0.88; transform: scale(1.03); }
+.cat-btn-sub  { background: #2ecc71; flex: 1; justify-content: center; }
+.cat-btn-edit { background: #3498db; flex: 1; justify-content: center; }
+.cat-btn-del  { background: #e74c3c; padding: 7px 11px; }
+
+/* Estado vazio */
+.cat-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: #aaa;
+}
+.cat-empty p { margin-bottom: 16px; }
+
+/* Painel subcategorias redesenhado */
+#lista-subcategorias-wrapper {
+  background: #f8f9fa;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 18px;
+}
+
+/* Mobile: um card por linha em telas pequenas */
+@media (max-width: 480px) {
+  .cat-grid {
+    grid-template-columns: 1fr;
+  }
+}

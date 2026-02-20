@@ -333,7 +333,7 @@ async function verificarHorario() {
   }
 }
 
-// Renderiza o Menu (Categories + Produtos)
+// Renderiza o Menu (Categories + Produtos com subcategorias)
 async function renderMenu() {
   const nav = document.getElementById('category-nav');
   const content = document.getElementById('menu-content');
@@ -343,8 +343,13 @@ async function renderMenu() {
   nav.innerHTML = '';
   content.innerHTML = '';
 
-  // Busca Categorias e Produtos ativos — exclui os de somente balcão
+  // Busca Categorias, Subcategorias e Produtos ativos
   const { data: categsDb } = await supa.from('categorias').select('*').order('ordem');
+  let subcatsDb = [];
+  try {
+    const { data: _subs } = await supa.from('subcategorias').select('*').order('categoria_slug,ordem');
+    subcatsDb = _subs || [];
+  } catch (_) { subcatsDb = []; }
   const { data: produtos } = await supa.from('produtos').select('*')
       .eq('ativo', true)
       .or('somente_balcao.is.null,somente_balcao.eq.false');
@@ -354,67 +359,141 @@ async function renderMenu() {
     return;
   }
 
-  // Limpa e popula a estrutura MENU local
-  for (let key in MENU) MENU[key] = []; // Reseta
+  const subcats = subcatsDb || [];
+
+  // Monta mapa: categoria_slug -> lista de subcategorias
+  const subcatPorCat = {};
+  subcats.forEach(s => {
+    if (!subcatPorCat[s.categoria_slug]) subcatPorCat[s.categoria_slug] = [];
+    subcatPorCat[s.categoria_slug].push(s);
+  });
+
+  // Monta mapa: subcategoria_slug -> produtos
+  // Monta mapa: categoria_slug -> produtos SEM subcategoria
+  const prodPorSubcat = {};
+  const prodSemSubcat = {};
 
   produtos.forEach((p) => {
-    // Se a categoria não existe no objeto local, cria
-    if (!MENU[p.categoria_slug]) MENU[p.categoria_slug] = [];
-
-    MENU[p.categoria_slug].push({
+    const cat = p.categoria_slug;
+    const sub = p.subcategoria_slug;
+    const item = {
       id: p.id,
       nome: p.nome,
       desc: p.descricao,
       preco: p.preco,
       img: p.imagem_url,
-      montagem: p.montagem_config,  // full config (array ou object com __tipo)
+      montagem: p.montagem_config,
       e_montavel: p.e_montavel,
-    });
+      subcategoria_slug: sub || null,
+    };
+
+    if (sub) {
+      if (!prodPorSubcat[sub]) prodPorSubcat[sub] = [];
+      prodPorSubcat[sub].push(item);
+    } else {
+      if (!prodSemSubcat[cat]) prodSemSubcat[cat] = [];
+      prodSemSubcat[cat].push(item);
+    }
+
+    // Mantém MENU global para compatibilidade com outros lugares do código
+    if (!MENU[cat]) MENU[cat] = [];
+    MENU[cat].push(item);
   });
 
-  // Constrói o HTML
-  categsDb.forEach((cat) => {
-    const key = cat.slug;
-    const items = MENU[key];
+  // Filtro de horário
+  const agora = new Date();
+  const minAgora = agora.getHours() * 60 + agora.getMinutes();
 
-    if (items && items.length > 0) {
-      // Cria Botão Navegação (Pill)
-      const pill = document.createElement('button');
-      pill.className = 'cat-pill';
-      pill.innerText = cat.nome_exibicao;
-      pill.onclick = () => {
-        document.querySelectorAll('.cat-pill').forEach((p) => p.classList.remove('active'));
-        pill.classList.add('active');
-        document.getElementById(key).scrollIntoView({ behavior: 'smooth', block: 'start' });
-      };
-      nav.appendChild(pill);
+  function categoriaVisivel(cat) {
+    if (!cat.hora_inicio || !cat.hora_fim) return true;
+    const [hI, mI] = cat.hora_inicio.split(':').map(Number);
+    const [hF, mF] = cat.hora_fim.split(':').map(Number);
+    const inicio = hI * 60 + mI;
+    const fim = hF * 60 + mF;
+    if (fim < inicio) return minAgora >= inicio || minAgora <= fim;
+    return minAgora >= inicio && minAgora <= fim;
+  }
 
-      // Cria Seção de Produtos
-      const section = document.createElement('section');
-      section.id = key;
-      section.innerHTML = `<h2 class="section-title">${cat.nome_exibicao}</h2>`;
+  function renderProdutoDiv(item) {
+    const img = item.img || 'https://cdn-icons-png.flaticon.com/512/2252/2252075.png';
+    const cfg = item.montagem;
+    const tipo = (cfg && !Array.isArray(cfg) && cfg.__tipo) ? cfg.__tipo : (item.e_montavel ? 'montavel' : 'padrao');
 
-      items.forEach((item) => {
-        // Stringify seguro para passar no onclick
-        const itemJson = JSON.stringify(item).replace(/'/g, "'").replace(/"/g, "&quot;");
-        let img = item.img || 'https://cdn-icons-png.flaticon.com/512/2252/2252075.png';
-
-        const div = document.createElement('div');
-        div.className = 'product-item';
-        div.onclick = function() { abrirModal(item); }; // Uso de closure é mais seguro que onclick string
-
-        div.innerHTML = `
-            <div class="prod-info">
-                <div class="prod-title">${item.nome}</div>
-                <div class="prod-desc">${item.desc || ''}</div>
-                <div class="prod-price">Gs ${item.preco.toLocaleString('es-PY')}</div>
-            </div>
-            <img src="${img}" class="prod-img">
-        `;
-        section.appendChild(div);
-      });
-      content.appendChild(section);
+    let precoLabel = `Gs ${item.preco.toLocaleString('es-PY')}`;
+    if (tipo === 'variacoes' && cfg && cfg.variacoes && cfg.variacoes.length > 0) {
+      const precos = cfg.variacoes.map(v => v.preco || 0).filter(p => p > 0);
+      if (precos.length > 0) {
+        const min = Math.min(...precos);
+        precoLabel = `<span style="font-size:0.72rem;font-weight:500;opacity:0.7">A partir de</span> Gs ${min.toLocaleString('es-PY')}`;
+      }
     }
+
+    const div = document.createElement('div');
+    div.className = 'product-item';
+    div.onclick = function() { abrirModal(item); };
+    div.innerHTML = `
+        <div class="prod-info">
+            <div class="prod-title">${item.nome}</div>
+            <div class="prod-desc">${item.desc || ''}</div>
+            <div class="prod-price">${precoLabel}</div>
+        </div>
+        <img src="${img}" class="prod-img">
+    `;
+    return div;
+  }
+
+  // Constrói o HTML por categoria
+  categsDb.forEach((cat) => {
+    if (!categoriaVisivel(cat)) return;
+    const key = cat.slug;
+    const todosOsProdutos = MENU[key];
+    if (!todosOsProdutos || todosOsProdutos.length === 0) return;
+
+    // Pill de navegação
+    const pill = document.createElement('button');
+    pill.className = 'cat-pill';
+    pill.innerText = cat.nome_exibicao;
+    pill.onclick = () => {
+      document.querySelectorAll('.cat-pill').forEach((p) => p.classList.remove('active'));
+      pill.classList.add('active');
+      document.getElementById(key).scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    nav.appendChild(pill);
+
+    // Seção da categoria
+    const section = document.createElement('section');
+    section.id = key;
+    section.innerHTML = `<h2 class="section-title">${cat.nome_exibicao}</h2>`;
+
+    const subcatsDessaCat = subcatPorCat[key] || [];
+    const temSubcats = subcatsDessaCat.length > 0;
+
+    if (!temSubcats) {
+      // Sem subcategorias: renderiza tudo direto
+      (prodSemSubcat[key] || []).concat(Object.keys(prodPorSubcat)
+        .filter(k => subcats.find(s => s.slug === k && s.categoria_slug === key))
+        .flatMap(k => prodPorSubcat[k] || [])
+      ).forEach(item => section.appendChild(renderProdutoDiv(item)));
+    } else {
+      // Produtos sem subcategoria (aparecem primeiro, sem título de grupo)
+      const semSub = prodSemSubcat[key] || [];
+      semSub.forEach(item => section.appendChild(renderProdutoDiv(item)));
+
+      // Grupos por subcategoria
+      subcatsDessaCat.forEach(subcat => {
+        const itensSub = prodPorSubcat[subcat.slug] || [];
+        if (itensSub.length === 0) return; // Oculta subcategoria vazia
+
+        const subtitulo = document.createElement('div');
+        subtitulo.className = 'subcat-title';
+        subtitulo.innerText = subcat.nome_exibicao;
+        section.appendChild(subtitulo);
+
+        itensSub.forEach(item => section.appendChild(renderProdutoDiv(item)));
+      });
+    }
+
+    content.appendChild(section);
   });
 }
 
@@ -454,6 +533,8 @@ function abrirModal(item) {
     _renderPizza(cfg, divOptions);
   } else if (tipo === 'almoco') {
     _renderAlmoco(cfg, divOptions);
+  } else if (tipo === 'variacoes') {
+    _renderVariacoes(item, cfg, divOptions);
   }
 
   // Extras (para qualquer tipo)
@@ -768,6 +849,16 @@ function _atualizarPrecoPizza() {
     extrasTotal += parseInt(cb.dataset.preco || 0);
   });
 
+  // Tipo variações: preço controlado pelo click na variação
+  const tipo = (cfg && !Array.isArray(cfg) && cfg.__tipo) ? cfg.__tipo : 'padrao';
+  if (tipo === 'variacoes') {
+    const base = _variacaoSelecionada ? (_variacaoSelecionada.preco || 0) : (prodAtual?.preco || 0);
+    const total = (base + extrasTotal) * qtd;
+    document.getElementById('modal-price').innerText = `Gs ${total.toLocaleString('es-PY')}`;
+    _atualizarResumo();
+    return;
+  }
+
   if (!cfg || !cfg.pizza) {
     const base = (prodAtual?.preco || 0);
     const total = (base + extrasTotal) * qtd;
@@ -776,8 +867,6 @@ function _atualizarPrecoPizza() {
     return;
   }
   const saboresOk = (_pizzaConfig.sabores || []).filter(Boolean);
-  // Preço base = tamanho selecionado (fonte primária)
-  // Sabor premium (s.preco > 0) é somado como adicional, não substitui
   const tamPreco = _pizzaConfig.tamanhoSelecionado?.preco || prodAtual.preco || 0;
   const saborExtra = saboresOk.reduce((acc, s) => Math.max(acc, s.preco || 0), 0);
   const precoBase = tamPreco + (saborExtra > 0 ? saborExtra : 0);
@@ -785,6 +874,48 @@ function _atualizarPrecoPizza() {
   const total = (precoBase + precoBorda + extrasTotal) * qtd;
   document.getElementById('modal-price').innerText = `Gs ${total.toLocaleString('es-PY')}`;
   _atualizarResumo();
+}
+
+// ─── VARIAÇÕES DE SABOR ───────────────────────────────────
+let _variacaoSelecionada = null; // { nome, preco, img }
+
+function _renderVariacoes(item, cfg, container) {
+  _variacaoSelecionada = null;
+  const variacoes = cfg && cfg.variacoes ? cfg.variacoes : [];
+
+  if (variacoes.length === 0) return;
+
+  const sec = document.createElement('div');
+  sec.className = 'var-section';
+  sec.innerHTML = `<div class="var-label">Escolha o sabor</div><div class="var-grid" id="var-grid"></div>`;
+  container.appendChild(sec);
+
+  const grid = sec.querySelector('#var-grid');
+  variacoes.forEach((v) => {
+    const card = document.createElement('div');
+    card.className = 'var-card';
+    const imgSrc = v.img || item.img || 'https://cdn-icons-png.flaticon.com/512/2252/2252075.png';
+    card.innerHTML = `
+      <img src="${imgSrc}" class="var-card-img" onerror="this.src='https://cdn-icons-png.flaticon.com/512/2252/2252075.png'">
+      <div class="var-card-body">
+        <div class="var-card-nome">${v.nome}</div>
+        <div class="var-card-preco">Gs ${(v.preco || 0).toLocaleString('es-PY')}</div>
+      </div>
+      <div class="var-card-check">✓</div>
+    `;
+    card.dataset.preco = v.preco || 0;
+    card.onclick = () => {
+      grid.querySelectorAll('.var-card').forEach((c) => c.classList.remove('selected'));
+      card.classList.add('selected');
+      _variacaoSelecionada = v;
+      // Atualiza preço e imagem do modal
+      document.getElementById('modal-price').innerText = `Gs ${((v.preco || 0) * qtd).toLocaleString('es-PY')}`;
+      // Atualiza imagem do modal se a variação tiver foto própria
+      const modalImg = document.querySelector('.modal-img') || document.getElementById('modal-img');
+      if (modalImg && v.img) modalImg.src = v.img;
+    };
+    grid.appendChild(card);
+  });
 }
 
 function _renderAlmoco(cfg, container) {
@@ -864,6 +995,9 @@ function adicionarDoModal() {
   if (tipo === 'almoco' && !prodAtual._pratoselecionado) {
     alert('Selecione o prato!'); return;
   }
+  if (tipo === 'variacoes' && !_variacaoSelecionada) {
+    alert('Escolha o sabor antes de adicionar!'); return;
+  }
 
   // Monta descrição para o carrinho
   let montagem = [];
@@ -906,6 +1040,13 @@ function adicionarDoModal() {
     montagem = [prato.desc || ''];
   }
 
+  if (tipo === 'variacoes' && _variacaoSelecionada) {
+    variacao = _variacaoSelecionada.nome;
+    precoFinal = _variacaoSelecionada.preco || prodAtual.preco;
+    // Usa imagem da variação se disponível
+    if (_variacaoSelecionada.img) prodAtual._variacaoImg = _variacaoSelecionada.img;
+  }
+
   // Extras selecionados
   const extrasEscolhidos = [];
   document.querySelectorAll('.extra-check-input:checked').forEach((cb) => {
@@ -932,14 +1073,15 @@ function adicionarDoModal() {
     qtd:      qtd,
     montagem: montagem.filter(Boolean),
     obs:      document.getElementById('modal-obs').value,
-    img:      prodAtual.img,
+    img:      prodAtual._variacaoImg || prodAtual.img,
     // Metadados estruturados — úteis para exibir no resumo e na cozinha
     ...(pizzaMeta ? { pizzaMeta } : {}),
   });
 
-  // ⚠️ CRÍTICO: limpa _pizzaConfig logo após o push
-  // Se não zerar, a próxima pizza aberta virá com os sabores da anterior já marcados
+  // Limpa estado após push
   _pizzaConfig = { p: null, tamanhoSelecionado: null, numSabores: null, sabores: [], bordaConfig: null };
+  _variacaoSelecionada = null;
+  if (prodAtual) prodAtual._variacaoImg = null;
 
   updateUI();
   fecharModalProduto();
@@ -961,6 +1103,38 @@ function updateUI() {
   count.innerText = totalItens;
   total.innerText = `Gs ${totalDinheiro.toLocaleString('es-PY')}`;
   cartBar.classList.toggle('show', totalItens > 0);
+
+  // ── Atualiza sidebar desktop ──────────────────────────────
+  const desktopItems    = document.getElementById('desktop-cart-items');
+  const desktopEmpty    = document.getElementById('desktop-cart-empty');
+  const desktopTotalRow = document.getElementById('desktop-cart-total-row');
+  const desktopTotalVal = document.getElementById('desktop-cart-total-val');
+  const desktopBtn      = document.getElementById('desktop-cart-btn');
+
+  if (desktopItems) {
+    desktopItems.innerHTML = '';
+    if (carrinho.length === 0) {
+      if (desktopEmpty)    desktopEmpty.style.display    = 'block';
+      if (desktopTotalRow) desktopTotalRow.style.display = 'none';
+      if (desktopBtn)      desktopBtn.disabled = true;
+    } else {
+      if (desktopEmpty)    desktopEmpty.style.display    = 'none';
+      if (desktopTotalRow) desktopTotalRow.style.display = 'flex';
+      if (desktopBtn)      desktopBtn.disabled = false;
+
+      carrinho.forEach((item, idx) => {
+        const div = document.createElement('div');
+        div.className = 'desktop-cart-item';
+        div.innerHTML = `
+          <span class="desktop-cart-item-name">${item.qtd}x ${item.nome}</span>
+          <span class="desktop-cart-item-price">Gs ${(item.preco * item.qtd).toLocaleString('es-PY')}</span>`;
+        desktopItems.appendChild(div);
+      });
+
+      if (desktopTotalVal)
+        desktopTotalVal.innerText = `Gs ${totalDinheiro.toLocaleString('es-PY')}`;
+    }
+  }
 
   // Atualiza lista no checkout se estiver aberto
   const modalCheckout = document.getElementById('checkout-modal');
@@ -1047,7 +1221,7 @@ function renderUpsell() {
   upsellDiv.innerHTML = '';
   const upsellItems = MENU['bebidas'] || [];
 
-  upsellItems.slice(0, 5).forEach((item) => {
+  upsellItems.slice(0, 30).forEach((item) => {
     const img = item.img || 'https://via.placeholder.com/80?text=🥤';
     upsellDiv.innerHTML += `
       <div class="upsell-item" style="min-width:100px;text-align:center;cursor:pointer;" onclick='adicionarUpsell(${JSON.stringify(item).replace(/'/g, "&#39;")})'>
@@ -1057,7 +1231,7 @@ function renderUpsell() {
       </div>
     `;
   });
-}
+} 
 
 function adicionarUpsell(item) {
   carrinho.push({ ...item, qtd: 1, montagem: [], obs: '' });
@@ -1338,6 +1512,14 @@ async function enviarZap() {
       pedidoDbId = pedidoSalvo.id;
       numeroPedido = pedidoSalvo.id; // USA O ID DO BANCO
       console.log('✅ Pedido salvo com ID:', pedidoDbId);
+
+      // Incrementa contador de usos do cupom
+      if (cupomAplicado?.id) {
+        const novosUsos = (cupomAplicado.usos_realizados || 0) + 1;
+        await supa.from('cupons')
+          .update({ usos_realizados: novosUsos })
+          .eq('id', cupomAplicado.id);
+      }
     }
   }
 
@@ -1706,6 +1888,30 @@ async function aplicarCupom() {
         atualizarTotalCheckout();
         return;
     }
+
+    // Verifica validade
+    if (cupom.validade) {
+        const vDate = new Date(cupom.validade + 'T23:59:59');
+        if (vDate < new Date()) {
+            msgBox.innerHTML = '<span style="color:#e74c3c">❌ Cupom expirado</span>';
+            msgBox.style.display = 'block';
+            cupomAplicado = null;
+            atualizarTotalCheckout();
+            return;
+        }
+    }
+
+    // Verifica limite de usos
+    if (cupom.limite_uso && cupom.limite_uso > 0) {
+        const usados = cupom.usos_realizados || 0;
+        if (usados >= cupom.limite_uso) {
+            msgBox.innerHTML = `<span style="color:#e74c3c">❌ Este cupom atingiu o limite de ${cupom.limite_uso} usos</span>`;
+            msgBox.style.display = 'block';
+            cupomAplicado = null;
+            atualizarTotalCheckout();
+            return;
+        }
+    }
     
     const subtotal = carrinho.reduce((a, i) => a + i.preco * i.qtd, 0);
     if (subtotal < cupom.minimo) {
@@ -1714,7 +1920,10 @@ async function aplicarCupom() {
         cupomAplicado = null;
     } else {
         cupomAplicado = cupom;
-        msgBox.innerHTML = '<span style="color:#27ae60">✅ Cupom aplicado!</span>';
+        const restante = cupom.limite_uso
+            ? ` (${cupom.limite_uso - (cupom.usos_realizados || 0)} restantes)`
+            : '';
+        msgBox.innerHTML = `<span style="color:#27ae60">✅ Cupom aplicado!${restante}</span>`;
         msgBox.style.display = 'block';
     }
     

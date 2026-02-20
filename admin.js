@@ -1419,7 +1419,9 @@ async function carregarProdutos() {
   const { data } = await supa.from('produtos').select('*').order('nome');
   _todosProdutos = data || [];
   renderizarCardsProdutos(_todosProdutos);
-  carregarSelectCategorias();
+  // Só recarrega o select de categorias se o modal de produto estiver fechado
+  const modalAberto = document.getElementById('modal-produto')?.style.display === 'flex';
+  if (!modalAberto) carregarSelectCategorias();
 }
 
 function filtrarProdutos(termo) {
@@ -1639,15 +1641,35 @@ async function salvarProduto() {
       configFinal.extras = extras;
     }
 
+    // Variações de sabor
+    if (tipo === 'variacoes') {
+      const variacoes = [];
+      document.querySelectorAll('.variacao-row').forEach((row) => {
+        const nome  = row.querySelector('[data-f="vnome"]').value.trim();
+        const preco = parseFloat(row.querySelector('[data-f="vpreco"]').value) || 0;
+        const img   = row.querySelector('[data-f="vimg"]').value.trim() || '';
+        if (nome) variacoes.push({ nome, preco, img });
+      });
+      configFinal.variacoes = variacoes;
+    }
+
     // Compatibilidade retroativa: mantém montagem_config array para tipo montavel
     const isM = usaMontavel.includes(tipo);
     const montagemCompat = isM ? (configFinal.etapas || []) : [];
 
+    // Para variações: preco = menor valor entre as variações (usado no "A partir de")
+    let precoBase = parseFloat(document.getElementById('prod-preco').value) || 0;
+    if (tipo === 'variacoes' && configFinal.variacoes && configFinal.variacoes.length > 0) {
+      const precos = configFinal.variacoes.map(v => v.preco).filter(p => p > 0);
+      if (precos.length > 0) precoBase = Math.min(...precos);
+    }
+
     const dados = {
       nome: document.getElementById('prod-nome').value,
       descricao: document.getElementById('prod-desc').value,
-      preco: parseFloat(document.getElementById('prod-preco').value) || 0,
-      categoria_slug: document.getElementById('prod-cat').value,
+      preco: precoBase,
+      categoria_slug: document.getElementById('prod-cat').value || null,
+      subcategoria_slug: document.getElementById('prod-subcat')?.value || null,
       imagem_url: urlFinal,
       e_montavel: isM,
       montagem_config: isM ? montagemCompat : configFinal,  // novo: armazena config completo
@@ -1668,7 +1690,7 @@ async function salvarProduto() {
   }
 }
 
-function abrirModalProduto(produto = null, tipoInicial = null) {
+async function abrirModalProduto(produto = null, tipoInicial = null) {
   const modal = document.getElementById('modal-produto');
 
   // Reset completo
@@ -1688,6 +1710,11 @@ function abrirModalProduto(produto = null, tipoInicial = null) {
   document.getElementById('pizza-borda-preco-box').style.display = 'none';
   document.getElementById('pizza-tem-borda').checked = false;
   document.getElementById('pizza-sabores-lista').innerHTML = '<p style="color:#aaa;font-size:0.82rem;text-align:center;margin:10px 0">Clique em "+ Sabor" para adicionar</p>';
+  const variacoesLista = document.getElementById('variacoes-lista');
+  if (variacoesLista) variacoesLista.innerHTML = '';
+  // CORREÇÃO: Limpa o file input para não reutilizar imagem anterior
+  const fileInputReset = document.getElementById('prod-img-file');
+  if (fileInputReset) fileInputReset.value = '';
 
   let tipo = 'padrao';
 
@@ -1738,6 +1765,11 @@ function abrirModalProduto(produto = null, tipoInicial = null) {
         // Tipo almoco legado: tratar como simples (builder removido)
         tipo = 'padrao';
       }
+      // Variações de sabor
+      if (tipo === 'variacoes' && cfg.variacoes) {
+        document.getElementById('variacoes-lista').innerHTML = '';
+        cfg.variacoes.forEach((v) => addVariacao(v));
+      }
       // Extras
       if (cfg.extras && cfg.extras.length > 0) {
         document.getElementById('prod-tem-extras').checked = true;
@@ -1766,6 +1798,13 @@ function abrirModalProduto(produto = null, tipoInicial = null) {
   if (gridWrapper) gridWrapper.style.display = 'none';
 
   selecionarTipoBuilder(tipo);
+
+  // CORREÇÃO: Carrega categorias com a categoria atual do produto já selecionada
+  const catAtual = produto ? (produto.categoria_slug || '') : '';
+  const subcatAtual = produto ? (produto.subcategoria_slug || '') : '';
+  await carregarSelectCategorias(catAtual);
+  await carregarSelectSubcategorias(catAtual, subcatAtual);
+
   modal.style.display = 'flex';
 }
 
@@ -1775,6 +1814,7 @@ const BUILDER_MAP = {
   pizza:'builder-pizza',
   montavel:'builder-montavel', acai:'builder-montavel',
   shake:'builder-montavel', suco:'builder-montavel',
+  variacoes:'builder-variacoes',
 };
 const BUILDER_HINTS = {
   acai:  '🍇 Crie etapas: "Tamanho", "Complementos", "Frutas", "Coberturas".',
@@ -1785,7 +1825,7 @@ const BUILDER_HINTS = {
 const _TIPO_BADGE_LABELS = {
   padrao:'📦 Simples', bebida:'🥤 Bebida', lanche:'🍔 Lanche', pizza:'🍕 Pizza',
   acai:'🍇 Açaí', shake:'🥤 Shake', suco:'🍊 Suco', sorvete:'🍦 Sorvete',
-  montavel:'🥗 Montável', almoco:'🍽️ Prato', combo:'⭐ Combo',
+  montavel:'🥗 Montável', almoco:'🍽️ Prato', combo:'⭐ Combo', variacoes:'🎨 Variações',
 };
 
 function selecionarTipoBuilder(tipo) {
@@ -1859,6 +1899,29 @@ function addBuilderStep(t = '', m = 1, i = []) {
   div.className = 'etapa-item';
   div.innerHTML = `<div class="etapa-header"><input type="text" class="form-control step-titulo" value="${t}" placeholder="Título da etapa (ex: Escolha a base)"><input type="number" class="form-control step-max" value="${m}" style="width:70px" title="Máx. seleções"><button class="btn btn-sm btn-danger" onclick="this.parentElement.parentElement.remove()">X</button></div><textarea class="etapa-ingredientes step-itens" placeholder="Itens separados por vírgula. Ex: Arroz, Atum, Salmão, Tofu">${Array.isArray(i) ? i.join(', ') : i}</textarea>`;
   document.getElementById('builder-steps').appendChild(div);
+}
+
+// ─── VARIAÇÕES DE SABOR BUILDER ───────────────────────────────────
+function addVariacao(dados = {}) {
+  const lista = document.getElementById('variacoes-lista');
+  const row = document.createElement('div');
+  row.className = 'variacao-row';
+  row.style.cssText = 'background:#fff;border:1px solid #e9d5ff;border-radius:10px;padding:12px;display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center';
+  row.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <input data-f="vnome" class="form-control" value="${dados.nome || ''}" placeholder="Nome da variação (ex: Salmon y Cream Cheese)" style="font-weight:600">
+      <div style="display:flex;gap:8px;align-items:center">
+        <span style="font-size:0.8rem;color:#777;white-space:nowrap">Gs</span>
+        <input data-f="vpreco" type="number" class="form-control" value="${dados.preco || ''}" placeholder="Preço" style="max-width:140px">
+      </div>
+      <input data-f="vimg" class="form-control" value="${dados.img || ''}" placeholder="URL da foto (opcional — usa foto do produto por padrão)" style="font-size:0.8rem;color:#888">
+    </div>
+    <div style="width:60px;height:60px;border-radius:8px;overflow:hidden;background:#f3f4f6;flex-shrink:0">
+      ${dados.img ? `<img src="${dados.img}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">` : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:1.5rem">🖼</div>'}
+    </div>
+    <button class="btn btn-sm btn-danger" onclick="this.closest('.variacao-row').remove()" title="Remover" style="align-self:start">✕</button>
+  `;
+  lista.appendChild(row);
 }
 
 // ─── PIZZA BUILDER ───────────────────────────────────
@@ -1987,101 +2050,299 @@ function addExtra(dados = {}) {
 async function carregarCategorias() {
   const { data, error } = await supa.from('categorias').select('*').order('ordem');
 
-  const isMobile = window.innerWidth <= 768;
+  const grid = document.getElementById('lista-categorias');
+  if (!grid) return;
 
-  if (isMobile) {
-    const wrapper = document.getElementById('lista-categorias-wrapper');
-    let container = document.getElementById('mobile-categorias');
+  if (error) {
+    grid.innerHTML = `<p style="color:red;padding:20px">Erro ao carregar categorias: ${error.message}</p>`;
+    return;
+  }
 
-    if (!container) {
-      container = document.createElement('div');
-      container.className = 'mobile-cards-container';
-      container.id = 'mobile-categorias';
-      const tableContainer = wrapper.querySelector('.table-container');
-      wrapper.insertBefore(container, tableContainer);
-    }
-
-    container.innerHTML = '';
-
-    if (!error && data) {
-      data.forEach((c) => {
-        const card = document.createElement('div');
-        card.className = 'mobile-card';
-        card.innerHTML = `
-                    <div class="mobile-card-header">
-                        <div class="mobile-card-title">${c.nome_exibicao}</div>
-                    </div>
-                    <div class="mobile-card-body">
-                        <div class="mobile-card-row">
-                            <span class="mobile-card-label">Slug:</span>
-                            <span class="mobile-card-value">${c.slug}</span>
-                        </div>
-                        <div class="mobile-card-row">
-                            <span class="mobile-card-label">Ordem:</span>
-                            <span class="mobile-card-value">${c.ordem}</span>
-                        </div>
-                    </div>
-                    <div class="mobile-card-actions">
-                        <button class="btn btn-info" onclick='editarCategoria(${JSON.stringify(c).replace(/'/g, '&apos;').replace(/"/g, '&quot;')})'>
-                            <i class="fas fa-edit"></i> Editar
-                        </button>
-                        <button class="btn btn-danger" onclick="deletarCat('${c.slug}')">
-                            <i class="fas fa-trash"></i> Excluir
-                        </button>
-                    </div>
-                `;
-        container.appendChild(card);
-      });
-    }
-
+  if (!data || data.length === 0) {
+    grid.innerHTML = `
+      <div class="cat-empty">
+        <i class="fas fa-tags" style="font-size:3rem;color:#ddd;margin-bottom:12px;display:block"></i>
+        <p>Nenhuma categoria criada ainda.</p>
+        <button class="btn btn-primary" onclick="abrirModalCategoria()"><i class="fas fa-plus"></i> Criar primeira categoria</button>
+      </div>`;
     carregarSelectCategorias();
     return;
   }
 
-  // CÓDIGO DESKTOP
-  const tbody = document.getElementById('lista-categorias');
-  if (!tbody) return;
-  tbody.innerHTML = '';
+  const paleta = ['#FF441F','#3498db','#2ecc71','#9b59b6','#e67e22','#1abc9c','#e74c3c','#f39c12','#34495e','#00b894'];
 
-  if (error) {
-    console.error('Erro categorias:', error);
-    return;
-  }
+  grid.innerHTML = '';
+  data.forEach((c, idx) => {
+    const cor = paleta[idx % paleta.length];
+    const cJson = JSON.stringify(c).replace(/'/g, '&apos;').replace(/"/g, '&quot;');
+    const horarioBadge = c.hora_inicio && c.hora_fim
+      ? `<span class="cat-badge cat-badge-horario">🕐 ${c.hora_inicio} – ${c.hora_fim}</span>`
+      : `<span class="cat-badge cat-badge-sempre">✅ Sempre visível</span>`;
 
-  if (data) {
-    data.forEach((c) => {
-      const cJson = JSON.stringify(c).replace(/'/g, "'").replace(/"/g, '&quot;');
-      tbody.innerHTML += `
-                <tr>
-                    <td data-label="Slug">${c.slug}</td>
-                    <td data-label="Nome">${c.nome_exibicao}</td>
-                    <td data-label="Ordem">${c.ordem}</td>
-                    <td class="actions-cell">
-                        <button class="btn btn-sm btn-info" onclick='editarCategoria(${cJson})'>
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="btn btn-sm btn-danger" onclick="deletarCat('${c.slug}')">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </td>
-                </tr>
-            `;
-    });
-  }
+    const card = document.createElement('div');
+    card.className = 'cat-card';
+    card.style.borderTopColor = cor;
+    card.innerHTML = `
+      <div class="cat-card-top">
+        <div class="cat-card-icon" style="background:${cor}20;color:${cor}">
+          <i class="fas fa-tag"></i>
+        </div>
+        <div class="cat-card-info">
+          <div class="cat-card-nome">${c.nome_exibicao}</div>
+          <code class="cat-card-slug">${c.slug}</code>
+        </div>
+        <div class="cat-card-ordem" style="background:${cor}15;color:${cor}">#${c.ordem}</div>
+      </div>
+      <div class="cat-card-mid">${horarioBadge}</div>
+      <div class="cat-card-actions">
+        <button class="cat-btn cat-btn-sub" onclick="abrirPainelSubcategorias('${c.slug}')" title="Gerenciar Subcategorias">
+          <i class="fas fa-layer-group"></i><span>Sub</span>
+        </button>
+        <button class="cat-btn cat-btn-edit" onclick='editarCategoria(${cJson})' title="Editar Categoria">
+          <i class="fas fa-pen"></i><span>Editar</span>
+        </button>
+        <button class="cat-btn cat-btn-del" onclick="deletarCat('${c.slug}')" title="Excluir Categoria">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+
   carregarSelectCategorias();
 }
 
 // Carrega o Select no Modal de Produto
-async function carregarSelectCategorias() {
+async function carregarSelectCategorias(valorAtual = null) {
   const { data } = await supa.from('categorias').select('*').order('ordem');
   const sel = document.getElementById('prod-cat');
   if (!sel) return;
 
-  sel.innerHTML = '';
+  // Preserva seleção atual se não foi passado valorAtual
+  const valorPreservar = valorAtual || sel.value;
+
+  sel.innerHTML = '<option value="">— Sem categoria —</option>';
   if (data) {
-    // Aqui também usa nome_exibicao
     data.forEach((c) => (sel.innerHTML += `<option value="${c.slug}">${c.nome_exibicao}</option>`));
   }
+
+  // Restaura seleção
+  if (valorPreservar) sel.value = valorPreservar;
+}
+
+// =========================================
+// SISTEMA DE SUBCATEGORIAS
+// =========================================
+
+// Carrega subcategorias no select do modal de produto
+async function carregarSelectSubcategorias(categoriaSlag = '', valorAtual = '') {
+  const sel = document.getElementById('prod-subcat');
+  const box = document.getElementById('box-subcategoria');
+  if (!sel) return;
+
+  sel.innerHTML = '<option value="">— Sem subcategoria —</option>';
+
+  if (!categoriaSlag) {
+    if (box) box.style.display = 'none';
+    return;
+  }
+
+  try {
+    const { data, error } = await supa
+      .from('subcategorias')
+      .select('*')
+      .eq('categoria_slug', categoriaSlag)
+      .order('ordem');
+
+    if (error) {
+      console.warn('Subcategorias indisponíveis:', error.message);
+      // Mostra o box mesmo assim (com só a opção "sem subcategoria")
+      if (box) box.style.display = 'block';
+      return;
+    }
+
+    // Sempre mostra o campo quando uma categoria está selecionada
+    if (box) box.style.display = 'block';
+
+    if (data && data.length > 0) {
+      data.forEach((s) => (sel.innerHTML += `<option value="${s.slug}">${s.nome_exibicao}</option>`));
+      if (valorAtual) sel.value = valorAtual;
+    }
+  } catch (e) {
+    console.warn('Erro ao buscar subcategorias:', e);
+    // Mostra mesmo assim — melhor mostrar vazio do que esconder sem avisar
+    if (box) box.style.display = 'block';
+  }
+}
+
+// Chamado quando o usuário muda a categoria no modal de produto
+async function onCatChange() {
+  const catSlug = document.getElementById('prod-cat').value;
+  await carregarSelectSubcategorias(catSlug, '');
+}
+
+// --- CRUD DE SUBCATEGORIAS ---
+let _catSlugAtualSubcat = '';
+
+async function carregarSubcategorias(categoriaSlag) {
+  _catSlugAtualSubcat = categoriaSlag;
+  const wrapper = document.getElementById('lista-subcategorias-wrapper');
+  if (!wrapper) return;
+
+  let html = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <h4 style="margin:0">Subcategorias de: <strong>${categoriaSlag}</strong></h4>
+      <button class="btn btn-primary btn-sm" onclick="abrirModalSubcat()">+ Nova Subcategoria</button>
+    </div>`;
+
+  try {
+    const { data, error } = await supa
+      .from('subcategorias')
+      .select('*')
+      .eq('categoria_slug', categoriaSlag)
+      .order('ordem');
+
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
+      html += '<p style="color:#aaa;padding:10px 0">Nenhuma subcategoria criada ainda.</p>';
+    } else {
+      html += '<table class="table"><thead><tr><th>Slug</th><th>Nome</th><th>Ordem</th><th></th></tr></thead><tbody>';
+      data.forEach((s) => {
+        const sJson = JSON.stringify(s).replace(/'/g, '&apos;').replace(/"/g, '&quot;');
+        html += `<tr>
+          <td>${s.slug}</td>
+          <td>${s.nome_exibicao}</td>
+          <td>${s.ordem}</td>
+          <td class="actions-cell">
+            <button class="btn btn-sm btn-info" onclick='editarSubcat(${sJson})'><i class="fas fa-edit"></i></button>
+            <button class="btn btn-sm btn-danger" onclick="deletarSubcat('${s.slug}')"><i class="fas fa-trash"></i></button>
+          </td>
+        </tr>`;
+      });
+      html += '</tbody></table>';
+    }
+  } catch (e) {
+    html += `<div style="background:#fff3cd;padding:12px;border-radius:8px;color:#856404;font-size:0.85rem">
+      ⚠️ A tabela <strong>subcategorias</strong> ainda não existe no banco.<br>
+      Execute o SQL abaixo no Supabase para ativá-la:<br><br>
+      <code style="background:#f8f9fa;padding:4px 8px;border-radius:4px;font-size:0.8rem;display:block;white-space:pre-wrap">
+CREATE TABLE subcategorias (
+  id SERIAL PRIMARY KEY,
+  slug TEXT UNIQUE NOT NULL,
+  nome_exibicao TEXT NOT NULL,
+  categoria_slug TEXT REFERENCES categorias(slug) ON DELETE CASCADE,
+  ordem INT DEFAULT 0
+);
+ALTER TABLE produtos ADD COLUMN IF NOT EXISTS subcategoria_slug TEXT REFERENCES subcategorias(slug) ON DELETE SET NULL;
+      </code>
+    </div>`;
+  }
+
+  wrapper.innerHTML = html;
+}
+
+function abrirModalSubcat(subcat = null) {
+  const isEdit = !!subcat;
+  const slugVal = subcat ? subcat.slug : '';
+  const nomeVal = subcat ? subcat.nome_exibicao : '';
+  const ordemVal = subcat ? subcat.ordem : '';
+
+  const modalHtml = `
+    <div id="modal-subcat" class="modal-overlay" style="display:flex">
+      <div class="modal-content" style="max-width:400px">
+        <h3>${isEdit ? 'Editar Subcategoria' : 'Nova Subcategoria'}</h3>
+        <input type="hidden" id="subcat-modo" value="${isEdit ? 'sim' : 'nao'}">
+        <input type="hidden" id="subcat-slug-original" value="${slugVal}">
+        <div class="form-group">
+          <label>Nome Exibição</label>
+          <input type="text" id="subcat-nome" class="form-control" value="${nomeVal}" oninput="autoSlugFromSubcatNome()">
+        </div>
+        <div class="form-group">
+          <label>Slug (ID único)</label>
+          <input type="text" id="subcat-slug" class="form-control" value="${slugVal}">
+          <small style="color:#888">Gerado automaticamente ou edite manualmente</small>
+        </div>
+        <div class="form-group">
+          <label>Ordem</label>
+          <input type="number" id="subcat-ordem" class="form-control" value="${ordemVal}">
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-primary" onclick="salvarSubcat()">Salvar</button>
+          <button class="btn btn-secondary" onclick="document.getElementById('modal-subcat').remove()">Cancelar</button>
+        </div>
+      </div>
+    </div>`;
+
+  // Remove modal anterior se existir
+  document.getElementById('modal-subcat')?.remove();
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+function editarSubcat(s) {
+  abrirModalSubcat(s);
+}
+
+function autoSlugFromSubcatNome() {
+  const nome = document.getElementById('subcat-nome').value;
+  const slug = gerarSlug(nome);
+  document.getElementById('subcat-slug').value = slug;
+}
+
+async function salvarSubcat() {
+  const modo = document.getElementById('subcat-modo').value;
+  const slugOriginal = document.getElementById('subcat-slug-original').value;
+  const nome = document.getElementById('subcat-nome').value.trim();
+  const slug = document.getElementById('subcat-slug').value.trim();
+  const ordem = parseInt(document.getElementById('subcat-ordem').value) || 0;
+
+  if (!slug || !nome) return alert('Preencha o slug e o nome!');
+
+  const dados = {
+    slug,
+    nome_exibicao: nome,
+    categoria_slug: _catSlugAtualSubcat,
+    ordem,
+  };
+
+  let erro = null;
+  if (modo === 'sim') {
+    const { error } = await supa.from('subcategorias').update(dados).eq('slug', slugOriginal);
+    erro = error;
+  } else {
+    const { error } = await supa.from('subcategorias').insert([dados]);
+    erro = error;
+  }
+
+  if (erro) {
+    alert('Erro ao salvar: ' + erro.message);
+  } else {
+    document.getElementById('modal-subcat')?.remove();
+    carregarSubcategorias(_catSlugAtualSubcat);
+  }
+}
+
+async function deletarSubcat(slug) {
+  if (!confirm(`Deletar a subcategoria "${slug}"?\n\nOs produtos vinculados ficarão sem subcategoria.`)) return;
+
+  // Desvincula produtos
+  await supa.from('produtos').update({ subcategoria_slug: null }).eq('subcategoria_slug', slug);
+
+  const { error } = await supa.from('subcategorias').delete().eq('slug', slug);
+  if (error) alert('Erro: ' + error.message);
+  else carregarSubcategorias(_catSlugAtualSubcat);
+}
+
+// Utilitário: gera slug a partir de um texto
+function gerarSlug(texto) {
+  return texto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // remove acentos
+    .replace(/[^a-z0-9\s_]/g, '')
+    .replace(/\s+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '');
 }
 
 // Abre Modal de Edição (Recebe o objeto c inteiro)
@@ -2089,20 +2350,27 @@ function editarCategoria(c) {
   document.getElementById('titulo-modal-cat').innerText = 'Editar Categoria';
   document.getElementById('cat-modo-edicao').value = 'sim';
 
-  document.getElementById('cat-slug').value = c.slug;
-  document.getElementById('cat-slug').readOnly = true; // Trava o slug na edição
+  const slugInput = document.getElementById('cat-slug');
+  slugInput.value = c.slug;
+  slugInput.readOnly = false; // Permite editar o slug
+  slugInput.dataset.slugOriginal = c.slug; // Guarda o original para comparar
 
-  document.getElementById('cat-nome').value = c.nome_exibicao; // Usa nome_exibicao
+  document.getElementById('cat-nome').value = c.nome_exibicao;
   document.getElementById('cat-ordem').value = c.ordem;
 
   document.getElementById('modal-cat').style.display = 'flex';
 }
 
 async function salvarCategoria() {
-  const slug = document.getElementById('cat-slug').value.trim().toLowerCase().replace(/\s+/g, '-');
+  const slugInput = document.getElementById('cat-slug');
+  const slug = slugInput.value.trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove acentos
+    .replace(/[^a-z0-9\s_]/g, '')
+    .replace(/\s+/g, '_');
   const nome = document.getElementById('cat-nome').value.trim();
   let ordemVal = parseInt(document.getElementById('cat-ordem').value);
   const modo = document.getElementById('cat-modo-edicao').value;
+  const slugOriginal = slugInput.dataset.slugOriginal || slug;
 
   if (!slug || !nome) return alert('Preencha o slug e o nome!');
 
@@ -2116,18 +2384,40 @@ async function salvarCategoria() {
     ordemVal = ult && ult.length > 0 && ult[0].ordem != null ? ult[0].ordem + 1 : 1;
   }
 
-  const dados = { slug, nome_exibicao: nome, ordem: ordemVal };
-
   let erro = null;
+
   if (modo === 'sim') {
-    const slugOriginal = document.getElementById('cat-slug').dataset.slugOriginal || slug;
-    const { error } = await supa
-      .from('categorias')
-      .update({ nome_exibicao: nome, ordem: ordemVal })
-      .eq('slug', slugOriginal);
-    erro = error;
+    const slugMudou = slug !== slugOriginal;
+
+    if (slugMudou) {
+      // 1. Insere novo registro com o novo slug
+      const { error: insErr } = await supa.from('categorias').insert([{
+        slug,
+        nome_exibicao: nome,
+        ordem: ordemVal
+      }]);
+      if (insErr) { alert('Erro ao salvar: ' + insErr.message); return; }
+
+      // 2. Migra todos os produtos do slug antigo para o novo
+      await supa.from('produtos').update({ categoria_slug: slug }).eq('categoria_slug', slugOriginal);
+
+      // 3. Migra subcategorias (se existirem)
+      try {
+        await supa.from('subcategorias').update({ categoria_slug: slug }).eq('categoria_slug', slugOriginal);
+      } catch (_) {}
+
+      // 4. Deleta o registro antigo
+      const { error: delErr } = await supa.from('categorias').delete().eq('slug', slugOriginal);
+      erro = delErr;
+    } else {
+      const { error } = await supa
+        .from('categorias')
+        .update({ nome_exibicao: nome, ordem: ordemVal })
+        .eq('slug', slugOriginal);
+      erro = error;
+    }
   } else {
-    const { error } = await supa.from('categorias').insert([dados]);
+    const { error } = await supa.from('categorias').insert([{ slug, nome_exibicao: nome, ordem: ordemVal }]);
     erro = error;
   }
 
@@ -2141,8 +2431,10 @@ async function salvarCategoria() {
 async function abrirModalCategoria() {
   document.getElementById('titulo-modal-cat').innerText = 'Nova Categoria';
   document.getElementById('cat-modo-edicao').value = 'nao';
-  document.getElementById('cat-slug').value = '';
-  document.getElementById('cat-slug').readOnly = false;
+  const slugInput = document.getElementById('cat-slug');
+  slugInput.value = '';
+  slugInput.readOnly = false;
+  slugInput.dataset.slugOriginal = '';
   document.getElementById('cat-nome').value = '';
 
   // Auto-preenche a ordem com o próximo número
@@ -2195,12 +2487,35 @@ async function pausarProduto(id, ativoAtual) {
 }
 
 async function deletarCat(slug) {
-  const confirmar = confirm(
-    '⚠️ ATENÇÃO: Deletar esta categoria?\n\n⚠️ IMPORTANTE: Certifique-se de que não há produtos usando esta categoria, ou eles ficarão sem categoria!\n\nEsta ação não pode ser desfeita.',
-  );
+  // Verifica quantos produtos usam esta categoria
+  const { count } = await supa
+    .from('produtos')
+    .select('*', { count: 'exact', head: true })
+    .eq('categoria_slug', slug);
+
+  let msg = `⚠️ ATENÇÃO: Deletar a categoria "${slug}"?\n\nEsta ação não pode ser desfeita.`;
+  if (count > 0) {
+    msg += `\n\n⚠️ ${count} produto(s) usam esta categoria e ficarão sem categoria após a exclusão.`;
+  }
+
+  const confirmar = confirm(msg);
   if (!confirmar) return;
 
   try {
+    // Primeiro: desvincula todos os produtos desta categoria
+    if (count > 0) {
+      await supa
+        .from('produtos')
+        .update({ categoria_slug: null, subcategoria_slug: null })
+        .eq('categoria_slug', slug);
+    }
+
+    // Segundo: remove subcategorias vinculadas (se a tabela existir)
+    try {
+      await supa.from('subcategorias').delete().eq('categoria_slug', slug);
+    } catch (_) { /* tabela pode não existir ainda */ }
+
+    // Terceiro: deleta a categoria
     const { error } = await supa.from('categorias').delete().eq('slug', slug);
     if (error) {
       alert('❌ Erro ao deletar: ' + error.message);
@@ -2211,6 +2526,24 @@ async function deletarCat(slug) {
   } catch (e) {
     alert('❌ Erro inesperado: ' + e.message);
   }
+}
+
+// Abre o painel de subcategorias abaixo da tabela de categorias
+function abrirPainelSubcategorias(categoriaSlug) {
+  const painel = document.getElementById('lista-subcategorias-wrapper');
+  if (!painel) return;
+  painel.style.display = 'block';
+  painel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  carregarSubcategorias(categoriaSlug);
+}
+
+// Auto-gera o slug a partir do nome da categoria (modal de categoria)
+function autoSlugFromNome() {
+  const modo = document.getElementById('cat-modo-edicao')?.value;
+  // Só auto-gera o slug se for criação (não edição)
+  if (modo === 'sim') return;
+  const nome = document.getElementById('cat-nome').value;
+  document.getElementById('cat-slug').value = gerarSlug(nome);
 }
 
 async function deletarMotoboy(id) {
@@ -3561,12 +3894,39 @@ async function carregarCupons() {
       ? '<span class="badge badge-success">Ativo</span>'
       : '<span class="badge badge-danger">Inativo</span>';
 
+    // Uso / limite
+    const usosRealizados = c.usos_realizados || c.usos_atual || 0;
+    let usoHtml;
+    if (c.limite_uso && c.limite_uso > 0) {
+      const restante = c.limite_uso - usosRealizados;
+      const esgotado  = restante <= 0;
+      usoHtml = `
+        <div style="font-size:0.82rem">
+          <span style="font-weight:700;color:${esgotado ? '#e74c3c' : '#27ae60'}">${usosRealizados}/${c.limite_uso}</span>
+          ${esgotado ? '<span class="badge badge-danger" style="font-size:0.65rem">Esgotado</span>' : `<span style="color:#888;font-size:0.72rem">(${restante} restantes)</span>`}
+        </div>`;
+    } else {
+      usoHtml = `<span style="color:#aaa;font-size:0.82rem">${usosRealizados} usos / ∞</span>`;
+    }
+
+    // Validade
+    let validadeHtml = '<span style="color:#ccc;font-size:0.8rem">—</span>';
+    if (c.validade) {
+      const vDate    = new Date(c.validade + 'T00:00:00');
+      const hoje     = new Date();
+      hoje.setHours(0,0,0,0);
+      const expirado = vDate < hoje;
+      validadeHtml   = `<span style="font-size:0.8rem;color:${expirado ? '#e74c3c' : '#555'}">${vDate.toLocaleDateString('pt-BR')}${expirado ? ' <em style=\'font-size:0.7rem\'>(Expirado)</em>' : ''}</span>`;
+    }
+
     tbody.innerHTML += `
             <tr>
                 <td><strong>${c.codigo}</strong></td>
                 <td>${c.tipo === 'percentual' ? 'Percentual' : 'Frete Grátis'}</td>
                 <td>${tipoLabel}</td>
                 <td>Gs ${c.minimo.toLocaleString('es-PY')}</td>
+                <td>${usoHtml}</td>
+                <td>${validadeHtml}</td>
                 <td>${statusBadge}</td>
                 <td class="actions-cell">
                     <button class="btn btn-sm btn-primary" onclick='editarCupom(${JSON.stringify(c)})'>
@@ -3589,6 +3949,9 @@ function abrirModalCupom(cupom = null) {
   document.getElementById('cupom-valor').value = cupom ? cupom.valor : '';
   document.getElementById('cupom-minimo').value = cupom ? cupom.minimo : '';
   document.getElementById('cupom-ativo').checked = cupom ? cupom.ativo : true;
+  // Limite de usos e validade
+  document.getElementById('cupom-limite').value   = cupom?.limite_uso  ?? '';
+  document.getElementById('cupom-validade').value = cupom?.validade    ? cupom.validade.split('T')[0] : '';
 
   alterarTipoCupom();
 
@@ -3610,12 +3973,17 @@ function alterarTipoCupom() {
 // SALVAR CUPOM
 async function salvarCupom() {
   const id = document.getElementById('cupom-id').value;
+  const limiteRaw = parseInt(document.getElementById('cupom-limite').value);
+  const validadeRaw = document.getElementById('cupom-validade').value;
+
   const dados = {
-    codigo: document.getElementById('cupom-codigo').value.toUpperCase(),
-    tipo: document.getElementById('cupom-tipo').value,
-    valor: parseFloat(document.getElementById('cupom-valor').value) || 0,
-    minimo: parseFloat(document.getElementById('cupom-minimo').value) || 0,
-    ativo: document.getElementById('cupom-ativo').checked,
+    codigo:     document.getElementById('cupom-codigo').value.toUpperCase(),
+    tipo:       document.getElementById('cupom-tipo').value,
+    valor:      parseFloat(document.getElementById('cupom-valor').value) || 0,
+    minimo:     parseFloat(document.getElementById('cupom-minimo').value) || 0,
+    ativo:      document.getElementById('cupom-ativo').checked,
+    limite_uso: (!isNaN(limiteRaw) && limiteRaw > 0) ? limiteRaw : null,
+    validade:   validadeRaw || null,
   };
 
   if (!dados.codigo) {
