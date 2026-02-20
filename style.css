@@ -794,3 +794,415 @@ footer {
     background: rgba(255,255,255,0.4);
     transform: scale(1.1);
 }
+/* ═══════════════════════════════════════════
+   MODAL PRODUTO — Builders (Pizza / Almoço / Extras)
+   ═══════════════════════════════════════════ */
+
+/* Pizza: grade de tamanhos */
+.pizza-size-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(105px, 1fr));
+    gap: 8px;
+    margin: 10px 0;
+}
+.pizza-size-card {
+    border: 2px solid #eee;
+    border-radius: 12px;
+    padding: 10px 6px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: #fafafa;
+}
+.pizza-size-card:active, .pizza-size-card:hover { border-color: var(--primary); background: #fff5f3; }
+.pizza-size-card.selected { border-color: var(--primary); background: #fff0ec; box-shadow: 0 3px 8px rgba(255,68,31,0.2); }
+.pizza-size-name { font-size: 1.15rem; font-weight: 800; color: #333; }
+.pizza-size-info { font-size: 0.68rem; color: #999; margin: 3px 0; }
+.pizza-size-price { font-size: 0.85rem; font-weight: 700; color: var(--primary); }
+
+/* Pizza: opção chips (borda / tipo) */
+.pizza-opt-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+.pizza-opt-chip {
+    padding: 7px 14px;
+    border-radius: 20px;
+    border: 2px solid #ddd;
+    background: #f5f5f5;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 600;
+    transition: all 0.15s;
+}
+.pizza-opt-chip.selected { border-color: var(--primary); background: #fff0ec; color: var(--primary); }
+
+/* Sabores */
+.sabor-slot-label { font-size: 0.78rem; font-weight: 700; color: #666; text-transform: uppercase; letter-spacing: 0.4px; margin: 14px 0 4px; }
+.sabores-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.sabor-chip {
+    padding: 6px 12px;
+    border-radius: 20px;
+    border: 2px solid #ddd;
+    background: #f5f5f5;
+    cursor: pointer;
+    font-size: 0.82rem;
+    transition: all 0.15s;
+}
+.sabor-chip.selected { border-color: #e67e22; background: #fff5e0; color: #d35400; font-weight: 600; }
+
+/* Almoço: grade de pratos */
+.almoco-pratos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+    margin: 8px 0;
+}
+.almoco-prato-option {
+    border: 2px solid #eee;
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: #fafafa;
+}
+.almoco-prato-option:active, .almoco-prato-option:hover { border-color: #27ae60; }
+.almoco-prato-option.selected { border-color: #27ae60; box-shadow: 0 3px 8px rgba(39,174,96,0.2); }
+.almoco-prato-option img { width: 100%; height: 100px; object-fit: cover; display: block; }
+.almoco-prato-option .prato-info { padding: 8px; }
+.almoco-prato-option .prato-nome { font-weight: 700; font-size: 0.85rem; color: #333; line-height: 1.2; }
+.almoco-prato-option .prato-desc { font-size: 0.72rem; color: #888; margin: 3px 0; }
+.almoco-prato-option .prato-preco { font-size: 0.85rem; font-weight: 700; color: #27ae60; }
+
+/* Extras no modal */
+.extras-section { border-top: 2px dashed #eee; padding-top: 12px; margin-top: 14px; }
+.extras-section h5 { color: #3498db; font-size: 0.9rem; margin-bottom: 8px; font-weight: 700; }
+.extra-check-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 9px 12px;
+    border-radius: 10px;
+    border: 1px solid #e3f2fd;
+    margin-bottom: 5px;
+    cursor: pointer;
+    transition: background 0.15s;
+    background: #fafeff;
+}
+.extra-check-row:hover { background: #ebf5fb; }
+.extra-check-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--primary); }
+.extra-check-label { flex: 1; margin: 0 10px; font-size: 0.88rem; color: #333; }
+.extra-check-price { font-weight: 700; color: var(--primary); font-size: 0.82rem; white-space: nowrap; }
+
+/* ═══════════════════════════════════════════
+   DESKTOP LAYOUT — 2 colunas (sidebar carrinho)
+   ═══════════════════════════════════════════ */
+
+/* Mobile first: sidebar oculta, layout normal */
+.desktop-layout {
+    display: block;
+    max-width: 100%;
+}
+.desktop-left { display: block; }
+.desktop-right { display: none; }  /* OCULTO no mobile */
+
+/* Desktop: grid de 2 colunas */
+@media (min-width: 1024px) {
+    .desktop-layout {
+        display: grid;
+        grid-template-columns: 1fr 340px;
+        max-width: 1200px;
+        margin: 0 auto;
+        gap: 0;
+        align-items: start;
+    }
+    .desktop-left {
+        min-width: 0;
+    }
+    .desktop-right {
+        display: flex;
+        flex-direction: column;
+        position: sticky;
+        top: 80px;
+        max-height: calc(100vh - 100px);
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.1);
+        overflow: hidden;
+        margin: 16px 16px 0 0;
+    }
+    /* Esconde o botão flutuante no desktop */
+    .cart-float { display: none !important; }
+}
+
+.desktop-cart-header {
+    background: var(--primary);
+    color: white;
+    padding: 16px 20px;
+    font-weight: 700;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.desktop-cart-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    max-height: 380px;
+}
+.desktop-cart-empty {
+    text-align: center;
+    color: #bbb;
+    padding: 40px 20px;
+}
+.desktop-cart-empty i { font-size: 2rem; display: block; margin-bottom: 10px; }
+.desktop-cart-empty small { font-size: 0.78rem; }
+.desktop-cart-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 8px 0;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 0.85rem;
+}
+.desktop-cart-item-name { color: #333; font-weight: 600; flex: 1; }
+.desktop-cart-item-price { color: var(--primary); font-weight: 700; white-space: nowrap; margin-left: 8px; }
+.desktop-cart-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    border-top: 2px solid #f0f0f0;
+    font-weight: 700;
+    font-size: 1rem;
+}
+.desktop-cart-btn {
+    margin: 0;
+    padding: 14px 20px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.desktop-cart-btn:hover:not(:disabled) { background: #c0392b; }
+.desktop-cart-btn:disabled { background: #ccc; cursor: not-allowed; }
+
+/* ═══════════════════════════════════════════
+   🍕 PIZZA BUILDER — UX Passo a Passo
+   ═══════════════════════════════════════════ */
+
+/* Passo numerado */
+.pizza-step { margin-bottom: 20px; }
+.pizza-step-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #333;
+    margin-bottom: 12px;
+}
+.pizza-step-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: white;
+    font-size: 0.85rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.pizza-step-hint {
+    font-size: 0.78rem;
+    color: #888;
+    margin: -6px 0 12px;
+    line-height: 1.5;
+}
+
+/* Grade de tamanhos */
+.pizza-size-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: 8px;
+}
+.pizza-size-card {
+    border: 2px solid #eee;
+    border-radius: 12px;
+    padding: 10px 6px;
+    text-align: center;
+    cursor: pointer;
+    background: #fafafa;
+    transition: all 0.15s;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.pizza-size-card:hover { border-color: var(--primary); background: #fff5f3; }
+.pizza-size-card.selected {
+    border-color: var(--primary);
+    background: linear-gradient(135deg, #fff5f3, #ffe0d8);
+    box-shadow: 0 3px 10px rgba(255,68,31,0.2);
+}
+.pizza-size-name { font-size: 1.1rem; font-weight: 800; color: #333; }
+.pizza-size-info { font-size: 0.68rem; color: #999; }
+.pizza-size-price { font-size: 0.82rem; font-weight: 700; color: var(--primary); margin-top: 2px; }
+
+/* Divisão de sabores */
+.pizza-divisao-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 8px;
+}
+.pizza-divisao-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 6px;
+    border: 2px solid #eee;
+    border-radius: 12px;
+    background: #fafafa;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.pizza-divisao-btn:hover { border-color: var(--primary); background: #fff5f3; }
+.pizza-divisao-btn.selected {
+    border-color: var(--primary);
+    background: linear-gradient(135deg, #fff5f3, #ffe0d8);
+    box-shadow: 0 3px 10px rgba(255,68,31,0.2);
+}
+.pizza-divisao-icone { font-size: 1.4rem; }
+.pizza-divisao-nome { font-size: 0.75rem; font-weight: 700; color: #444; text-align: center; line-height: 1.2; }
+
+/* Slot de sabores */
+.pizza-slot-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 12px 0 6px;
+}
+.pizza-fracao-badge {
+    background: var(--primary);
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 800;
+    padding: 3px 8px;
+    border-radius: 20px;
+}
+.pizza-slot-label {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+/* Lista de sabores (scrollable) */
+.pizza-sabores-lista {
+    max-height: 240px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding-right: 4px;
+    -webkit-overflow-scrolling: touch;
+}
+.pizza-sabores-lista::-webkit-scrollbar { width: 4px; }
+.pizza-sabores-lista::-webkit-scrollbar-thumb { background: #ddd; border-radius: 4px; }
+
+.pizza-sabor-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 2px solid #eee;
+    border-radius: 10px;
+    cursor: pointer;
+    background: white;
+    text-align: left;
+    transition: all 0.15s;
+    position: relative;
+    overflow: hidden;
+}
+.pizza-sabor-item:hover { border-color: var(--primary); background: #fff5f3; }
+.pizza-sabor-item.selected {
+    border-color: var(--primary);
+    background: #fff0ec;
+}
+/* Quando slot cheio — não selecionados ficam opacos */
+.pizza-sabores-lista.slot-cheio .pizza-sabor-item:not(.selected) {
+    opacity: 0.45;
+    pointer-events: none;
+}
+.pizza-sabor-img {
+    width: 44px;
+    height: 44px;
+    object-fit: cover;
+    border-radius: 8px;
+    flex-shrink: 0;
+}
+.pizza-sabor-emoji { font-size: 1.8rem; flex-shrink: 0; }
+.pizza-sabor-info { flex: 1; min-width: 0; }
+.pizza-sabor-nome { font-weight: 600; font-size: 0.88rem; color: #333; }
+.pizza-sabor-preco { font-size: 0.75rem; color: #888; margin-top: 1px; }
+
+/* Tag de fração (1/2, 2/4 etc.) */
+.pizza-fracao-tag {
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    background: var(--primary);
+    color: white;
+    font-size: 0.65rem;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 10px;
+    pointer-events: none;
+}
+
+/* Borda chips */
+.pizza-opt-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0; }
+.pizza-opt-chip {
+    padding: 8px 14px;
+    border-radius: 20px;
+    border: 2px solid #ddd;
+    background: #f5f5f5;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 600;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+.pizza-opt-chip:hover { border-color: var(--primary); }
+.pizza-opt-chip.selected { border-color: var(--primary); background: #fff0ec; color: var(--primary); }
+
+/* Resumo em tempo real */
+.pizza-resumo-header {
+    background: var(--primary);
+    color: white;
+    font-weight: 700;
+    font-size: 0.88rem;
+    padding: 10px 14px;
+}
+.pizza-resumo-linha {
+    display: flex;
+    justify-content: space-between;
+    padding: 7px 14px;
+    font-size: 0.83rem;
+    color: #444;
+    border-bottom: 1px solid #fde8d0;
+}
+.pizza-resumo-linha span:first-child { color: #888; }
+.pizza-resumo-total {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 14px;
+    font-weight: 800;
+    font-size: 0.95rem;
+    color: var(--primary);
+    background: #fff0ec;
+}

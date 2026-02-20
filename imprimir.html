@@ -207,9 +207,8 @@
                     document.getElementById('ruc').innerText = pedido.factura.ruc || 'S/N';
                     document.getElementById('razao').innerText = pedido.factura.razao || 'S/N';
                 }
-
-                // Opcional: Imprimir automático após 800ms
-                // setTimeout(() => window.print(), 800);
+                
+                setTimeout(() => window.print(), 800);
 
             } catch (e) {
                 console.error('Erro ao processar pedido:', e);

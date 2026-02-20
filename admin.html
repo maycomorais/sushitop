@@ -71,7 +71,7 @@
       </div>
 
       <div class="menu-item" onclick="logout()" style="margin-top: auto; background: #c0392b">
-        <i class="fas fa-sign-out-alt"></i><span class="mobile-hide"> Sair</span>
+        <i class="fas fa-sign-out-alt"></i><span class="mobile-hide "> Sair</span>
       </div>
     </div>
 
@@ -121,6 +121,19 @@
             <div class="ranking-header">
               <i class="fas fa-trophy" style="color:#f59e0b"></i>
               <h3>Top Produtos</h3>
+              <select id="rank-prod-periodo" class="rank-periodo-select" onchange="carregarRankingProdutos()" style="margin-left:auto">
+                <option value="hoje">Hoje</option>
+                <option value="7">7 dias</option>
+                <option value="30">30 dias</option>
+                <option value="mes">Este mês</option>
+                <option value="custom">Período</option>
+              </select>
+            </div>
+            <div id="rank-prod-custom" style="display:none;gap:4px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+              <input type="date" id="rank-prod-inicio" class="rank-data-input">
+              <span style="font-size:0.75rem;color:#888">até</span>
+              <input type="date" id="rank-prod-fim" class="rank-data-input">
+              <button class="btn btn-sm btn-primary" onclick="carregarRankingProdutos()" style="padding:3px 10px;font-size:0.75rem">Ir</button>
             </div>
             <div id="ranking-produtos-list" class="ranking-list"></div>
           </div>
@@ -128,6 +141,20 @@
             <div class="ranking-header">
               <i class="fas fa-star" style="color:#a78bfa"></i>
               <h3>Clientes Assíduos</h3>
+              <select id="rank-cli-periodo" class="rank-periodo-select" onchange="carregarRankingClientes()" style="margin-left:auto">
+                <option value="tudo">Todos</option>
+                <option value="hoje">Hoje</option>
+                <option value="7">7 dias</option>
+                <option value="30">30 dias</option>
+                <option value="mes">Este mês</option>
+                <option value="custom">Período</option>
+              </select>
+            </div>
+            <div id="rank-cli-custom" style="display:none;gap:4px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+              <input type="date" id="rank-cli-inicio" class="rank-data-input">
+              <span style="font-size:0.75rem;color:#888">até</span>
+              <input type="date" id="rank-cli-fim" class="rank-data-input">
+              <button class="btn btn-sm btn-primary" onclick="carregarRankingClientes()" style="padding:3px 10px;font-size:0.75rem">Ir</button>
             </div>
             <div id="ranking-clientes-list" class="ranking-list"></div>
           </div>
@@ -141,10 +168,10 @@
         <div class="section-topbar">
           <h2 class="section-title">Pedidos</h2>
           <div style="display:flex; gap:8px; align-items:center;">
-            <button class="btn btn-secondary btn-icon" onclick="abrirRelatorio()" title="Relatório Detalhado" style="display:flex;align-items:center;gap:6px;">
+            <button class="btn btn-relatorio" onclick="abrirRelatorio()" title="Relatório Detalhado">
               <i class="fas fa-clipboard-list"></i><span class="mobile-hide"> Relatório</span>
             </button>
-            <button class="btn btn-primary btn-icon" onclick="carregarPedidos()" title="Atualizar">
+            <button class="btn btn-primary btn-icon btn-refresh" onclick="carregarPedidos()" title="Atualizar">
               <i class="fas fa-sync-alt"></i>
             </button>
           </div>
@@ -190,33 +217,39 @@
       <div id="pdv" class="tab-content">
         <h2 class="section-title">🏪 Venda Balcão (PDV)</h2>
 
-        <div class="pdv-container">
-          <div class="pdv-carrinho">
-            <h4 style="margin-top: 0; text-align: center; color: #555">🛒 Novo Pedido</h4>
+        <div class="pdv-tabs" id="pdv-tabs" style="display:none">
+          <button class="pdv-tab-btn active" onclick="pdvMudarAba('carrinho',this)">🛒 Pedido</button>
+          <button class="pdv-tab-btn" onclick="pdvMudarAba('produtos',this)">🍣 Cardápio</button>
+          <button class="pdv-tab-btn" onclick="pdvMudarAba('monitor',this)">📋 Mesas</button>
+        </div>
 
-            <div style="display: flex; gap: 5px; margin-bottom: 8px">
-              <div style="flex:0 0 80px">
+        <div class="pdv-container">
+          <div class="pdv-carrinho pdv-tab-active">
+            <h4 class="pdv-carrinho-titulo">🛒 Novo Pedido</h4>
+
+            <div class="pdv-form-row">
+              <div class="pdv-mesa-col">
                 <label class="pdv-label">Mesa <span class="obrig">*</span></label>
                 <input type="number" id="balcao-mesa" class="form-control" placeholder="Nº" min="1" required />
               </div>
-              <div style="flex:1">
+              <div class="pdv-cliente-col">
                 <label class="pdv-label">Cliente</label>
                 <input type="text" id="balcao-cliente" class="form-control" placeholder="Nome do cliente" />
               </div>
             </div>
-            <div style="margin-bottom: 10px">
+            <div class="pdv-tel-row">
               <label class="pdv-label">Telefone (WhatsApp)</label>
               <input type="tel" id="balcao-telefone" class="form-control" placeholder="Ex: 0981234567" />
             </div>
 
             <div class="pdv-lista-itens" id="pdv-lista"></div>
 
-            <div style="background: #f8f9fa; padding: 10px; border-radius: 5px">
-              <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 1.1rem; margin-bottom: 10px;">
+            <div class="pdv-total-box">
+              <div class="pdv-total-row">
                 <span>Total:</span>
                 <span>Gs <span id="balcao-total">0</span></span>
               </div>
-              <select id="balcao-pag" class="form-control" style="margin-bottom: 8px"
+              <select id="balcao-pag" class="form-control" class="pdv-select-pag"
                 onchange="atualizarInfoPagPDV(parseInt(document.getElementById('balcao-total').innerText.replace(/\D/g,'')))">
                 <option value="Efetivo">Efetivo</option>
                 <option value="Cartao">Cartão</option>
@@ -224,18 +257,22 @@
                 <option value="Transferencia">Transferência</option>
               </select>
               <div id="balcao-pag-info" style="display:none; background:#e8f5e9; border:1px solid #4caf50; border-radius:6px; padding:8px 12px; font-size:0.9rem; color:#1b5e20; margin-bottom:8px"></div>
-              <button class="btn btn-success" style="width: 100%; padding: 12px" onclick="salvarPedidoBalcao()">
+              <button class="btn btn-success" class="btn-lancar-cozinha" onclick="salvarPedidoBalcao()">
                 🚀 LANÇAR NA COZINHA
               </button>
             </div>
           </div>
 
-          <div class="pdv-produtos" id="pdv-grid"></div>
+          <div class="pdv-produtos">
+          <div class="pdv-mesas-bar" id="pdv-mesas-bar">
+            <span class="pdv-mesas-label"><i class="fas fa-chair"></i> Mesas:</span>
+            <span class="mesa-monitor-vazio" id="pdv-mesas-vazio">Nenhuma mesa ativa</span>
+          </div>
+          <div id="pdv-grid"></div>
+        </div>
 
           <div class="pdv-monitor">
-            <h4 style="margin-top: 0; text-align: center; border-bottom: 1px solid #444; padding-bottom: 10px;">
-              <i class="fas fa-utensils"></i> Pedidos em Andamento
-            </h4>
+            <h4 class="pdv-monitor-titulo"><i class="fas fa-utensils"></i> Pedidos em Andamento</h4>
             <div id="lista-mesas-andamento">
               <p style="text-align: center; font-size: 0.8rem; color: #aaa; margin-top: 20px">Nenhum pedido ativo.</p>
             </div>
@@ -430,28 +467,40 @@
   
   <div class="header-title" style="flex-direction: column; align-items: flex-start; gap: 15px;">
     <h2>Gestão de Estoque e Equipe</h2>
-    
-    <div class="sub-nav" style="display: flex; gap: 10px; background: #eee; padding: 5px; border-radius: 8px;">
-        <button class="btn btn-secondary" onclick="showSubTab('lista-produtos-wrapper')">Produtos</button>
-        <button class="btn btn-secondary" onclick="showSubTab('lista-categorias-wrapper')">Categorias</button>
-        <button class="btn btn-secondary" onclick="showSubTab('lista-motos-wrapper')">Motoboys</button>
-    </div>
   </div>
 
   <div id="lista-produtos-wrapper" class="subtab-content">
-      <div style="display: flex; justify-content: space-between; margin: 15px 0;">
+      <div class="produtos-header">
           <h3>Produtos</h3>
-          <button class="btn btn-primary" onclick="abrirModalProduto()">Novo Produto</button>
+          <div class="produtos-header-actions">
+            <input type="text" id="busca-produto" class="form-control" placeholder="🔍 Buscar produto..." oninput="filtrarProdutos(this.value)">
+            <button class="btn btn-primary" onclick="toggleNovosProdutosTipos()"><i class="fas fa-plus"></i> Novo Produto</button>
+          </div>
       </div>
-      <div class="table-container">
-          <table>
-              <thead><tr><th>ID</th><th>Img</th><th>Nome</th><th>Cat</th><th>Preço</th><th>Ações</th></tr></thead>
-              <tbody id="lista-produtos"></tbody>
-          </table>
+
+      <!-- SELETOR DE TIPO — aparece ao clicar em "+ Novo Produto" -->
+      <div id="novo-produto-tipos" class="novo-produto-tipos" style="display:none">
+        <div class="novo-produto-tipos-titulo">Escolha o tipo de produto</div>
+        <div class="novo-produto-tipos-grid">
+          <button class="tipo-btn" onclick="criarNovoProduto('padrao')"><i class="fas fa-tag"></i><span>Simples</span><small>Produto sem opções</small></button>
+          <button class="tipo-btn" onclick="criarNovoProduto('bebida')"><i class="fas fa-wine-bottle"></i><span>Bebida</span><small>Refri, água, suco</small></button>
+          <button class="tipo-btn" onclick="criarNovoProduto('lanche')"><i class="fas fa-burger"></i><span>Lanche</span><small>Burger, hot dog</small></button>
+          <button class="tipo-btn" onclick="criarNovoProduto('pizza')"><i class="fas fa-pizza-slice"></i><span>Pizza</span><small>Tamanhos & sabores</small></button>
+          <button class="tipo-btn" onclick="criarNovoProduto('acai')"><i class="fas fa-leaf"></i><span>Açaí</span><small>Etapas de montagem</small></button>
+          <button class="tipo-btn" onclick="criarNovoProduto('shake')"><i class="fas fa-blender"></i><span>Shake</span><small>Milk shake</small></button>
+          <button class="tipo-btn" onclick="criarNovoProduto('suco')"><i class="fas fa-lemon"></i><span>Suco</span><small>Frutas & adicionais</small></button>
+          <button class="tipo-btn" onclick="criarNovoProduto('sorvete')"><i class="fas fa-ice-cream"></i><span>Sorvete</span><small>Sabores, açaí</small></button>
+          <button class="tipo-btn" onclick="criarNovoProduto('montavel')"><i class="fas fa-layer-group"></i><span>Montável</span><small>Poke, salada</small></button>
+          <button class="tipo-btn" onclick="criarNovoProduto('combo')"><i class="fas fa-star"></i><span>Combo</span><small>Kit / promoção</small></button>
+        </div>
+      </div>
+
+      <div id="lista-produtos-grid" class="produtos-grid">
+        <!-- Cards gerados pelo JS -->
       </div>
   </div>
 
-  <div id="lista-categorias-wrapper" class="subtab-content" style="display: none;">
+  <div id="lista-categorias-wrapper" class="subtab-content subtab-hidden">
       <div style="display: flex; justify-content: space-between; margin: 15px 0;">
           <h3>Categorias</h3>
           <button class="btn btn-primary" onclick="abrirModalCategoria()">Nova Categoria</button>
@@ -464,7 +513,7 @@
       </div>
   </div>
 
-  <div id="lista-motos-wrapper" class="subtab-content" style="display: none;">
+  <div id="lista-motos-wrapper" class="subtab-content subtab-hidden">
       <div style="display: flex; justify-content: space-between; margin: 15px 0;">
           <h3>Equipe Motoboys</h3>
           <button class="btn btn-primary" onclick="abrirModalMoto()">Novo Motoboy</button>
@@ -533,7 +582,7 @@
         </div>
 
         <!-- DEPOIS DA SEÇÃO DE PERSONALIZAÇÃO VISUAL -->
-<div class="card cfg-card" style="margin-top:16px">
+<div id="card-cupons-cfg" class="card cfg-card" style="margin-top:16px">
     <div class="cfg-section-title">
         <i class="fas fa-ticket-alt"></i> Gestão de Cupons de Desconto
     </div>
@@ -651,24 +700,25 @@
 
 
     <div id="modal-produto" class="modal-overlay">
-      <div class="modal-content" style="max-height:90vh; overflow-y:auto; position:relative;">
-        <button onclick="fecharModal('modal-produto')" style="position:sticky; top:0; float:right; background:#e74c3c; color:white; border:none; border-radius:50%; width:32px; height:32px; font-size:1.2rem; cursor:pointer; z-index:10; margin-bottom:8px;">×</button>
-        <h3>Gerenciar Produto</h3>
+      <div class="modal-content modal-produto-content">
+        <div class="modal-produto-header">
+          <h3>Gerenciar Produto</h3>
+          <button class="btn-modal-fechar" onclick="fecharModal('modal-produto')" aria-label="Fechar">×</button>
+        </div>
         <input type="hidden" id="prod-id" />
 
+        <!-- DADOS BÁSICOS -->
         <div class="form-group">
           <label>Nome</label>
           <input type="text" id="prod-nome" class="form-control" />
         </div>
-
         <div class="form-group">
           <label>Descrição</label>
-          <textarea id="prod-desc" class="form-control"></textarea>
+          <textarea id="prod-desc" class="form-control" rows="2"></textarea>
         </div>
-
         <div class="form-group" style="display: flex; gap: 10px">
           <div style="flex: 1">
-            <label>Preço (Gs)</label>
+            <label>Preço base (Gs) <small style="color:#888">— para Pizza, é o mínimo (tamanho P)</small></label>
             <input type="number" id="prod-preco" class="form-control" />
           </div>
           <div style="flex: 1">
@@ -676,58 +726,169 @@
             <select id="prod-cat" class="form-control"></select>
           </div>
         </div>
-
         <div class="form-group">
           <label>Imagem (Upload ou URL)</label>
-          <input
-            type="file"
-            id="prod-img-file"
-            class="form-control"
-            onchange="previewUpload(this)"
-          />
+          <input type="file" id="prod-img-file" class="form-control" onchange="previewUpload(this)" />
           <input type="text" id="prod-img" class="form-control" placeholder="Ou cole a URL aqui" />
-          <div id="box-preview" style="display: none; margin-top: 10px; text-align: center">
-            <img id="img-preview" src="" style="max-height: 100px; border-radius: 5px" />
+          <div id="box-preview" style="display:none; margin-top:10px; text-align:center">
+            <img id="img-preview" src="" style="max-height:100px; border-radius:5px" />
           </div>
         </div>
-
         <div class="form-group" style="display:flex; align-items:center; gap:10px; background:#fff8e1; padding:10px; border-radius:8px;">
           <input type="checkbox" id="prod-somente-balcao" style="width:20px; height:20px;">
           <label for="prod-somente-balcao" style="font-weight:bold; cursor:pointer;">
             🏪 Somente Balcão (PDV)
-            <small style="display:block; font-weight:normal; color:#888;">Não aparece no cardápio online — só na venda presencial</small>
+            <small style="display:block; font-weight:normal; color:#888;">Não aparece no cardápio online</small>
           </label>
         </div>
 
-        <hr />
-        <div class="form-group" style="display: flex; align-items: center; gap: 10px">
-          <input
-            type="checkbox"
-            id="prod-montavel"
-            onchange="toggleBuilder()"
-            style="width: 20px; height: 20px"
-          />
-          <label for="prod-montavel" style="font-weight: bold"
-            >Este produto é montável? (Ex: Poke, Combo)</label
-          >
-        </div>
+        <hr class="modal-divisor"/>
 
-        <div
-          id="builder-area"
-          style="
-            display: none;
-            background: #f9f9f9;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-          "
-        >
-          <h4>Etapas de Montagem</h4>
+        <!-- TIPO DE PRODUTO — badge compacto (editável apenas ao editar produto existente) -->
+        <div id="modal-tipo-badge-wrapper" class="modal-tipo-badge-wrapper">
+          <span class="modal-tipo-label">Tipo:</span>
+          <div id="modal-tipo-badge" class="modal-tipo-badge">📦 Simples</div>
+          <button type="button" class="btn-alterar-tipo" id="btn-alterar-tipo" onclick="toggleAlterarTipo()">✏️ Alterar tipo</button>
+        </div>
+        <!-- Grid de tipos (visível ao clicar "Alterar tipo" no modo edição) -->
+        <div id="builder-type-grid-wrapper" style="display:none">
+          <div class="builder-type-grid" id="builder-type-grid">
+            <button type="button" class="builder-type-btn active" data-tipo="padrao" onclick="selecionarTipoBuilder('padrao')">
+              <i class="fas fa-tag"></i><strong>Simples</strong>
+            </button>
+            <button type="button" class="builder-type-btn" data-tipo="bebida" onclick="selecionarTipoBuilder('bebida')">
+              <i class="fas fa-wine-bottle"></i><strong>Bebida</strong>
+            </button>
+            <button type="button" class="builder-type-btn" data-tipo="lanche" onclick="selecionarTipoBuilder('lanche')">
+              <i class="fas fa-burger"></i><strong>Lanche</strong>
+            </button>
+            <button type="button" class="builder-type-btn" data-tipo="pizza" onclick="selecionarTipoBuilder('pizza')">
+              <i class="fas fa-pizza-slice"></i><strong>Pizza</strong>
+            </button>
+            <button type="button" class="builder-type-btn" data-tipo="acai" onclick="selecionarTipoBuilder('acai')">
+              <i class="fas fa-leaf"></i><strong>Açaí</strong>
+            </button>
+            <button type="button" class="builder-type-btn" data-tipo="shake" onclick="selecionarTipoBuilder('shake')">
+              <i class="fas fa-blender"></i><strong>Shake</strong>
+            </button>
+            <button type="button" class="builder-type-btn" data-tipo="suco" onclick="selecionarTipoBuilder('suco')">
+              <i class="fas fa-lemon"></i><strong>Suco</strong>
+            </button>
+            <button type="button" class="builder-type-btn" data-tipo="sorvete" onclick="selecionarTipoBuilder('sorvete')">
+              <i class="fas fa-ice-cream"></i><strong>Sorvete</strong>
+            </button>
+            <button type="button" class="builder-type-btn" data-tipo="montavel" onclick="selecionarTipoBuilder('montavel')">
+              <i class="fas fa-layer-group"></i><strong>Montável</strong>
+            </button>
+            <button type="button" class="builder-type-btn" data-tipo="combo" onclick="selecionarTipoBuilder('combo')">
+              <i class="fas fa-star"></i><strong>Combo</strong>
+            </button>
+          </div>
+        </div>
+        <div id="builder-tipo-hint" style="display:none"></div>
+        <div id="builder-lanche-hint" style="display:none;background:#e0f2fe;border-left:4px solid #0284c7;border-radius:6px;padding:10px 14px;font-size:0.82rem;color:#0c4a6e;margin-top:8px;">
+          🍔 Use a seção <strong>"Adicionais (Extras)"</strong> para ingredientes opcionais.
+        </div>
+        <input type="hidden" id="prod-tipo-builder" value="padrao">
+
+        <!-- ── BUILDER: MONTÁVEL (Poke/Salada) ── -->
+        <div id="builder-montavel" class="builder-section" style="display:none">
+          <h4 style="color:#e67e22">🥗 Etapas de Montagem</h4>
+          <p style="font-size:0.82rem; color:#888; margin-bottom:10px">Configure as etapas que o cliente vai escolher (ingredientes, bases, molhos, etc.)</p>
           <div id="builder-steps"></div>
           <button class="btn btn-sm btn-info" onclick="addBuilderStep()">+ Adicionar Etapa</button>
+          <!-- mantém compatibilidade com toggleBuilder() -->
+          <input type="hidden" id="prod-montavel" value="false">
         </div>
 
-        <div class="modal-actions">
+        <!-- ── BUILDER: PIZZA ── -->
+        <div id="builder-pizza" class="builder-section" style="display:none">
+          <h4 style="color:#e74c3c">🍕 Configuração da Pizza</h4>
+
+          <div class="pizza-config-grid">
+            <div class="form-group">
+              <label>Máx. de sabores por pizza</label>
+              <select id="pizza-max-sabores" class="form-control">
+                <option value="1">1 sabor</option>
+                <option value="2" selected>2 sabores</option>
+                <option value="3">3 sabores</option>
+                <option value="4">4 sabores</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Tipos de massa oferecidos</label>
+              <div style="display:flex; gap:12px; margin-top:6px; flex-wrap:wrap">
+                <label style="cursor:pointer"><input type="checkbox" id="pizza-tipo-salgada" checked> Salgada</label>
+                <label style="cursor:pointer"><input type="checkbox" id="pizza-tipo-doce"> Doce</label>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Bordas recheadas?</label>
+              <div style="display:flex; gap:12px; margin-top:6px">
+                <label style="cursor:pointer"><input type="checkbox" id="pizza-tem-borda" onchange="toggleBordaPreco()"> Sim, oferecer bordas</label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bordas Recheadas — lista com nome + preço -->
+          <div id="pizza-borda-preco-box" style="display:none; margin-top:14px">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+              <h5 style="margin:0">🧀 Bordas disponíveis</h5>
+              <button class="btn btn-sm btn-success" onclick="addPizzaBorda()">+ Borda</button>
+            </div>
+            <div style="background:#fff8e1; border-radius:8px; padding:8px 12px; font-size:0.78rem; color:#7d5a00; margin-bottom:8px">
+              💡 Adicione cada tipo de borda com seu preço. Ex: Cheddar → Gs 8.000 | Catupiry → Gs 9.000 | Chocolate → Gs 10.000
+            </div>
+            <div id="pizza-bordas-lista"></div>
+          </div>
+
+          <!-- Tamanhos -->
+          <div style="margin-top:16px">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+              <h5 style="margin:0">Tamanhos disponíveis</h5>
+              <button class="btn btn-sm btn-success" onclick="addPizzaTamanho()">+ Adicionar Tamanho</button>
+            </div>
+            <div style="background:#fff3f3; border-radius:8px; padding:10px; margin-bottom:8px; font-size:0.78rem; color:#888">
+              💡 Preencha: Nome, Fatias, Diâmetro (cm) e o preço por categoria (Tradicional, Especial, Doce) + o valor da borda para cada tamanho.
+            </div>
+            <div id="pizza-tamanhos-lista">
+              <!-- Tamanhos gerados pelo JS -->
+            </div>
+          </div>
+
+          <!-- Sabores cadastrados -->
+          <div style="margin-top:16px">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+              <h5 style="margin:0">Sabores cadastrados <small style="color:#888; font-weight:normal">(o cliente escolhe deste menu)</small></h5>
+              <button class="btn btn-sm btn-success" onclick="addPizzaSabor()">+ Sabor</button>
+            </div>
+            <div id="pizza-sabores-lista" style="max-height:220px; overflow-y:auto; border:1px solid #eee; border-radius:8px; padding:8px">
+              <p style="color:#aaa; font-size:0.82rem; text-align:center; margin:10px 0">Clique em "+ Sabor" para adicionar</p>
+            </div>
+          </div>
+        </div>
+
+        <hr class="modal-divisor"/>
+
+        <!-- ── EXTRAS (ADICIONAIS) — Para todos os tipos ── -->
+        <div class="form-group" style="background:#f0f9ff; border:1px solid #bee3f8; border-radius:10px; padding:12px">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px">
+            <label style="font-weight:700; margin:0">
+              ➕ Adicionais (Extras opcionais)
+              <small style="display:block; font-weight:normal; color:#888">O cliente poderá marcar estes itens ao pedir</small>
+            </label>
+            <div style="display:flex; align-items:center; gap:8px">
+              <input type="checkbox" id="prod-tem-extras" style="width:18px;height:18px" onchange="toggleExtras()">
+              <label for="prod-tem-extras" style="cursor:pointer; font-size:0.9rem">Ativar extras</label>
+            </div>
+          </div>
+          <div id="extras-area" style="display:none">
+            <div id="extras-lista"></div>
+            <button class="btn btn-sm btn-info" onclick="addExtra()" style="margin-top:8px">+ Adicionar Extra</button>
+          </div>
+        </div>
+
+        <div class="modal-actions" style="margin-top:16px">
           <button class="btn btn-primary" onclick="salvarProduto()">Salvar Produto</button>
           <button class="btn btn-secondary" onclick="fecharModal('modal-produto')">Cancelar</button>
         </div>

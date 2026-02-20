@@ -128,6 +128,114 @@ function toggleLanguageMenu() {
     if (menu) menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
 }
 
+// Mapeamento de traduções dos textos visíveis da interface
+const _traducoes = {
+    es: {
+        'header-aberto':     'Abierto',
+        'header-fechado':    'Cerrado',
+        'track-title':       '🚚 Rastrear Pedido',
+        'track-placeholder': 'Número do pedido',
+        'track-btn':         'Buscar',
+        'track-outro':       'Rastrear Outro Pedido',
+        'cart-title':        'Mi Pedido',
+        'btn-delivery':      '🛵 Delivery',
+        'btn-retirada':      '🏃 Retirada',
+        'btn-balcao':        '🏪 Balcão',
+        'checkout-title':    'Seus Dados',
+        'label-nome':        'Nombre Completo *',
+        'label-zap':         'WhatsApp *',
+        'label-end':         'Endereço de Entrega *',
+        'label-ref':         'Ponto de Referência',
+        'label-pag':         'Forma de Pago *',
+        'btn-finalizar':     '✅ Finalizar Pedido',
+        'label-cupom':       'Cupón de Descuento',
+    },
+    pt: {
+        'header-aberto':     'Aberto',
+        'header-fechado':    'Fechado',
+        'track-title':       '🚚 Rastrear Pedido',
+        'track-placeholder': 'Número do pedido',
+        'track-btn':         'Buscar',
+        'track-outro':       'Rastrear Outro Pedido',
+        'cart-title':        'Meu Pedido',
+        'btn-delivery':      '🛵 Delivery',
+        'btn-retirada':      '🏃 Retirada',
+        'btn-balcao':        '🏪 Balcão',
+        'checkout-title':    'Seus Dados',
+        'label-nome':        'Nome Completo *',
+        'label-zap':         'WhatsApp *',
+        'label-end':         'Endereço de Entrega *',
+        'label-ref':         'Ponto de Referência',
+        'label-pag':         'Forma de Pagamento *',
+        'btn-finalizar':     '✅ Finalizar Pedido',
+        'label-cupom':       'Cupom de Desconto',
+    },
+    en: {
+        'header-aberto':     'Open',
+        'header-fechado':    'Closed',
+        'track-title':       '🚚 Track Order',
+        'track-placeholder': 'Order number',
+        'track-btn':         'Search',
+        'track-outro':       'Track Another Order',
+        'cart-title':        'My Order',
+        'btn-delivery':      '🛵 Delivery',
+        'btn-retirada':      '🏃 Pickup',
+        'btn-balcao':        '🏪 Counter',
+        'checkout-title':    'Your Details',
+        'label-nome':        'Full Name *',
+        'label-zap':         'WhatsApp *',
+        'label-end':         'Delivery Address *',
+        'label-ref':         'Reference Point',
+        'label-pag':         'Payment Method *',
+        'btn-finalizar':     '✅ Place Order',
+        'label-cupom':       'Discount Coupon',
+    },
+    de: {
+        'header-aberto':     'Geöffnet',
+        'header-fechado':    'Geschlossen',
+        'track-title':       '🚚 Bestellung verfolgen',
+        'track-placeholder': 'Bestellnummer',
+        'track-btn':         'Suchen',
+        'track-outro':       'Andere Bestellung verfolgen',
+        'cart-title':        'Meine Bestellung',
+        'btn-delivery':      '🛵 Lieferung',
+        'btn-retirada':      '🏃 Abholung',
+        'btn-balcao':        '🏪 Theke',
+        'checkout-title':    'Ihre Daten',
+        'label-nome':        'Vollständiger Name *',
+        'label-zap':         'WhatsApp *',
+        'label-end':         'Lieferadresse *',
+        'label-ref':         'Referenzpunkt',
+        'label-pag':         'Zahlungsmethode *',
+        'btn-finalizar':     '✅ Bestellen',
+        'label-cupom':       'Rabattcoupon',
+    }
+};
+
+function _aplicarIdioma(lang) {
+    const t = _traducoes[lang] || _traducoes['es'];
+    const setText = (sel, txt) => {
+        const el = typeof sel === 'string' ? document.querySelector(sel) : sel;
+        if (el) el.textContent = txt;
+    };
+    const setAttr = (sel, attr, val) => {
+        const el = document.querySelector(sel);
+        if (el) el.setAttribute(attr, val);
+    };
+
+    // Aplicar por data-lang-key (elementos com esse atributo são traduzidos automaticamente)
+    document.querySelectorAll('[data-lang-key]').forEach(el => {
+        const key = el.getAttribute('data-lang-key');
+        if (t[key]) el.textContent = t[key];
+    });
+
+    // Elementos com data-lang-key-placeholder
+    document.querySelectorAll('[data-lang-key-placeholder]').forEach(el => {
+        const key = el.getAttribute('data-lang-key-placeholder');
+        if (t[key]) el.placeholder = t[key];
+    });
+}
+
 function changeLanguage(lang) {
     localStorage.setItem('language', lang);
     const data = _langData[lang] || _langData['es'];
@@ -137,9 +245,11 @@ function changeLanguage(lang) {
     if (codeEl) codeEl.textContent = data.code;
     const menu = document.getElementById('language-menu');
     if (menu) menu.style.display = 'none';
-    // Aplica tradução se a função existir, senão recarrega
+
+    // 1. Aplica sistema data-i18n do translations.js (se disponível)
     if (typeof setLanguage === 'function') setLanguage(lang);
-    else location.reload();
+    // 2. Aplica traduções diretas dos elementos sem data-i18n
+    _aplicarIdioma(lang);
 }
 
 // Fecha menu ao clicar fora
@@ -159,6 +269,13 @@ window.addEventListener('DOMContentLoaded', () => {
     const codeEl = document.getElementById('current-lang-code');
     if (flagEl) flagEl.textContent = data.flag;
     if (codeEl) codeEl.textContent = data.code;
+    // Aplica traduções se idioma salvo não for o padrão
+    if (savedLang !== 'es') {
+        setTimeout(() => {
+            if (typeof setLanguage === 'function') setLanguage(savedLang);
+            _aplicarIdioma(savedLang);
+        }, 400); // aguarda app.js carregar
+    }
 });
 </script>
             <div class="header-info">
@@ -167,6 +284,10 @@ window.addEventListener('DOMContentLoaded', () => {
             </div>
         </div>
     </header>
+
+    <!-- DESKTOP LAYOUT WRAPPER: 2 colunas (menu esquerda + carrinho direita) -->
+    <div class="desktop-layout">
+    <div class="desktop-left">
 
     <div class="banner-area">
         <div class="banner-track">
@@ -195,7 +316,7 @@ window.addEventListener('DOMContentLoaded', () => {
         <div id="track-form" style="display: block;">
             <p style="margin: 0 0 12px 0; font-size: 0.9rem; opacity: 0.9;">Digite o número do seu pedido para acompanhar:</p>
             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <input type="number" id="track-pedido-input" placeholder="Ex: 81" style="flex: 1; min-width: 80px; padding: 12px; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600;">
+                <input type="number" id="track-pedido-input" data-lang-key-placeholder="track-placeholder" placeholder="Ex: 81" style="flex: 1; min-width: 80px; padding: 12px; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600;">
                 <button onclick="buscarPedido()" style="padding: 12px 16px; background: white; color: #667eea; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; white-space: nowrap; flex-shrink: 0;">
                     <i class="fas fa-search"></i> Buscar
                 </button>
@@ -256,6 +377,32 @@ window.addEventListener('DOMContentLoaded', () => {
 
     <main class="menu-container" id="menu-content"></main>
 
+    </div><!-- /desktop-left -->
+
+    <!-- CARRINHO SIDEBAR (visível só no desktop) -->
+    <div class="desktop-right" id="desktop-cart-sidebar">
+        <div class="desktop-cart-header">
+            <i class="fas fa-shopping-bag"></i> Meu Pedido
+        </div>
+        <div class="desktop-cart-body" id="desktop-cart-body">
+            <div class="desktop-cart-empty" id="desktop-cart-empty">
+                <i class="fas fa-utensils"></i>
+                <div>Seu carrinho está vazio</div>
+                <small>Adicione itens do menu</small>
+            </div>
+            <div id="desktop-cart-items"></div>
+        </div>
+        <div class="desktop-cart-total" id="desktop-cart-total-row" style="display:none">
+            <span>Total</span>
+            <span id="desktop-cart-total-val">Gs 0</span>
+        </div>
+        <button class="desktop-cart-btn" id="desktop-cart-btn" onclick="abrirCheckout()" disabled>
+            Finalizar Pedido
+        </button>
+    </div>
+
+    </div><!-- /desktop-layout -->
+
     <div class="cart-float" id="cart-bar" onclick="abrirCheckout()">
         <div class="cart-count" id="cart-count">0</div>
         <div class="cart-text">Ver meu pedido</div>
@@ -276,6 +423,9 @@ window.addEventListener('DOMContentLoaded', () => {
                 <div id="modal-options" class="options-list"></div>
 
                 <div id="modal-montagem" class="montagem-list" style="display:none;"></div>
+
+                <!-- RESUMO PIZZA (aparece em tempo real) -->
+                <div id="pizza-resumo" style="display:none; margin:12px 0; background:#fff8f0; border:1px solid #fde8d0; border-radius:12px; overflow:hidden;"></div>
 
                 <div class="obs-area">
                     <label>Alguma observação?</label>

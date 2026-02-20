@@ -357,7 +357,7 @@ async function renderMenu() {
       desc: p.descricao,
       preco: p.preco,
       img: p.imagem_url,
-      montagem: p.montagem_config,
+      montagem: p.montagem_config,  // full config (array ou object com __tipo)
       e_montavel: p.e_montavel,
     });
   });
@@ -409,61 +409,419 @@ async function renderMenu() {
 }
 
 // ==========================================
-// 5. MODAL DE PRODUTO
+// 5. MODAL DE PRODUTO (multi-builder)
 // ==========================================
+
+// Variáveis de estado do modal
+let _pizzaConfig = { tamanhoSelecionado: null, bordaSelecionada: false, tipoSelecionado: null, sabores: [] };
+
 function abrirModal(item) {
   prodAtual = item;
   qtd = 1;
   itensMontagem = {};
+  _pizzaConfig = { p: null, tamanhoSelecionado: null, numSabores: null, sabores: [], bordaConfig: null };
 
   document.getElementById('modal-title').innerText = item.nome;
   document.getElementById('modal-desc').innerText = item.desc || '';
   document.getElementById('modal-obs').value = '';
+  document.getElementById('modal-qty').innerText = qtd;
 
-  // Área de Opções (Montagem / Pokes)
   const divOptions = document.getElementById('modal-options');
+  const divMontagem = document.getElementById('modal-montagem');
   divOptions.innerHTML = '';
+  divMontagem.innerHTML = '';
+  divMontagem.style.display = 'none';
 
-  if (item.e_montavel && item.montagem) {
-    item.montagem.forEach((etapa, idxEtapa) => {
-      const h4 = document.createElement('h4');
-      h4.innerText = `${etapa.titulo} (Máx: ${etapa.max})`;
-      h4.style.marginTop = '10px';
-      divOptions.appendChild(h4);
+  // Detecta tipo do produto
+  const cfg = item.montagem; // montagem_config do banco
+  let tipo = 'padrao';
+  if (cfg && !Array.isArray(cfg) && cfg.__tipo) tipo = cfg.__tipo;
+  else if (item.e_montavel || (cfg && Array.isArray(cfg) && cfg.length > 0)) tipo = 'montavel';
 
-      etapa.itens.forEach((ingrediente) => {
-        const label = document.createElement('label');
-        label.style.display = 'block';
-        label.style.padding = '5px 0';
-
-        const input = document.createElement('input');
-        input.type = 'checkbox';
-        input.value = ingrediente;
-        input.onchange = () => {
-          if (!itensMontagem[idxEtapa]) itensMontagem[idxEtapa] = [];
-          if (input.checked) {
-            if (itensMontagem[idxEtapa].length < etapa.max) {
-              itensMontagem[idxEtapa].push(ingrediente);
-            } else {
-              alert(`Máximo: ${etapa.max}`);
-              input.checked = false;
-            }
-          } else {
-            const idx = itensMontagem[idxEtapa].indexOf(ingrediente);
-            if (idx > -1) itensMontagem[idxEtapa].splice(idx, 1);
-          }
-        };
-
-        label.appendChild(input);
-        label.appendChild(document.createTextNode(' ' + ingrediente));
-        divOptions.appendChild(label);
-      });
-    });
+  if (tipo === 'montavel') {
+    _renderMontavel(item, cfg, divOptions);
+  } else if (tipo === 'pizza') {
+    _renderPizza(cfg, divOptions);
+  } else if (tipo === 'almoco') {
+    _renderAlmoco(cfg, divOptions);
   }
 
-  document.getElementById('modal-qty').innerText = qtd;
-  document.getElementById('modal-price').innerText = `Gs ${item.preco.toLocaleString('es-PY')}`;
+  // Extras (para qualquer tipo)
+  const extras = cfg && cfg.extras ? cfg.extras : null;
+  if (extras && extras.length > 0) {
+    _renderExtras(extras, divOptions);
+  }
+
+  // Atualiza preço inicial
+  _atualizarPrecoPizza();
   document.getElementById('product-modal').classList.add('active');
+}
+
+function _renderMontavel(item, cfg, container) {
+  const etapas = Array.isArray(cfg) ? cfg : (cfg && cfg.etapas ? cfg.etapas : []);
+  etapas.forEach((etapa, idxEtapa) => {
+    const h4 = document.createElement('h4');
+    h4.innerText = `${etapa.titulo} (Máx: ${etapa.max})`;
+    h4.style.cssText = 'margin-top:10px; font-size:0.95rem; color:#555;';
+    container.appendChild(h4);
+
+    etapa.itens.forEach((ingrediente) => {
+      const label = document.createElement('label');
+      label.style.cssText = 'display:block; padding:7px 10px; margin-bottom:3px; border:1px solid #eee; border-radius:8px; cursor:pointer;';
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.value = ingrediente;
+      input.style.marginRight = '8px';
+      input.onchange = () => {
+        if (!itensMontagem[idxEtapa]) itensMontagem[idxEtapa] = [];
+        if (input.checked) {
+          if (itensMontagem[idxEtapa].length < etapa.max) {
+            itensMontagem[idxEtapa].push(ingrediente);
+          } else {
+            alert(`Máximo: ${etapa.max} itens para "${etapa.titulo}"`);
+            input.checked = false;
+          }
+        } else {
+          const idx = itensMontagem[idxEtapa].indexOf(ingrediente);
+          if (idx > -1) itensMontagem[idxEtapa].splice(idx, 1);
+        }
+      };
+      label.appendChild(input);
+      label.appendChild(document.createTextNode(ingrediente));
+      container.appendChild(label);
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  🍕 PIZZA BUILDER — UX completo (passo a passo)
+//  Estado global da pizza:
+//  _pizzaConfig = {
+//    p:                 cfg.pizza (referência),
+//    tamanhoSelecionado: { nome, fatias, cm, preco },
+//    numSabores:        1|2|3|4 (escolhido pelo cliente),
+//    sabores:           [{ nome, preco }],   // array com sabores escolhidos
+//    bordaConfig:       null | { nome, preco }
+//  }
+// ═══════════════════════════════════════════════════════════
+
+function _renderPizza(cfg, container) {
+  if (!cfg || !cfg.pizza) return;
+  const p = cfg.pizza;
+  _pizzaConfig.p = p;
+
+  /* ── PASSO 1: Tamanho ─────────────────────────────── */
+  const secTam = document.createElement('section');
+  secTam.className = 'pizza-step';
+  secTam.innerHTML = `
+    <div class="pizza-step-header">
+      <span class="pizza-step-num">1</span>
+      <span>Escolha o tamanho</span>
+    </div>
+    <div class="pizza-size-grid" id="pizza-size-grid"></div>`;
+  container.appendChild(secTam);
+
+  const sizeGrid = secTam.querySelector('#pizza-size-grid');
+  (p.tamanhos || []).forEach((tam) => {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'pizza-size-card';
+    card.dataset.nome = tam.nome;
+    card.innerHTML = `
+      <div class="pizza-size-name">${tam.nome}</div>
+      <div class="pizza-size-info">${tam.fatias} fatias</div>
+      <div class="pizza-size-info">⌀ ${tam.cm}cm</div>
+      <div class="pizza-size-price">Gs ${(tam.preco || 0).toLocaleString('es-PY')}</div>`;
+    card.onclick = () => {
+      sizeGrid.querySelectorAll('.pizza-size-card').forEach((c) => c.classList.remove('selected'));
+      card.classList.add('selected');
+      _pizzaConfig.tamanhoSelecionado = tam;
+      _revelarPasso2(p, container);
+      _atualizarPrecoPizza();
+    };
+    sizeGrid.appendChild(card);
+  });
+
+  /* ── Passos 2, 3, 4 aparecerão progressivamente ─── */
+  const passo2 = document.createElement('div');
+  passo2.id = 'pizza-passo2';
+  passo2.style.display = 'none';
+  container.appendChild(passo2);
+
+  const passo3 = document.createElement('div');
+  passo3.id = 'pizza-passo3';
+  passo3.style.display = 'none';
+  container.appendChild(passo3);
+
+  const passo4 = document.createElement('div');
+  passo4.id = 'pizza-passo4';
+  passo4.style.display = 'none';
+  container.appendChild(passo4);
+}
+
+/* Passo 2: Quantos sabores? */
+function _revelarPasso2(p, container) {
+  const passo2 = container.querySelector('#pizza-passo2') || document.getElementById('pizza-passo2');
+  if (!passo2) return;
+  _pizzaConfig.numSabores = null;
+  _pizzaConfig.sabores = [];
+
+  const maxLoja = p.max_sabores || 1;
+  const opcoes = Array.from({ length: maxLoja }, (_, i) => i + 1);
+  const labels = { 1: 'Inteira', 2: 'Meia a Meia', 3: '3 Sabores', 4: '4 Sabores' };
+
+  passo2.innerHTML = `
+    <section class="pizza-step">
+      <div class="pizza-step-header">
+        <span class="pizza-step-num">2</span>
+        <span>Quantos sabores?</span>
+      </div>
+      <div class="pizza-divisao-grid">
+        ${opcoes.map((n) => `
+          <button type="button" class="pizza-divisao-btn" data-n="${n}" onclick="_selecionarDivisao(${n})">
+            <div class="pizza-divisao-icone">${_iconePizza(n)}</div>
+            <div class="pizza-divisao-nome">${labels[n] || n + ' Sabores'}</div>
+          </button>`).join('')}
+      </div>
+    </section>`;
+  passo2.style.display = 'block';
+  // Esconde passos seguintes ao reeditar
+  const p3 = container.querySelector('#pizza-passo3') || document.getElementById('pizza-passo3');
+  const p4 = container.querySelector('#pizza-passo4') || document.getElementById('pizza-passo4');
+  if (p3) { p3.innerHTML = ''; p3.style.display = 'none'; }
+  if (p4) { p4.innerHTML = ''; p4.style.display = 'none'; }
+}
+
+function _iconePizza(n) {
+  const icons = { 1: '🍕', 2: '🍕🍕', 3: '🍕🍕🍕', 4: '🍕🍕🍕🍕' };
+  return icons[n] || '🍕';
+}
+
+/* Passo 3: Escolher sabores */
+function _selecionarDivisao(n) {
+  _pizzaConfig.numSabores = n;
+  _pizzaConfig.sabores = new Array(n).fill(null);
+
+  // Destaca botão selecionado
+  document.querySelectorAll('.pizza-divisao-btn').forEach((b) => {
+    b.classList.toggle('selected', parseInt(b.dataset.n) === n);
+  });
+
+  const p3 = document.getElementById('pizza-passo3');
+  if (!p3) return;
+  const p = _pizzaConfig.p;
+
+  // Filtra sabores pelo tipo (Salgada/Doce) se definido
+  const saboresFiltrados = (p.sabores || []).filter((s) => !s.tipo || !p.tipos || p.tipos.length <= 1 || true);
+
+  // Gera HTML para escolha de cada slot de sabor
+  let html = `<section class="pizza-step">
+    <div class="pizza-step-header">
+      <span class="pizza-step-num">3</span>
+      <span>Escolha ${n === 1 ? 'o sabor' : `os ${n} sabores`}</span>
+    </div>
+    <p class="pizza-step-hint">
+      ${n > 1 ? `Selecione ${n} sabores — um por slot.` : ''}
+    </p>`;
+
+  for (let slot = 0; slot < n; slot++) {
+    const fracLabel = n === 1 ? '' : `<span class="pizza-fracao-badge">${slot + 1}/${n}</span>`;
+    html += `
+    <div class="pizza-slot-header">
+      ${fracLabel}
+      <span class="pizza-slot-label">${n === 1 ? 'Sabor' : `${slot + 1}º sabor`}</span>
+    </div>
+    <div class="pizza-sabores-lista" id="pizza-slot-${slot}">
+      ${saboresFiltrados.map((s) => {
+        const sfEsc = (s.nome || '').replace(/'/g, "\\'");
+        return `<button type="button" class="pizza-sabor-item" data-slot="${slot}" data-nome="${s.nome}" data-preco="${s.preco || 0}" onclick="_selecionarSaborSlot(${slot}, '${sfEsc}', ${s.preco || 0}, this)">
+          ${s.img ? `<img src="${s.img}" class="pizza-sabor-img" alt="${s.nome}">` : `<div class="pizza-sabor-emoji">🍕</div>`}
+          <div class="pizza-sabor-info">
+            <div class="pizza-sabor-nome">${s.nome}</div>
+            ${s.preco ? `<div class="pizza-sabor-preco">Gs ${(s.preco).toLocaleString('es-PY')}</div>` : ''}
+          </div>
+        </button>`;
+      }).join('')}
+    </div>`;
+  }
+  html += `</section>`;
+
+  p3.innerHTML = html;
+  p3.style.display = 'block';
+
+  // Borda aparece depois
+  const p4 = document.getElementById('pizza-passo4');
+  if (p4) { p4.innerHTML = ''; p4.style.display = 'none'; }
+  _atualizarPrecoPizza();
+}
+
+function _selecionarSaborSlot(slot, nome, preco, el) {
+  // Desmarca outros no mesmo slot
+  const lista = document.getElementById(`pizza-slot-${slot}`);
+  if (lista) lista.querySelectorAll('.pizza-sabor-item').forEach((b) => {
+    b.classList.remove('selected');
+    b.querySelector('.pizza-fracao-tag')?.remove();
+  });
+
+  el.classList.add('selected');
+  const n = _pizzaConfig.numSabores || 1;
+  // Adiciona tag de fração
+  const tag = document.createElement('span');
+  tag.className = 'pizza-fracao-tag';
+  tag.textContent = n > 1 ? `${slot + 1}/${n}` : '✓';
+  el.appendChild(tag);
+
+  _pizzaConfig.sabores[slot] = { nome, preco };
+
+  // Verifica se todos slots preenchidos → mostra borda
+  const cheios = _pizzaConfig.sabores.filter(Boolean).length;
+  if (cheios >= n) {
+    _revelarPasso4Borda();
+  }
+  _atualizarPrecoPizza();
+  _atualizarResumo();
+}
+
+/* Passo 4: Borda */
+function _revelarPasso4Borda() {
+  const p = _pizzaConfig.p;
+  const p4 = document.getElementById('pizza-passo4');
+  if (!p4) return;
+
+  // Monta opções de borda
+  const bordasOpcoes = p.bordas && p.bordas.length > 0
+    ? p.bordas
+    : p.tem_borda
+      ? [{ nome: 'Borda Recheada', preco: p.borda_preco || 0 }]
+      : [];
+
+  p4.innerHTML = `<section class="pizza-step">
+    <div class="pizza-step-header">
+      <span class="pizza-step-num">4</span>
+      <span>Borda recheada?</span>
+    </div>
+    <div class="pizza-opt-row">
+      <button type="button" class="pizza-opt-chip selected" id="borda-nao" onclick="_pizzaSelecionarBorda(null)">
+        Sem borda
+      </button>
+      ${bordasOpcoes.map((b) => `
+        <button type="button" class="pizza-opt-chip" onclick="_pizzaSelecionarBorda('${b.nome.replace(/'/g,"\\'")}', ${b.preco || 0}, this)">
+          🧀 ${b.nome} <span style="font-size:0.75rem;opacity:0.85">+Gs ${(b.preco||0).toLocaleString('es-PY')}</span>
+        </button>`).join('')}
+    </div>
+  </section>`;
+  p4.style.display = 'block';
+}
+
+function _pizzaSelecionarBorda(nome, preco, el) {
+  document.querySelectorAll('#pizza-passo4 .pizza-opt-chip').forEach((c) => c.classList.remove('selected'));
+  if (el) el.classList.add('selected');
+  else document.getElementById('borda-nao')?.classList.add('selected');
+  _pizzaConfig.bordaConfig = nome ? { nome, preco } : null;
+  _atualizarPrecoPizza();
+  _atualizarResumo();
+}
+
+// compatibilidade
+function _selecionarBorda(com) { _pizzaSelecionarBorda(com ? 'Borda Recheada' : null, _pizzaConfig.p?.borda_preco || 0, null); }
+
+/* Resumo em tempo real */
+function _atualizarResumo() {
+  const el = document.getElementById('pizza-resumo');
+  if (!el) return;
+  const saboresOk = (_pizzaConfig.sabores || []).filter(Boolean);
+  if (saboresOk.length === 0) { el.style.display = 'none'; return; }
+
+  // Preço base = tamanho (é sempre o preço principal da pizza)
+  // Sabor premium (s.preco > 0) adiciona diferença sobre o tamanho
+  const tamPreco = _pizzaConfig.tamanhoSelecionado?.preco || 0;
+  const saborExtra = saboresOk.reduce((acc, s) => Math.max(acc, s.preco || 0), 0);
+  const precoBase = tamPreco + (saborExtra > 0 ? saborExtra : 0);
+  const precoBorda = _pizzaConfig.bordaConfig?.preco || 0;
+  const tam = _pizzaConfig.tamanhoSelecionado;
+
+  el.style.display = 'block';
+  el.innerHTML = `
+    <div class="pizza-resumo-header">🍕 Resumo da sua pizza</div>
+    ${tam ? `<div class="pizza-resumo-linha"><span>Tamanho</span><span>${tam.nome} (${tam.fatias} fatias · ⌀${tam.cm}cm)</span></div>` : ''}
+    ${saboresOk.map((s, i) => `<div class="pizza-resumo-linha"><span>${_pizzaConfig.numSabores > 1 ? `${i+1}/${_pizzaConfig.numSabores} Sabor` : 'Sabor'}</span><span>${s.nome}</span></div>`).join('')}
+    ${_pizzaConfig.bordaConfig ? `<div class="pizza-resumo-linha"><span>Borda</span><span>${_pizzaConfig.bordaConfig.nome}</span></div>` : ''}
+    <div class="pizza-resumo-total"><span>Total</span><span>Gs ${((precoBase + precoBorda) * (qtd || 1)).toLocaleString('es-PY')}</span></div>`;
+}
+
+function _atualizarPrecoPizza() {
+  const cfg = prodAtual?.montagem;
+
+  // Sempre soma extras (válido para qualquer tipo de produto)
+  let extrasTotal = 0;
+  document.querySelectorAll('.extra-check-input:checked').forEach((cb) => {
+    extrasTotal += parseInt(cb.dataset.preco || 0);
+  });
+
+  if (!cfg || !cfg.pizza) {
+    const base = (prodAtual?.preco || 0);
+    const total = (base + extrasTotal) * qtd;
+    document.getElementById('modal-price').innerText = `Gs ${total.toLocaleString('es-PY')}`;
+    _atualizarResumo();
+    return;
+  }
+  const saboresOk = (_pizzaConfig.sabores || []).filter(Boolean);
+  // Preço base = tamanho selecionado (fonte primária)
+  // Sabor premium (s.preco > 0) é somado como adicional, não substitui
+  const tamPreco = _pizzaConfig.tamanhoSelecionado?.preco || prodAtual.preco || 0;
+  const saborExtra = saboresOk.reduce((acc, s) => Math.max(acc, s.preco || 0), 0);
+  const precoBase = tamPreco + (saborExtra > 0 ? saborExtra : 0);
+  const precoBorda = _pizzaConfig.bordaConfig?.preco || 0;
+  const total = (precoBase + precoBorda + extrasTotal) * qtd;
+  document.getElementById('modal-price').innerText = `Gs ${total.toLocaleString('es-PY')}`;
+  _atualizarResumo();
+}
+
+function _renderAlmoco(cfg, container) {
+  if (!cfg || !cfg.almoco || !cfg.almoco.pratos) return;
+  const pratos = cfg.almoco.pratos;
+
+  const sec = document.createElement('div');
+  sec.innerHTML = `<div class="sabor-slot-label">Escolha o prato</div><div class="almoco-pratos-grid" id="almoco-pratos-grid"></div>`;
+  container.appendChild(sec);
+
+  const grid = sec.querySelector('#almoco-pratos-grid');
+  pratos.forEach((prato) => {
+    const card = document.createElement('div');
+    card.className = 'almoco-prato-option';
+    card.innerHTML = `
+      <img src="${prato.img || 'https://via.placeholder.com/160x110?text=Prato'}" alt="${prato.nome}">
+      <div class="prato-info">
+        <div class="prato-nome">${prato.nome}</div>
+        <div class="prato-desc">${prato.desc || ''}</div>
+        <div class="prato-preco">Gs ${(prato.preco || 0).toLocaleString('es-PY')}</div>
+      </div>`;
+    card.onclick = () => {
+      grid.querySelectorAll('.almoco-prato-option').forEach((c) => c.classList.remove('selected'));
+      card.classList.add('selected');
+      prodAtual._pratoselecionado = prato;
+      // Atualiza preço
+      const preco = prato.preco || prodAtual.preco || 0;
+      document.getElementById('modal-price').innerText = `Gs ${(preco * qtd).toLocaleString('es-PY')}`;
+    };
+    grid.appendChild(card);
+  });
+}
+
+function _renderExtras(extras, container) {
+  const sec = document.createElement('div');
+  sec.className = 'extras-section';
+  sec.innerHTML = `<h5>➕ Adicionais (opcional)</h5>`;
+  extras.forEach((ex) => {
+    const row = document.createElement('label');
+    row.className = 'extra-check-row';
+    row.innerHTML = `
+      <input type="checkbox" class="extra-check-input" data-preco="${ex.preco}" onchange="_atualizarPrecoPizza()">
+      <span class="extra-check-label">${ex.nome}</span>
+      <span class="extra-check-price">+Gs ${(ex.preco || 0).toLocaleString('es-PY')}</span>`;
+    sec.appendChild(row);
+  });
+  container.appendChild(sec);
 }
 
 function fecharModalProduto() {
@@ -473,28 +831,111 @@ function fecharModalProduto() {
 function mudarQtd(delta) {
   qtd = Math.max(1, qtd + delta);
   document.getElementById('modal-qty').innerText = qtd;
-  document.getElementById('modal-price').innerText = `Gs ${(prodAtual.preco * qtd).toLocaleString('es-PY')}`;
+  _atualizarPrecoPizza();
 }
 
 function adicionarDoModal() {
   if (!prodAtual) return;
 
+  const cfg = prodAtual.montagem;
+  let tipo = 'padrao';
+  if (cfg && !Array.isArray(cfg) && cfg.__tipo) tipo = cfg.__tipo;
+  else if (prodAtual.e_montavel || (cfg && Array.isArray(cfg) && cfg.length > 0)) tipo = 'montavel';
+
+  // Validações por tipo
+  if (tipo === 'pizza') {
+    if (!_pizzaConfig.tamanhoSelecionado) { alert('Selecione o tamanho da pizza!'); return; }
+    const saboresOk = (_pizzaConfig.sabores || []).filter(Boolean);
+    if (saboresOk.length === 0) { alert('Selecione ao menos 1 sabor!'); return; }
+    if (_pizzaConfig.numSabores && saboresOk.length < _pizzaConfig.numSabores) {
+      alert(`Você escolheu ${_pizzaConfig.numSabores} sabores mas selecionou apenas ${saboresOk.length}. Complete a seleção!`); return;
+    }
+  }
+  if (tipo === 'almoco' && !prodAtual._pratoselecionado) {
+    alert('Selecione o prato!'); return;
+  }
+
+  // Monta descrição para o carrinho
   let montagem = [];
-  for (let k in itensMontagem) montagem = montagem.concat(itensMontagem[k]);
+  let variacao = '';
+  let precoFinal = prodAtual.preco;
+
+  if (tipo === 'montavel') {
+    for (let k in itensMontagem) montagem = montagem.concat(itensMontagem[k]);
+  }
+
+  if (tipo === 'pizza') {
+    // ─────────────────────────────────────────────────────────────
+    // PREÇO PIZZA:
+    //   Base    = tamanho selecionado (sempre — é o preço principal)
+    //   Extra   = maior preco individual dos sabores (0 se não há premium)
+    //   Borda   = preco da borda escolhida (0 se sem borda)
+    //   Total   = (Base + Extra) * qtd + Borda * qtd
+    // ─────────────────────────────────────────────────────────────
+    const saboresOk = (_pizzaConfig.sabores || []).filter(Boolean);
+    const tamPreco    = _pizzaConfig.tamanhoSelecionado?.preco || 0;   // SEMPRE a base
+    const saborExtra  = saboresOk.reduce((acc, s) => Math.max(acc, s.preco || 0), 0); // premium opcional
+    const precoBorda  = _pizzaConfig.bordaConfig?.preco || 0;
+    precoFinal = tamPreco + saborExtra + precoBorda;
+
+    variacao  = _pizzaConfig.tamanhoSelecionado?.nome || '';
+    const numSab = _pizzaConfig.numSabores || 1;
+    const saboresStr = saboresOk
+      .map((s, i) => numSab > 1 ? `${i+1}/${numSab} ${s.nome}` : s.nome)
+      .join(' | ');
+
+    // montagem: string legível para exibição no carrinho/cozinha
+    montagem = [saboresStr].filter(Boolean);
+    if (_pizzaConfig.bordaConfig) montagem.push(`Borda: ${_pizzaConfig.bordaConfig.nome}`);
+  }
+
+  if (tipo === 'almoco' && prodAtual._pratoselecionado) {
+    const prato = prodAtual._pratoselecionado;
+    variacao = prato.nome;
+    precoFinal = prato.preco || prodAtual.preco;
+    montagem = [prato.desc || ''];
+  }
+
+  // Extras selecionados
+  const extrasEscolhidos = [];
+  document.querySelectorAll('.extra-check-input:checked').forEach((cb) => {
+    const nome = cb.closest('.extra-check-row').querySelector('.extra-check-label').textContent;
+    const preco = parseInt(cb.dataset.preco || 0);
+    extrasEscolhidos.push({ nome, preco });
+    precoFinal += preco;
+  });
+  if (extrasEscolhidos.length > 0) {
+    montagem.push('Extras: ' + extrasEscolhidos.map((e) => e.nome).join(', '));
+  }
+
+  // Captura metadados da pizza ANTES de resetar _pizzaConfig
+  const pizzaMeta = tipo === 'pizza' ? {
+    tamanho: _pizzaConfig.tamanhoSelecionado?.nome   || '',
+    sabores: (_pizzaConfig.sabores || []).filter(Boolean).map((s) => s.nome),
+    borda:   _pizzaConfig.bordaConfig?.nome          || null,
+  } : null;
 
   carrinho.push({
-    id: Date.now(),
-    nome: prodAtual.nome,
-    preco: prodAtual.preco,
-    qtd: qtd,
-    montagem: montagem,
-    obs: document.getElementById('modal-obs').value,
-    img: prodAtual.img,
+    id:       Date.now(),
+    nome:     prodAtual.nome + (variacao ? ` (${variacao})` : ''),
+    preco:    precoFinal,
+    qtd:      qtd,
+    montagem: montagem.filter(Boolean),
+    obs:      document.getElementById('modal-obs').value,
+    img:      prodAtual.img,
+    // Metadados estruturados — úteis para exibir no resumo e na cozinha
+    ...(pizzaMeta ? { pizzaMeta } : {}),
   });
+
+  // ⚠️ CRÍTICO: limpa _pizzaConfig logo após o push
+  // Se não zerar, a próxima pizza aberta virá com os sabores da anterior já marcados
+  _pizzaConfig = { p: null, tamanhoSelecionado: null, numSabores: null, sabores: [], bordaConfig: null };
 
   updateUI();
   fecharModalProduto();
 }
+
+
 
 // ==========================================
 // 6. ATUALIZAÇÃO DA UI (Carrinho)
@@ -546,7 +987,18 @@ function renderCarrinho() {
 
   carrinho.forEach((item, idx) => {
     const totalItem = item.preco * item.qtd;
-    const detalhes = item.montagem && item.montagem.length > 0 ? `<br><small style="color:#888">${item.montagem.join(', ')}</small>` : '';
+    // Pizza: exibe tamanho/sabores/borda de forma estruturada quando disponível
+    let detalhes = '';
+    if (item.pizzaMeta) {
+      const m = item.pizzaMeta;
+      const partes = [];
+      if (m.tamanho) partes.push(`📐 ${m.tamanho}`);
+      if (m.sabores && m.sabores.length > 0) partes.push(`🍕 ${m.sabores.join(' / ')}`);
+      if (m.borda) partes.push(`🧀 ${m.borda}`);
+      detalhes = `<br><small style="color:#888">${partes.join(' · ')}</small>`;
+    } else if (item.montagem && item.montagem.length > 0) {
+      detalhes = `<br><small style="color:#888">${item.montagem.join(', ')}</small>`;
+    }
     const obs = item.obs ? `<br><small style="color:#666"><strong>Obs:</strong> ${item.obs}</small>` : '';
 
     lista.innerHTML += `
@@ -1139,46 +1591,7 @@ function _tentarCanalRealtime(pedidoId, uid) {
     } catch(e) { /* Realtime indisponível */ }
 }
 
-function mostrarTracker(status, uid) {
-    const t = TRACKER_STEPS[status] || TRACKER_STEPS['pendente'];
-    const tracker = document.getElementById('pedido-tracker');
-    if (!tracker) {
-        console.warn('⚠️ Elemento pedido-tracker não encontrado');
-        return;
-    }
-
-    const iconEl = document.getElementById('tracker-status-icon');
-    const msgEl = document.getElementById('tracker-msg');
-    const idEl = document.getElementById('tracker-pedido-id');
-    
-    if (iconEl) iconEl.innerText = t.icon;
-    if (msgEl) msgEl.innerText = t.msg;
-    if (idEl) idEl.innerText = uid ? `Pedido #${uid}` : '';
-    
-    tracker.style.display = 'block';
-
-    // Atualiza passos visuais
-    for (let i = 1; i <= 4; i++) {
-        const el = document.getElementById(`tstep-${i}`);
-        if (!el) continue;
-        el.classList.toggle('tracker-step-active', i <= t.step);
-        el.classList.toggle('tracker-step-done',   i <  t.step);
-    }
-
-    // Se entregue ou cancelado, esconde após 8s
-    if (status === 'entregue' || status === 'cancelado') {
-        setTimeout(() => {
-            fecharTracker();
-            // Limpa do localStorage
-            try {
-                localStorage.removeItem('sushi_pedido_id');
-                localStorage.removeItem('sushi_pedido_uid');
-            } catch (e) {
-                console.error('Erro ao limpar localStorage:', e);
-            }
-        }, 8000);
-    }
-}
+// [Sistema legado mostrarTracker removido — usando versão track-order-card em L161]
 
 function fecharTracker() {
     // Fecha tanto o tracker antigo quanto o novo card
@@ -1214,13 +1627,22 @@ function restaurarTrackingSeExistir() {
     console.log('🔄 Restaurando tracking para pedido:', savedId);
     if (typeof supa === 'undefined') return;
 
-    supa.from('pedidos').select('status, motoboy_id').eq('id', savedId).single()
+    supa.from('pedidos').select('status, motoboy_id, created_at').eq('id', savedId).single()
         .then(async ({ data, error }) => {
             if (error || !data) return;
             // Se já foi entregue ou cancelado, limpa e não mostra tracker
             if (data.status === 'entregue' || data.status === 'cancelado') {
                 try { localStorage.removeItem('sushi_pedido_id'); localStorage.removeItem('sushi_pedido_uid'); } catch(e) {}
                 return;
+            }
+
+            // REGRA 6H: tracker só aparece se o pedido tem menos de 6 horas
+            if (data.created_at) {
+                const diffHoras = (Date.now() - new Date(data.created_at).getTime()) / 3600000;
+                if (diffHoras > 6) {
+                    try { localStorage.removeItem('sushi_pedido_id'); localStorage.removeItem('sushi_pedido_uid'); } catch(e) {}
+                    return;
+                }
             }
 
             // Só mostra o card se houver pedido ativo
@@ -1399,6 +1821,29 @@ function atualizarTrackingVisual(status, motoboy) {
             motoInfo.style.display = 'none';
         }
     }
+
+    // Botão confirmar recebimento — aparece ao sair para entrega, some nos outros status
+    const _trackResult = document.getElementById('track-result');
+    const _btnConfirmar = document.getElementById('btn-confirmar-entrega');
+    if (status === 'saiu_entrega') {
+        if (_trackResult && !_btnConfirmar) {
+            const _btn = document.createElement('button');
+            _btn.id = 'btn-confirmar-entrega';
+            _btn.onclick = confirmarEntregaCliente;
+            _btn.style.cssText = 'width:100%;margin-top:14px;padding:14px 0;background:linear-gradient(135deg,#27ae60,#2ecc71);color:white;border:none;border-radius:12px;font-weight:700;font-size:1rem;cursor:pointer;letter-spacing:0.3px;box-shadow:0 4px 12px rgba(39,174,96,0.35)';
+            _btn.innerHTML = '✅ Confirmar Recebimento do Pedido';
+            _trackResult.appendChild(_btn);
+        }
+        // Inicia timer auto-confirm se ainda não iniciado
+        const _pedidoLocal = localStorage.getItem('sushi_pedido_id');
+        if (_pedidoLocal && typeof iniciarTimerAutoConfirmacao === 'function') {
+            if (!localStorage.getItem('autoConfirmExpiry_' + _pedidoLocal)) {
+                iniciarTimerAutoConfirmacao(_pedidoLocal);
+            }
+        }
+    } else if (_btnConfirmar) {
+        _btnConfirmar.remove();
+    }
 }
 
 // iniciarTrackingRealtime — usado pelo card de busca do index
@@ -1410,4 +1855,49 @@ function iniciarTrackingRealtime(pedidoId) {
     localStorage.setItem('sushi_pedido_uid', pedidoId);
     _iniciarPollingTracking(pedidoId, pedidoId);
     _tentarCanalRealtime(pedidoId, pedidoId);
+}
+
+let saboresSelecionados = []; // Array global para guardar a pizza atual
+
+// Função auxiliar para calcular preço da pizza
+function calcularTotalPizza() {
+    if (saboresSelecionados.length === 0) return 0;
+
+    // 1. Encontra o sabor mais caro (REGRA DE OURO)
+    let maiorPreco = 0;
+    saboresSelecionados.forEach(sabor => {
+        if (sabor.preco > maiorPreco) maiorPreco = sabor.preco;
+    });
+
+    // 2. Verifica se tem borda
+    const bordaPreco = produtoAtual.bordaSelecionada ? produtoAtual.bordaSelecionada.preco : 0;
+
+    // 3. Atualiza botão
+    const total = maiorPreco + bordaPreco;
+    document.getElementById('btn-add-carrinho').innerText = 
+        `Adicionar Gs ${total.toLocaleString('es-PY')}`;
+        
+    return total;
+}
+
+// Função para adicionar sabor (deve ser ligada aos checkboxes/cards da UI)
+function toggleSaborPizza(saborObj, maxSabores) {
+    const index = saboresSelecionados.findIndex(s => s.id === saborObj.id);
+
+    if (index > -1) {
+        // Se já tá, remove
+        saboresSelecionados.splice(index, 1);
+    } else {
+        // Se não tá, verifica limite (1/2, 1/3, 1/4)
+        if (saboresSelecionados.length < maxSabores) {
+            saboresSelecionados.push(saborObj);
+        } else {
+            alert(`Você escolheu uma pizza de ${maxSabores} sabores. Remova um para trocar.`);
+            return;
+        }
+    }
+    
+    // Recalcula visual
+    renderizarSaboresSelecionados(); // Função que pinta a pizza
+    calcularTotalPizza();
 }
