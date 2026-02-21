@@ -1317,7 +1317,6 @@ function enviarRotaZap() {
       const p = JSON.parse(decodeURIComponent(chk.value));
 
       // Atualiza status no banco para "saiu_entrega" ou "entregue"
-      // (Use 'saiu_entrega' se quiser rastrear, ou 'entregue' se quiser finalizar já)
       supa
         .from('pedidos')
         .update({ status: 'saiu_entrega', motoboy_id: selMoto.value })
@@ -1327,17 +1326,17 @@ function enviarRotaZap() {
       msg += `📦 *PEDIDO #${p.uid_temporal || p.id}*\n`;
       msg += `👤 ${p.cliente_nome} | 📞 ${p.cliente_telefone || ''}\n`;
 
-      // LÓGICA DE BEBIDAS (Restaurada)
+      // LÓGICA DE BEBIDAS 
       if (p.itens && Array.isArray(p.itens)) {
         const bebidas = p.itens.filter((i) =>
-          /coca|fanta|sprite|guarana|agua|cerveja|refri/i.test(i.nome),
+          /coca|fanta|energetico|milk|suco|sprite|guarana|agua|cerveja|refri/i.test(i.nome),
         );
         if (bebidas.length > 0) {
           msg += `🥤 *LEVAR:* ${bebidas.map((b) => `${b.qtd}x ${b.nome}`).join(', ')}\n`;
         }
       }
 
-      // LÓGICA DE MAPA (Restaurada)
+      // LÓGICA DE MAPA 
       if (p.geo_lat && p.geo_lng) {
         const link = `https://www.google.com/maps/search/?api=1&query=${p.geo_lat},${p.geo_lng}`;
         msg += `📍 ${link}\n`;
