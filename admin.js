@@ -2741,6 +2741,107 @@ async function carregarMotoboysSelect() {
 // =========================================
 
 // === CONFIGURAÇÕES (COMPLETO) ===
+
+const DIAS_SEMANA = [
+  { key: 'seg', label: 'Segunda-feira' },
+  { key: 'ter', label: 'Terça-feira' },
+  { key: 'qua', label: 'Quarta-feira' },
+  { key: 'qui', label: 'Quinta-feira' },
+  { key: 'sex', label: 'Sexta-feira' },
+  { key: 'sab', label: 'Sábado' },
+  { key: 'dom', label: 'Domingo' },
+];
+
+function _renderGradeSemanal(horariosSalvos = {}) {
+  const container = document.getElementById('grade-semanal');
+  if (!container) return;
+  container.innerHTML = '';
+  DIAS_SEMANA.forEach(({ key, label }) => {
+    const dia = horariosSalvos[key] || { fechado: false, turnos: [{ abre: '', fecha: '' }] };
+    const fechado = dia.fechado === true;
+    const turnos = dia.turnos && dia.turnos.length > 0 ? dia.turnos : [{ abre: '', fecha: '' }];
+
+    const row = document.createElement('div');
+    row.className = 'dia-row';
+    row.dataset.dia = key;
+
+    let turnosHtml = turnos.map((t, i) => `
+      <div class="turno-row" data-idx="${i}">
+        <span class="turno-sep">${i > 0 ? 'e das' : 'das'}</span>
+        <input type="time" class="form-control turno-abre" value="${t.abre || ''}" style="width:110px">
+        <span class="turno-sep">às</span>
+        <input type="time" class="form-control turno-fecha" value="${t.fecha || ''}" style="width:110px">
+        ${i > 0 ? `<button class="btn-rm-turno" onclick="removerTurno(this)" title="Remover turno">✕</button>` : ''}
+      </div>`).join('');
+
+    row.innerHTML = `
+      <div class="dia-row-header">
+        <label class="dia-toggle">
+          <input type="checkbox" class="dia-fechado-check" ${fechado ? 'checked' : ''} onchange="toggleDiaFechado(this)">
+          <span class="dia-toggle-slider"></span>
+        </label>
+        <span class="dia-nome">${label}</span>
+        <span class="dia-status-text">${fechado ? '<span style="color:#e74c3c">Fechado</span>' : '<span style="color:#27ae60">Aberto</span>'}</span>
+      </div>
+      <div class="dia-turnos" style="${fechado ? 'display:none' : ''}">
+        <div class="turnos-lista">${turnosHtml}</div>
+        <button class="btn-add-turno" onclick="adicionarTurno(this)">+ 2º turno</button>
+      </div>
+    `;
+    container.appendChild(row);
+  });
+}
+
+function toggleDiaFechado(checkbox) {
+  const row = checkbox.closest('.dia-row');
+  const turnos = row.querySelector('.dia-turnos');
+  const statusTxt = row.querySelector('.dia-status-text');
+  if (checkbox.checked) {
+    if (turnos) turnos.style.display = 'none';
+    if (statusTxt) statusTxt.innerHTML = '<span style="color:#e74c3c">Fechado</span>';
+  } else {
+    if (turnos) turnos.style.display = '';
+    if (statusTxt) statusTxt.innerHTML = '<span style="color:#27ae60">Aberto</span>';
+  }
+}
+
+function adicionarTurno(btn) {
+  const lista = btn.previousElementSibling;
+  const idx = lista.querySelectorAll('.turno-row').length;
+  if (idx >= 2) { alert('Máximo de 2 turnos por dia.'); return; }
+  const div = document.createElement('div');
+  div.className = 'turno-row';
+  div.dataset.idx = idx;
+  div.innerHTML = `
+    <span class="turno-sep">e das</span>
+    <input type="time" class="form-control turno-abre" style="width:110px">
+    <span class="turno-sep">às</span>
+    <input type="time" class="form-control turno-fecha" style="width:110px">
+    <button class="btn-rm-turno" onclick="removerTurno(this)" title="Remover turno">✕</button>
+  `;
+  lista.appendChild(div);
+}
+
+function removerTurno(btn) {
+  btn.closest('.turno-row').remove();
+}
+
+function _lerGradeSemanal() {
+  const horarios = {};
+  document.querySelectorAll('.dia-row').forEach((row) => {
+    const key = row.dataset.dia;
+    const fechado = row.querySelector('.dia-fechado-check').checked;
+    const turnos = [];
+    row.querySelectorAll('.turno-row').forEach((t) => {
+      const abre = t.querySelector('.turno-abre').value;
+      const fecha = t.querySelector('.turno-fecha').value;
+      if (abre || fecha) turnos.push({ abre, fecha });
+    });
+    horarios[key] = { fechado, turnos: fechado ? [] : (turnos.length ? turnos : [{ abre: '', fecha: '' }]) };
+  });
+  return horarios;
+}
+
 async function carregarConfiguracoes() {
   // Gestão de cupons: apenas dono e gerente
   const _cardCupons = document.getElementById('card-cupons-cfg');
@@ -2757,10 +2858,11 @@ async function carregarConfiguracoes() {
   };
   s('cfg-aberta', data.loja_aberta ? 'true' : 'false');
   s('cfg-cotacao', data.cotacao_real);
-  s('cfg-hora-abre', data.hora_abertura || '');
-  s('cfg-hora-fecha', data.hora_fechamento || '');
   s('cfg-banner-id', data.banner_produto_id || '');
   s('cfg-banner-img', data.banner_imagem || '');
+
+  // Renderiza a grade semanal com dados salvos (ou vazia)
+  _renderGradeSemanal(data.horarios_semanais || {});
 
   if (data.banner_imagem) {
     const prev = document.getElementById('cfg-banner-preview');
@@ -2782,13 +2884,9 @@ async function carregarConfiguracoes() {
   const corPicker = document.getElementById('cfg-cor-primaria');
   const corHex = document.getElementById('cfg-cor-primaria-hex');
   if (corPicker && corHex) {
-    corPicker.addEventListener('input', (e) => {
-      corHex.value = e.target.value;
-    });
+    corPicker.addEventListener('input', (e) => { corHex.value = e.target.value; });
     corHex.addEventListener('input', (e) => {
-      if (e.target.value.startsWith('#') && e.target.value.length === 7) {
-        corPicker.value = e.target.value;
-      }
+      if (e.target.value.startsWith('#') && e.target.value.length === 7) corPicker.value = e.target.value;
     });
   }
 
@@ -2809,10 +2907,9 @@ async function salvarConfiguracoes() {
   const dados = {
     loja_aberta: g('cfg-aberta') === 'true',
     cotacao_real: parseFloat(g('cfg-cotacao')) || 1100,
-    hora_abertura: g('cfg-hora-abre'),
-    hora_fechamento: g('cfg-hora-fecha'),
     banner_produto_id: g('cfg-banner-id'),
     banner_imagem: g('cfg-banner-img') || '',
+    horarios_semanais: _lerGradeSemanal(),
   };
 
   // Personalização extra (se campos existirem)

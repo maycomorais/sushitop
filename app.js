@@ -259,22 +259,43 @@ async function verificarHorario() {
 
   const agora = new Date();
   const horaAtual = agora.getHours() * 60 + agora.getMinutes();
+  // 0=Dom,1=Seg...6=Sab → mapeia para as chaves do objeto
+  const diaKeys = ['dom','seg','ter','qua','qui','sex','sab'];
+  const diaKey = diaKeys[agora.getDay()];
 
   function horaParaMin(str) {
-    if (!str) return 0;
+    if (!str) return null;
     const [h, m] = str.split(':').map(Number);
     return h * 60 + m;
   }
 
-  const abre = horaParaMin(data.hora_abertura || '18:00');
-  const fecha = horaParaMin(data.hora_fechamento || '23:59');
-  
-  // Lógica de Aberto/Fechado AUTOMÁTICA baseada no horário
+  function turnoAtivo(turno) {
+    const abre = horaParaMin(turno.abre);
+    const fecha = horaParaMin(turno.fecha);
+    if (abre === null || fecha === null) return false;
+    // Suporte a virada de meia-noite (ex: 18:30 às 01:00)
+    if (fecha < abre) return horaAtual >= abre || horaAtual < fecha;
+    return horaAtual >= abre && horaAtual < fecha;
+  }
+
+  // Lógica de Aberto/Fechado usando grade semanal
   let estaAberto = false;
-  // Só verifica horário se a loja_aberta estiver true
   if (data.loja_aberta) {
-     if (fecha < abre) estaAberto = horaAtual >= abre || horaAtual < fecha;
-     else estaAberto = horaAtual >= abre && horaAtual < fecha;
+    const hs = data.horarios_semanais;
+    if (hs && hs[diaKey]) {
+      const diaConfig = hs[diaKey];
+      if (!diaConfig.fechado && diaConfig.turnos && diaConfig.turnos.length > 0) {
+        estaAberto = diaConfig.turnos.some(turnoAtivo);
+      }
+    } else {
+      // Fallback: se não houver grade configurada, usa os campos antigos
+      const abre = horaParaMin(data.hora_abertura || '18:00');
+      const fecha = horaParaMin(data.hora_fechamento || '23:59');
+      if (abre !== null && fecha !== null) {
+        if (fecha < abre) estaAberto = horaAtual >= abre || horaAtual < fecha;
+        else estaAberto = horaAtual >= abre && horaAtual < fecha;
+      }
+    }
   }
 
   const badge = document.querySelector('.badge-status');
@@ -1221,7 +1242,7 @@ function renderUpsell() {
   upsellDiv.innerHTML = '';
   const upsellItems = MENU['bebidas'] || [];
 
-  upsellItems.slice(0, 30).forEach((item) => {
+  upsellItems.slice(0, 5).forEach((item) => {
     const img = item.img || 'https://via.placeholder.com/80?text=🥤';
     upsellDiv.innerHTML += `
       <div class="upsell-item" style="min-width:100px;text-align:center;cursor:pointer;" onclick='adicionarUpsell(${JSON.stringify(item).replace(/'/g, "&#39;")})'>
@@ -1231,7 +1252,7 @@ function renderUpsell() {
       </div>
     `;
   });
-} 
+}
 
 function adicionarUpsell(item) {
   carrinho.push({ ...item, qtd: 1, montagem: [], obs: '' });

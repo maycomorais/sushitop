@@ -539,29 +539,33 @@
         <h2 class="section-title">⚙️ Configurações</h2>
 
         <div class="card cfg-card">
-          <div class="cfg-section-title"><i class="fas fa-store"></i> Loja &amp; Horário</div>
+          <div class="cfg-section-title"><i class="fas fa-store"></i> Loja &amp; Configurações Gerais</div>
           <div class="cfg-grid">
             <div class="form-group">
-              <label>Status</label>
+              <label>Status Manual</label>
               <select id="cfg-aberta" class="form-control">
-                <option value="true">🟢 Aberta</option>
-                <option value="false">🔴 Fechada</option>
+                <option value="true">🟢 Seguir horário semanal</option>
+                <option value="false">🔴 Forçar fechado</option>
               </select>
             </div>
             <div class="form-group">
               <label>Cotação Real (Gs/R$)</label>
               <input type="number" id="cfg-cotacao" class="form-control" placeholder="Ex: 1100">
             </div>
-            <div class="form-group">
-              <label>Abre às</label>
-              <input type="time" id="cfg-hora-abre" class="form-control">
+          </div>
+
+          <!-- GRADE SEMANAL -->
+          <div style="margin-top:16px">
+            <div style="font-weight:700;font-size:0.95rem;color:#2c3e50;margin-bottom:10px">
+              📅 Horários por dia da semana
+              <small style="font-weight:400;color:#999;display:block;margin-top:2px">Cada dia pode ter até 2 turnos (ex: almoço + jantar). Deixe em branco para fechar o dia inteiro.</small>
             </div>
-            <div class="form-group">
-              <label>Fecha às</label>
-              <input type="time" id="cfg-hora-fecha" class="form-control">
+            <div id="grade-semanal" class="grade-semanal">
+              <!-- Gerado pelo JS -->
             </div>
           </div>
-          <button class="btn btn-primary" onclick="salvarConfiguracoes()" style="margin-top:12px">
+
+          <button class="btn btn-primary" onclick="salvarConfiguracoes()" style="margin-top:16px">
             <i class="fas fa-save"></i> Salvar Configurações
           </button>
         </div>
