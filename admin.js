@@ -1647,9 +1647,7 @@ async function salvarProduto() {
         const nome  = row.querySelector('[data-f="vnome"]').value.trim();
         const preco = parseFloat(row.querySelector('[data-f="vpreco"]').value) || 0;
         const img   = row.querySelector('[data-f="vimg"]').value.trim() || '';
-        const ativoEl = row.querySelector('[data-f="vativo"]');
-        const ativo = ativoEl ? ativoEl.checked : true;
-        if (nome) variacoes.push({ nome, preco, img, ativo });
+        if (nome) variacoes.push({ nome, preco, img });
       });
       configFinal.variacoes = variacoes;
     }
@@ -1907,8 +1905,7 @@ function addVariacao(dados = {}) {
   const lista = document.getElementById('variacoes-lista');
   const row = document.createElement('div');
   row.className = 'variacao-row';
-  const pausado = dados.ativo === false;
-  row.style.cssText = `background:${pausado ? '#fff5f5' : '#fff'};border:1px solid ${pausado ? '#fca5a5' : '#e9d5ff'};border-radius:10px;padding:12px;display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;opacity:${pausado ? '0.7' : '1'}`;
+  row.style.cssText = 'background:#fff;border:1px solid #e9d5ff;border-radius:10px;padding:12px;display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center';
   row.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:6px">
       <input data-f="vnome" class="form-control" value="${dados.nome || ''}" placeholder="Nome da variação (ex: Salmon y Cream Cheese)" style="font-weight:600">
@@ -1917,10 +1914,6 @@ function addVariacao(dados = {}) {
         <input data-f="vpreco" type="number" class="form-control" value="${dados.preco || ''}" placeholder="Preço" style="max-width:140px">
       </div>
       <input data-f="vimg" class="form-control" value="${dados.img || ''}" placeholder="URL da foto (opcional — usa foto do produto por padrão)" style="font-size:0.8rem;color:#888">
-      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.82rem;color:${pausado ? '#c0392b' : '#16a34a'}">
-        <input data-f="vativo" type="checkbox" ${!pausado ? 'checked' : ''} onchange="this.closest('.variacao-row').style.background=this.checked?'#fff':'#fff5f5';this.closest('.variacao-row').style.opacity=this.checked?'1':'0.7';this.closest('.variacao-row').style.borderColor=this.checked?'#e9d5ff':'#fca5a5';this.parentElement.style.color=this.checked?'#16a34a':'#c0392b';this.parentElement.lastChild.textContent=this.checked?' Disponível':' Pausado'">
-        <span>${pausado ? ' Pausado' : ' Disponível'}</span>
-      </label>
     </div>
     <div style="width:60px;height:60px;border-radius:8px;overflow:hidden;background:#f3f4f6;flex-shrink:0">
       ${dados.img ? `<img src="${dados.img}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">` : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:1.5rem">🖼</div>'}
@@ -2075,20 +2068,24 @@ async function carregarCategorias() {
     return;
   }
 
-  const paleta = ['#FF441F','#3498db','#2ecc71','#9b59b6','#e67e22','#1abc9c','#e74c3c','#f39c12','#34495e','#00b894'];
+  const paleta = ['#1a7a2e','#3498db','#2ecc71','#9b59b6','#e67e22','#1abc9c','#e74c3c','#f39c12','#34495e','#00b894'];
 
   grid.innerHTML = '';
   data.forEach((c, idx) => {
     const cor = paleta[idx % paleta.length];
     const cJson = JSON.stringify(c).replace(/'/g, '&apos;').replace(/"/g, '&quot;');
     const horarioBadge = c.hora_inicio && c.hora_fim
-      ? `<span class="cat-badge cat-badge-horario">🕐 ${c.hora_inicio} – ${c.hora_fim}</span>`
-      : `<span class="cat-badge cat-badge-sempre">✅ Sempre visível</span>`;
+      ? `<span class="cat-badge cat-badge-horario"><i class="fas fa-clock"></i> ${c.hora_inicio} – ${c.hora_fim}</span>`
+      : `<span class="cat-badge cat-badge-sempre"><i class="fas fa-check-circle"></i> Sempre visível</span>`;
 
     const card = document.createElement('div');
     card.className = 'cat-card';
     card.style.borderTopColor = cor;
+    card.dataset.id = c.id;
     card.innerHTML = `
+      <div class="cat-drag-handle" title="Arraste para reordenar">
+        <i class="fas fa-grip-vertical"></i>
+      </div>
       <div class="cat-card-top">
         <div class="cat-card-icon" style="background:${cor}20;color:${cor}">
           <i class="fas fa-tag"></i>
@@ -2116,6 +2113,53 @@ async function carregarCategorias() {
   });
 
   carregarSelectCategorias();
+  iniciarSortableCategoria();
+}
+
+function iniciarSortableCategoria() {
+  const grid = document.getElementById('lista-categorias');
+  if (!grid || typeof Sortable === 'undefined') return;
+
+  // Destroi instância anterior se existir
+  if (grid._sortableInstance) grid._sortableInstance.destroy();
+
+  grid._sortableInstance = Sortable.create(grid, {
+    handle: '.cat-drag-handle',
+    animation: 200,
+    ghostClass: 'cat-drag-ghost',
+    chosenClass: 'cat-drag-chosen',
+    dragClass: 'cat-drag-dragging',
+    onEnd: async function() {
+      const cards = grid.querySelectorAll('.cat-card');
+      const updates = [];
+      cards.forEach((card, idx) => {
+        const id = card.dataset.id;
+        const ordemBadge = card.querySelector('.cat-card-ordem');
+        if (ordemBadge) ordemBadge.textContent = '#' + (idx + 1);
+        updates.push({ id: parseInt(id), ordem: idx + 1 });
+      });
+
+      // Salva nova ordem no Supabase
+      try {
+        await Promise.all(updates.map(u =>
+          supa.from('categorias').update({ ordem: u.ordem }).eq('id', u.id)
+        ));
+        // Toast de sucesso
+        mostrarToast('✅ Ordem atualizada com sucesso!', 'success');
+      } catch (e) {
+        mostrarToast('❌ Erro ao salvar ordem', 'error');
+      }
+    }
+  });
+}
+
+function mostrarToast(msg, tipo = 'success') {
+  const toast = document.createElement('div');
+  const bg = tipo === 'success' ? '#2ecc71' : '#e74c3c';
+  toast.style.cssText = `position:fixed;bottom:28px;right:28px;background:${bg};color:white;padding:12px 22px;border-radius:10px;font-weight:600;z-index:99999;box-shadow:0 4px 16px rgba(0,0,0,0.18);font-size:0.9rem;transition:opacity 0.4s`;
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 400); }, 2200);
 }
 
 // Carrega o Select no Modal de Produto
@@ -2762,36 +2806,59 @@ function _renderGradeSemanal(horariosSalvos = {}) {
   const container = document.getElementById('grade-semanal');
   if (!container) return;
   container.innerHTML = '';
+
+  // Icons for each day of the week
+  const diaIcons = {
+    segunda: 'fas fa-coffee',
+    terca:   'fas fa-briefcase',
+    quarta:  'fas fa-sync-alt',
+    quinta:  'fas fa-star-half-alt',
+    sexta:   'fas fa-glass-cheers',
+    sabado:  'fas fa-umbrella-beach',
+    domingo: 'fas fa-sun',
+  };
+
   DIAS_SEMANA.forEach(({ key, label }) => {
     const dia = horariosSalvos[key] || { fechado: false, turnos: [{ abre: '', fecha: '' }] };
     const fechado = dia.fechado === true;
     const turnos = dia.turnos && dia.turnos.length > 0 ? dia.turnos : [{ abre: '', fecha: '' }];
 
     const row = document.createElement('div');
-    row.className = 'dia-row';
+    row.className = 'dia-row dia-card' + (fechado ? ' dia-card-fechado' : '');
     row.dataset.dia = key;
 
-    let turnosHtml = turnos.map((t, i) => `
+    const turnosHtml = turnos.map((t, i) => `
       <div class="turno-row" data-idx="${i}">
-        <span class="turno-sep">${i > 0 ? 'e das' : 'das'}</span>
-        <input type="time" class="form-control turno-abre" value="${t.abre || ''}" style="width:110px">
-        <span class="turno-sep">às</span>
-        <input type="time" class="form-control turno-fecha" value="${t.fecha || ''}" style="width:110px">
-        ${i > 0 ? `<button class="btn-rm-turno" onclick="removerTurno(this)" title="Remover turno">✕</button>` : ''}
+        <div class="turno-pill">
+          <i class="fas fa-clock turno-icon"></i>
+          <input type="time" class="turno-time-input turno-abre" value="${t.abre || ''}" placeholder="--:--">
+          <span class="turno-arrow">→</span>
+          <input type="time" class="turno-time-input turno-fecha" value="${t.fecha || ''}" placeholder="--:--">
+          ${i > 0 ? `<button class="btn-rm-turno" onclick="removerTurno(this)" title="Remover turno"><i class="fas fa-times"></i></button>` : ''}
+        </div>
       </div>`).join('');
 
+    const iconClass = diaIcons[key] || 'fas fa-calendar-day';
+
     row.innerHTML = `
-      <div class="dia-row-header">
-        <label class="dia-toggle">
+      <div class="dia-card-header">
+        <div class="dia-card-left">
+          <span class="dia-card-icon"><i class="${iconClass}"></i></span>
+          <span class="dia-card-nome">${label}</span>
+        </div>
+        <label class="dia-pill-toggle" title="Alternar aberto/fechado">
           <input type="checkbox" class="dia-fechado-check" ${fechado ? 'checked' : ''} onchange="toggleDiaFechado(this)">
-          <span class="dia-toggle-slider"></span>
+          <span class="dia-pill-track">
+            <span class="dia-pill-thumb"></span>
+          </span>
+          <span class="dia-pill-label ${fechado ? 'txt-fechado' : 'txt-aberto'}">${fechado ? 'Fechado' : 'Aberto'}</span>
         </label>
-        <span class="dia-nome">${label}</span>
-        <span class="dia-status-text">${fechado ? '<span style="color:#e74c3c">Fechado</span>' : '<span style="color:#27ae60">Aberto</span>'}</span>
       </div>
-      <div class="dia-turnos" style="${fechado ? 'display:none' : ''}">
+      <div class="dia-turnos-box" ${fechado ? 'style="display:none"' : ''}>
         <div class="turnos-lista">${turnosHtml}</div>
-        <button class="btn-add-turno" onclick="adicionarTurno(this)">+ 2º turno</button>
+        <button class="btn-add-turno-new" onclick="adicionarTurno(this)">
+          <i class="fas fa-plus-circle"></i> Adicionar 2º turno
+        </button>
       </div>
     `;
     container.appendChild(row);
@@ -2799,31 +2866,35 @@ function _renderGradeSemanal(horariosSalvos = {}) {
 }
 
 function toggleDiaFechado(checkbox) {
-  const row = checkbox.closest('.dia-row');
-  const turnos = row.querySelector('.dia-turnos');
-  const statusTxt = row.querySelector('.dia-status-text');
-  if (checkbox.checked) {
-    if (turnos) turnos.style.display = 'none';
-    if (statusTxt) statusTxt.innerHTML = '<span style="color:#e74c3c">Fechado</span>';
-  } else {
-    if (turnos) turnos.style.display = '';
-    if (statusTxt) statusTxt.innerHTML = '<span style="color:#27ae60">Aberto</span>';
+  const card = checkbox.closest('.dia-row');
+  const turnosBox = card.querySelector('.dia-turnos-box');
+  const label = card.querySelector('.dia-pill-label');
+  if (checkbox.checked) { // fechado
+    if (turnosBox) turnosBox.style.display = 'none';
+    if (label) { label.textContent = 'Fechado'; label.className = 'dia-pill-label txt-fechado'; }
+    card.classList.add('dia-card-fechado');
+  } else { // aberto
+    if (turnosBox) turnosBox.style.display = '';
+    if (label) { label.textContent = 'Aberto'; label.className = 'dia-pill-label txt-aberto'; }
+    card.classList.remove('dia-card-fechado');
   }
 }
 
 function adicionarTurno(btn) {
-  const lista = btn.previousElementSibling;
+  const lista = btn.previousElementSibling; // .turnos-lista
   const idx = lista.querySelectorAll('.turno-row').length;
   if (idx >= 2) { alert('Máximo de 2 turnos por dia.'); return; }
   const div = document.createElement('div');
   div.className = 'turno-row';
   div.dataset.idx = idx;
   div.innerHTML = `
-    <span class="turno-sep">e das</span>
-    <input type="time" class="form-control turno-abre" style="width:110px">
-    <span class="turno-sep">às</span>
-    <input type="time" class="form-control turno-fecha" style="width:110px">
-    <button class="btn-rm-turno" onclick="removerTurno(this)" title="Remover turno">✕</button>
+    <div class="turno-pill">
+      <i class="fas fa-clock turno-icon"></i>
+      <input type="time" class="turno-time-input turno-abre" placeholder="--:--">
+      <span class="turno-arrow">→</span>
+      <input type="time" class="turno-time-input turno-fecha" placeholder="--:--">
+      <button class="btn-rm-turno" onclick="removerTurno(this)" title="Remover turno"><i class="fas fa-times"></i></button>
+    </div>
   `;
   lista.appendChild(div);
 }
@@ -3219,7 +3290,6 @@ function _calcularIntervalo(periodo, idI, idF) {
 function pdvMudarAba(aba, btn) {
   document.querySelectorAll('.pdv-tab-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
-  // No mobile, os painéis são os próprios elements dentro do pdv-panel-venda
   const map = { carrinho:'.pdv-carrinho', produtos:'.pdv-produtos', monitor:'.pdv-monitor' };
   Object.values(map).forEach(sel => {
     const el = document.querySelector(sel);
@@ -3227,66 +3297,23 @@ function pdvMudarAba(aba, btn) {
   });
   const target = document.querySelector(map[aba]);
   if (target) target.classList.add('pdv-tab-active');
-  
-  // Se clicou em monitor, mostra o panel de mesas no mobile
-  if (aba === 'monitor') {
-    const panelMesas = document.getElementById('pdv-panel-mesas');
-    const panelVenda = document.getElementById('pdv-panel-venda');
-    if (panelMesas) panelMesas.style.display = 'block';
-    if (panelVenda) panelVenda.style.display = 'none';
-  } else {
-    const panelMesas = document.getElementById('pdv-panel-mesas');
-    const panelVenda = document.getElementById('pdv-panel-venda');
-    if (panelMesas) panelMesas.style.display = 'none';
-    if (panelVenda) panelVenda.style.display = 'block';
-  }
-}
-
-function pdvMudarView(view) {
-  const panelVenda = document.getElementById('pdv-panel-venda');
-  const panelMesas = document.getElementById('pdv-panel-mesas');
-  const btnVenda   = document.getElementById('pdv-view-btn-venda');
-  const btnMesas   = document.getElementById('pdv-view-btn-mesas');
-  if (view === 'venda') {
-    if (panelVenda) panelVenda.style.display = 'block';
-    if (panelMesas) panelMesas.style.display = 'none';
-    if (btnVenda)   btnVenda.classList.add('active');
-    if (btnMesas)   btnMesas.classList.remove('active');
-  } else {
-    if (panelVenda) panelVenda.style.display = 'none';
-    if (panelMesas) panelMesas.style.display = 'block';
-    if (btnVenda)   btnVenda.classList.remove('active');
-    if (btnMesas)   btnMesas.classList.add('active');
-    carregarMonitorMesas();
-  }
 }
 
 function pdvIniciarTabs() {
   const isMobile = window.innerWidth <= 768;
   const tabsEl = document.getElementById('pdv-tabs');
-  const footer = document.getElementById('pdv-mobile-footer');
-  const headerBar = document.querySelector('.pdv-header-bar .pdv-view-btns');
-
+  if (!tabsEl) return;
   if (isMobile) {
-    if (tabsEl) tabsEl.style.display = 'flex';
-    if (footer) footer.style.display = 'flex';
-    if (headerBar) headerBar.style.display = 'none';
-    // Mobile começa mostrando o cardápio
+    tabsEl.style.display = 'flex';
     document.querySelectorAll('.pdv-tab-btn').forEach(b => b.classList.remove('active'));
-    const btnCardapio = tabsEl ? tabsEl.querySelector('.pdv-tab-btn:nth-child(1)') : null;
-    if (btnCardapio) { btnCardapio.classList.add('active'); }
-    pdvMudarAba('produtos', null);
+    const btnCardapio = tabsEl.querySelector('.pdv-tab-btn:nth-child(2)');
+    if (btnCardapio) { btnCardapio.classList.add('active'); pdvMudarAba('produtos', null); }
   } else {
-    if (tabsEl) tabsEl.style.display = 'none';
-    if (footer) footer.style.display = 'none';
-    if (headerBar) headerBar.style.display = 'flex';
-    // Desktop: mostra produtos e carrinho sempre
-    ['.pdv-carrinho', '.pdv-produtos'].forEach(sel => {
+    tabsEl.style.display = 'none';
+    ['.pdv-carrinho','.pdv-produtos','.pdv-monitor'].forEach(sel => {
       const el = document.querySelector(sel);
       if (el) el.classList.add('pdv-tab-active');
     });
-    const panelVenda = document.getElementById('pdv-panel-venda');
-    if (panelVenda) panelVenda.style.display = 'block';
   }
 }
 
@@ -3334,64 +3361,12 @@ async function carregarPDV() {
 
 let produtosCatsPDV = [];
 
-let _pdvCatFiltro = 'todos';
-
-function renderizarGridPDV(filtroNome = '') {
+function renderizarGridPDV() {
   const grid = document.getElementById('pdv-grid');
   if (!grid) return;
   grid.innerHTML = '';
 
-  // Gera chips de categoria
-  const filterBar = document.getElementById('pdv-cat-filter');
-  if (filterBar) {
-    filterBar.innerHTML = '';
-    const allChip = document.createElement('button');
-    allChip.className = `pdv-cat-chip${_pdvCatFiltro === 'todos' ? ' active' : ''}`;
-    allChip.textContent = 'TODOS';
-    allChip.onclick = () => { _pdvCatFiltro = 'todos'; renderizarGridPDV(document.getElementById('pdv-busca')?.value || ''); };
-    filterBar.appendChild(allChip);
-
-    const slugsUsados = [...new Set(produtosCachePDV.map(p => p.categoria_slug).filter(Boolean))];
-    const ordemCats = produtosCatsPDV.map(c => c.slug);
-    slugsUsados.sort((a,b) => {
-      const ia = ordemCats.indexOf(a), ib = ordemCats.indexOf(b);
-      if (ia === -1 && ib === -1) return a.localeCompare(b);
-      if (ia === -1) return 1; if (ib === -1) return -1;
-      return ia - ib;
-    });
-    slugsUsados.forEach(slug => {
-      const catInfo = produtosCatsPDV.find(c => c.slug === slug);
-      const chip = document.createElement('button');
-      chip.className = `pdv-cat-chip${_pdvCatFiltro === slug ? ' active' : ''}`;
-      chip.textContent = (catInfo?.nome_exibicao || slug).toUpperCase();
-      chip.onclick = () => { _pdvCatFiltro = slug; renderizarGridPDV(document.getElementById('pdv-busca')?.value || ''); };
-      filterBar.appendChild(chip);
-    });
-  }
-
-  // Filtra produtos
-  const query = filtroNome.toLowerCase().trim();
-  let produtos = produtosCachePDV.filter(p => {
-    if (_pdvCatFiltro !== 'todos' && p.categoria_slug !== _pdvCatFiltro) return false;
-    if (query && !p.nome.toLowerCase().includes(query)) return false;
-    return true;
-  });
-
-  if (_pdvCatFiltro !== 'todos' || query) {
-    // Flat grid sem cabeçalhos de categoria
-    const row = document.createElement('div');
-    row.className = 'pdv-cat-row';
-    produtos.forEach(p => {
-      row.appendChild(_criarCardPDV(p));
-    });
-    if (produtos.length === 0) {
-      row.innerHTML = `<p style="color:#aaa;grid-column:1/-1;text-align:center;padding:20px">Nenhum produto encontrado</p>`;
-    }
-    grid.appendChild(row);
-    return;
-  }
-
-  // Agrupa por categoria
+  // Agrupa produtos por categoria
   const porCategoria = {};
   produtosCachePDV.forEach((p) => {
     const cat = p.categoria_slug || 'outros';
@@ -3399,11 +3374,14 @@ function renderizarGridPDV(filtroNome = '') {
     porCategoria[cat].push(p);
   });
 
+  // Ordena categorias pela ordem definida
   const ordemCats = produtosCatsPDV.map((c) => c.slug);
   const slugsOrdenados = Object.keys(porCategoria).sort((a, b) => {
-    const ia = ordemCats.indexOf(a), ib = ordemCats.indexOf(b);
+    const ia = ordemCats.indexOf(a);
+    const ib = ordemCats.indexOf(b);
     if (ia === -1 && ib === -1) return a.localeCompare(b);
-    if (ia === -1) return 1; if (ib === -1) return -1;
+    if (ia === -1) return 1;
+    if (ib === -1) return -1;
     return ia - ib;
   });
 
@@ -3411,176 +3389,39 @@ function renderizarGridPDV(filtroNome = '') {
     const catInfo = produtosCatsPDV.find((c) => c.slug === slug);
     const catNome = catInfo ? catInfo.nome_exibicao : slug;
 
+    // Título da categoria — usa classe CSS
     const h = document.createElement('div');
     h.className = 'pdv-cat-header';
     h.textContent = catNome;
     grid.appendChild(h);
 
+    // Row de cards — usa classe CSS
     const row = document.createElement('div');
     row.className = 'pdv-cat-row';
-    porCategoria[slug].forEach((p) => row.appendChild(_criarCardPDV(p)));
+
+    porCategoria[slug].forEach((p) => {
+      const img = p.imagem_url || 'https://via.placeholder.com/110?text=🍣';
+      const card = document.createElement('div');
+      card.className = 'pdv-card';
+      card.style.backgroundImage = `url('${img}')`;  // backgroundImage é propriedade de dados, não estilo visual
+      card.title = p.nome;
+      card.onclick = () => adicionarItemPDV(p);
+      card.innerHTML = `
+        <div class="pdv-card-price">Gs ${p.preco.toLocaleString('es-PY')}</div>
+        <div class="pdv-card-overlay">${p.nome}</div>
+      `;
+      row.appendChild(card);
+    });
+
     grid.appendChild(row);
   });
 }
 
-function _criarCardPDV(p) {
-  const img = p.imagem_url || '';
-  const card = document.createElement('div');
-  card.className = 'pdv-card';
-  if (img) card.style.backgroundImage = `url('${img}')`;
-  else card.classList.add('pdv-card-noimg');
-  card.title = p.nome;
-  card.onclick = () => adicionarItemPDV(p);
-  card.innerHTML = `
-    <div class="pdv-card-price">Gs ${p.preco.toLocaleString('es-PY')}</div>
-    <div class="pdv-card-overlay">${p.nome}</div>
-  `;
-  return card;
-}
-
-function filtrarPDV(valor) {
-  renderizarGridPDV(valor);
-}
-
 function adicionarItemPDV(p) {
-  // Verifica se produto tem variações
-  const cfg = p.montagem_config;
-  const tipo = cfg && !Array.isArray(cfg) && cfg.__tipo ? cfg.__tipo : null;
-  if (tipo === 'variacoes' && cfg.variacoes && cfg.variacoes.length > 0) {
-    const variacoesAtivas = cfg.variacoes.filter(v => v.ativo !== false);
-    if (variacoesAtivas.length === 0) {
-      alert('⏸️ Todas as variações deste produto estão pausadas.');
-      return;
-    }
-    _mostrarModalVariacaoPDV(p, variacoesAtivas);
-    return;
-  }
-  const existe = carrinhoPDV.find((i) => i.id === p.id && !i.variacao);
+  const existe = carrinhoPDV.find((i) => i.id === p.id);
   if (existe) existe.qtd++;
   else carrinhoPDV.push({ ...p, qtd: 1 });
   atualizarCarrinhoPDV();
-}
-
-function _mostrarModalVariacaoPDV(produto, variacoes) {
-  // Remove modal anterior se existir
-  document.getElementById('pdv-var-modal')?.remove();
-
-  // ── Overlay ────────────────────────────────────────────────────────
-  const overlay = document.createElement('div');
-  overlay.id = 'pdv-var-modal';
-  overlay.style.cssText = [
-    'position:fixed;inset:0;background:rgba(0,0,0,0.55)',
-    'z-index:99999;display:flex;align-items:center',
-    'justify-content:center;padding:16px',
-  ].join(';');
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
-
-  // ── Modal container ────────────────────────────────────────────────
-  const modal = document.createElement('div');
-  modal.style.cssText = [
-    'background:#fff;border-radius:16px;padding:20px',
-    'max-width:420px;width:100%;max-height:80vh',
-    'overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)',
-  ].join(';');
-
-  // ── Cabeçalho ──────────────────────────────────────────────────────
-  const header = document.createElement('div');
-  header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:16px';
-
-  const titulo = document.createElement('div');
-  titulo.innerHTML = `
-    <h4 style="margin:0;font-size:1rem;color:#333">🎨 Escolha a variação</h4>
-    <p style="margin:4px 0 0;font-size:0.88rem;color:#666">${produto.nome}</p>
-  `;
-
-  const btnFechar = document.createElement('button');
-  btnFechar.textContent = '✕';
-  btnFechar.style.cssText = 'background:none;border:none;font-size:1.3rem;cursor:pointer;color:#999;flex-shrink:0;padding:4px 8px;border-radius:6px';
-  btnFechar.addEventListener('click', () => overlay.remove());
-
-  header.appendChild(titulo);
-  header.appendChild(btnFechar);
-  modal.appendChild(header);
-
-  // ── Lista de variações — 100% DOM, zero inline-onclick ────────────
-  const lista = document.createElement('div');
-  lista.style.cssText = 'display:flex;flex-direction:column;gap:10px';
-
-  variacoes.forEach((variacao) => {
-    // Captura variacao e produto via closure — sem serialização HTML
-    const btn = document.createElement('button');
-    btn.style.cssText = [
-      'display:flex;align-items:center;gap:12px',
-      'background:#f9f9f9;border:2px solid #e5e7eb',
-      'border-radius:10px;padding:10px 14px',
-      'cursor:pointer;text-align:left;width:100%',
-      'transition:border-color 0.15s,box-shadow 0.15s',
-    ].join(';');
-
-    btn.addEventListener('mouseenter', () => {
-      btn.style.borderColor = 'var(--primary, #FF441F)';
-      btn.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)';
-    });
-    btn.addEventListener('mouseleave', () => {
-      btn.style.borderColor = '#e5e7eb';
-      btn.style.boxShadow = 'none';
-    });
-
-    // Imagem — src atribuído via .src, nunca via innerHTML com dados externos
-    const imgSrc = variacao.img || produto.imagem_url || '';
-    if (imgSrc) {
-      const img = document.createElement('img');
-      img.src = imgSrc;
-      img.style.cssText = 'width:52px;height:52px;border-radius:8px;object-fit:cover;flex-shrink:0';
-      img.addEventListener('error', () => img.style.display = 'none');
-      btn.appendChild(img);
-    }
-
-    // Informações de texto
-    const info = document.createElement('div');
-    info.style.flex = '1';
-
-    const nomeEl = document.createElement('div');
-    nomeEl.textContent = variacao.nome; // .textContent = seguro contra XSS
-    nomeEl.style.cssText = 'font-weight:700;font-size:0.9rem;color:#333';
-
-    const precoEl = document.createElement('div');
-    const precoFinal = variacao.preco || produto.preco;
-    precoEl.textContent = `Gs ${precoFinal.toLocaleString('es-PY')}`;
-    precoEl.style.cssText = 'font-size:0.82rem;color:var(--primary, #FF441F);font-weight:600;margin-top:2px';
-
-    info.appendChild(nomeEl);
-    info.appendChild(precoEl);
-    btn.appendChild(info);
-
-    // ── Ação de adicionar ao carrinho — closure captura variacao e produto ──
-    btn.addEventListener('click', () => {
-      const chave = variacao.nome; // identifica variação
-      const existe = carrinhoPDV.find(
-        (i) => i.id === produto.id && i.variacao === chave
-      );
-
-      if (existe) {
-        existe.qtd++;
-      } else {
-        carrinhoPDV.push({
-          ...produto,
-          preco:    precoFinal,
-          qtd:      1,
-          variacao: chave,
-        });
-      }
-
-      atualizarCarrinhoPDV();
-      overlay.remove();
-    });
-
-    lista.appendChild(btn);
-  });
-
-  modal.appendChild(lista);
-  overlay.appendChild(modal);
-  document.body.appendChild(overlay);
 }
 
 function removerItemPDV(idx) {
@@ -3660,14 +3501,6 @@ function atualizarCarrinhoPDV() {
   }
 
   if (totalEl) totalEl.innerText = total.toLocaleString('es-PY');
-  
-  // Atualiza barra inferior mobile
-  const mobileQtd = document.getElementById('pdv-mobile-qtd');
-  const mobileTot = document.getElementById('pdv-mobile-total-val');
-  const qtdTotal = carrinhoPDV.reduce((a, i) => a + i.qtd, 0);
-  if (mobileQtd) mobileQtd.textContent = qtdTotal + (qtdTotal === 1 ? ' item' : ' itens');
-  if (mobileTot) mobileTot.textContent = total.toLocaleString('es-PY');
-  
   atualizarInfoPagPDV(total);
 }
 
