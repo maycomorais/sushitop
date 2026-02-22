@@ -327,8 +327,8 @@ async function carregarPedidos(silencioso = false) {
           checkbox = `<input type="checkbox" class="check-pedido" value="${jsonSeguro}" style="width:20px; height:20px;">`;
           acoes = `${btnPrint} ${btnCancelar} <span style="color:#155724; font-weight:bold; font-size:0.9rem; margin-left:5px;"><i class="fas fa-motorcycle"></i> Aguardando Rota</span>`;
         } else {
-          const icone = p.tipo_entrega === 'balcao' ? 'fa-store' : 'fa-hand-holding';
-          const tipo = p.tipo_entrega === 'balcao' ? 'BALCÃO' : 'RETIRADA';
+          const icone = p.tipo_entrega === 'balcao' ? 'fa-store' : p.tipo_entrega === 'comer_local' ? 'fa-utensils' : 'fa-hand-holding';
+          const tipo  = p.tipo_entrega === 'balcao' ? 'BALCÃO' : p.tipo_entrega === 'comer_local' ? 'COMER NO LOCAL' : 'RETIRADA';
           checkbox = `<div style="text-align:center; color:#e67e22; font-size:1.2rem"><i class="fas ${icone}" title="${tipo}"></i></div>`;
           acoes = `${btnPrint} ${btnCancelar} <button class="btn btn-success btn-sm" onclick="finalizarMesa(${p.id})">Baixar</button>`;
         }
@@ -391,7 +391,7 @@ async function carregarPedidos(silencioso = false) {
                             ? `<button class="btn btn-danger btn-sm" onclick="mudarStatus(${p.id}, 'cancelado')"><i class="fas fa-times"></i></button>`
                             : `<button class="btn btn-warning btn-sm" onclick="solicitarCancelamento(${p.id})"><i class="fas fa-ban"></i> Cancelar</button>`
                         }`;
-        } else if (p.status === 'pronto_entrega' && p.tipo_entrega === 'balcao') {
+        } else if (p.status === 'pronto_entrega' && (p.tipo_entrega === 'balcao' || p.tipo_entrega === 'comer_local')) {
           const _btnCancelBalcao =
             perfilUsuario === 'dono'
               ? `<button class="btn btn-danger btn-sm" onclick="mudarStatus(${p.id}, 'cancelado')"><i class="fas fa-times"></i></button>`
@@ -430,7 +430,7 @@ async function carregarPedidos(silencioso = false) {
                         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
                             <div>
                                 <div style="font-weight:700;font-size:1rem">#${p.uid_temporal || p.id} — ${p.cliente_nome || 'Cliente'}</div>
-                                <div style="font-size:0.78rem;color:#666;margin-top:2px">${p.endereco_entrega || (p.tipo_entrega === 'balcao' ? '🏪 Balcão' : '')}</div>
+                                <div style="font-size:0.78rem;color:#666;margin-top:2px">${p.endereco_entrega || (p.tipo_entrega === 'balcao' ? '🏪 Balcão' : p.tipo_entrega === 'comer_local' ? '🍽️ Mesa' : '')}</div>
                             </div>
                             <span class="status-badge st-${p.status}" style="font-size:0.7rem">${statusLabel}</span>
                         </div>
@@ -3509,13 +3509,157 @@ function atualizarInfoPagPDV(total) {
   const infoBox = document.getElementById('balcao-pag-info');
   if (!infoBox) return;
 
-  if (pag === 'Pix' && total > 0) {
+  if (pag === 'Multipagamento') {
+    infoBox.style.display = 'block';
+    infoBox.innerHTML = `<i class="fas fa-code-branch"></i> <strong>Multipagamento</strong> — configure os valores após lançar, ou registre no obs.`;
+  } else if (pag === 'Pix' && total > 0) {
     const valorReais = (total / _cotacaoPDV).toFixed(2);
     infoBox.style.display = 'block';
     infoBox.innerHTML = `<i class="fas fa-qrcode"></i> <strong>Cobrar em Pix: R$ ${valorReais}</strong>`;
   } else {
     infoBox.style.display = 'none';
   }
+}
+
+// ── MODAL MULTIPAGAMENTO PDV ────────────────────────────────────────
+let _pdvMultiPag = [];
+
+function abrirMultiPagPDV() {
+  const totalEl = document.getElementById('balcao-total');
+  const total = parseInt((totalEl?.innerText || '0').replace(/\D/g, '')) || 0;
+  if (total === 0) { alert('Adicione itens antes de configurar o pagamento.'); return; }
+
+  _pdvMultiPag = [
+    { metodo: 'Efetivo', valor: total, troco: '' },
+    { metodo: '',        valor: 0,     troco: '' },
+  ];
+
+  // Cria modal dinamicamente se não existir
+  let modal = document.getElementById('modal-multi-pag-pdv');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'modal-multi-pag-pdv';
+    modal.className = 'modal-overlay';
+    modal.style.cssText = 'display:none; align-items:center; justify-content:center;';
+    modal.innerHTML = `
+      <div class="modal-content" style="max-width:460px; width:95%">
+        <h3 style="margin-bottom:16px"><i class="fas fa-code-branch" style="color:#3b82f6"></i> Dividir Pagamento</h3>
+        <div id="pdv-multi-lista"></div>
+        <div id="pdv-multi-restante" style="font-size:0.85rem;font-weight:700;padding:8px 12px;border-radius:8px;margin:10px 0"></div>
+        <button class="btn btn-sm" onclick="adicionarLinhaPDVMulti()" style="background:#eff6ff;color:#3b82f6;border:1px dashed #93c5fd;width:100%;margin-bottom:12px">
+          <i class="fas fa-plus"></i> Adicionar forma
+        </button>
+        <div class="modal-actions">
+          <button class="btn btn-primary" onclick="confirmarMultiPagPDV()"><i class="fas fa-check"></i> Confirmar</button>
+          <button class="btn btn-secondary" onclick="fecharModal('modal-multi-pag-pdv')">Cancelar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+  }
+  modal.style.display = 'flex';
+  renderizarPDVMulti(total);
+}
+
+function renderizarPDVMulti(totalParam) {
+  const totalEl = document.getElementById('balcao-total');
+  const total = totalParam || parseInt((totalEl?.innerText || '0').replace(/\D/g, '')) || 0;
+  const lista = document.getElementById('pdv-multi-lista');
+  if (!lista) return;
+
+  const metodoOpts = (sel) => [
+    ['Efetivo',       '💵 Efetivo'],
+    ['Cartao',        '💳 Cartão'],
+    ['Pix',           '📱 Pix (BR)'],
+    ['Transferencia', '🏦 Transferência'],
+  ].map(([v, t]) => `<option value="${v}" ${sel===v?'selected':''}>${t}</option>`).join('');
+
+  lista.innerHTML = _pdvMultiPag.map((l, i) => {
+    const isLast = i === _pdvMultiPag.length - 1;
+    return `
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+      <select style="flex:1;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:0.85rem"
+        onchange="_pdvMultiPag[${i}].metodo=this.value;renderizarPDVMulti(${total})">
+        ${metodoOpts(l.metodo)}
+      </select>
+      <div style="display:flex;align-items:center;gap:4px;background:#f1f5f9;border:1px solid #ddd;border-radius:8px;padding:0 10px;width:140px">
+        <span style="font-size:0.75rem;color:#64748b;font-weight:700;flex-shrink:0">Gs</span>
+        <input type="number"
+          id="pdv-mv-${i}"
+          value="${l.valor||''}"
+          min="0"
+          ${isLast ? 'readonly tabindex="-1"' : ''}
+          style="border:none;background:transparent;font-size:0.9rem;font-weight:700;padding:8px 0;width:100%;text-align:right${isLast?';color:#059669':''}"
+          oninput="pdvMultiDigitar(${i},this.value,${total})">
+      </div>
+      ${i>0
+        ? `<button onclick="_pdvMultiPag.splice(${i},1);renderizarPDVMulti(${total})"
+            style="background:#fee2e2;color:#ef4444;border:none;border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:0.8rem;flex-shrink:0">
+            <i class="fas fa-times"></i></button>`
+        : '<div style="width:28px"></div>'}
+    </div>`;
+  }).join('');
+
+  _pdvMultiRestante(total);
+}
+
+// Digitação: NÃO re-renderiza, só atualiza último campo e badge
+function pdvMultiDigitar(idx, valor, total) {
+  _pdvMultiPag[idx].valor = parseFloat(valor) || 0;
+  const last  = _pdvMultiPag.length - 1;
+  const soma  = _pdvMultiPag.slice(0, last).reduce((s,l) => s + (parseFloat(l.valor)||0), 0);
+  _pdvMultiPag[last].valor = Math.max(0, total - soma);
+  const lastEl = document.getElementById(`pdv-mv-${last}`);
+  if (lastEl && idx !== last) lastEl.value = _pdvMultiPag[last].valor || '';
+  _pdvMultiRestante(total);
+}
+
+function _pdvMultiRestante(total) {
+  const soma = _pdvMultiPag.reduce((s,l) => s+(parseFloat(l.valor)||0), 0);
+  const rest = total - soma;
+  const el   = document.getElementById('pdv-multi-restante');
+  if (!el) return;
+  if (Math.abs(rest) < 1) {
+    el.style.cssText = 'background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;font-size:0.85rem;font-weight:700;padding:8px 12px;border-radius:8px;margin:10px 0';
+    el.innerHTML = `<i class="fas fa-check-circle"></i> Total coberto: Gs ${total.toLocaleString('es-PY')}`;
+  } else {
+    el.style.cssText = 'background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;font-size:0.85rem;font-weight:700;padding:8px 12px;border-radius:8px;margin:10px 0';
+    el.innerHTML = `<i class="fas fa-exclamation-circle"></i> Faltam: Gs ${Math.abs(rest).toLocaleString('es-PY')}`;
+  }
+}
+
+function _autoLastPDVMulti(total) {
+  const somaExceto = _pdvMultiPag.slice(0,-1).reduce((s,l)=>s+(parseFloat(l.valor)||0),0);
+  _pdvMultiPag[_pdvMultiPag.length-1].valor = Math.max(0, total - somaExceto);
+}
+
+function adicionarLinhaPDVMulti() {
+  if (_pdvMultiPag.length >= 4) { alert('Máximo 4 formas.'); return; }
+  const totalEl = document.getElementById('balcao-total');
+  const total = parseInt((totalEl?.innerText||'0').replace(/\D/g,''))||0;
+  _pdvMultiPag.push({ metodo:'Efetivo', valor:0, troco:'' });
+  _autoLastPDVMulti(total);
+  renderizarPDVMulti(total);
+}
+
+function confirmarMultiPagPDV() {
+  const totalEl = document.getElementById('balcao-total');
+  const total = parseInt((totalEl?.innerText||'0').replace(/\D/g,''))||0;
+  const soma = _pdvMultiPag.reduce((s,l)=>s+(parseFloat(l.valor)||0),0);
+  if (Math.abs(soma-total)>5) { alert('Os valores não batem com o total.'); return; }
+  for (const l of _pdvMultiPag) {
+    if (!l.metodo) { alert('Selecione a forma em todas as linhas.'); return; }
+  }
+  const sel = document.getElementById('balcao-pag');
+  if (!sel.querySelector('option[value="Multipagamento"]')) {
+    const opt = document.createElement('option');
+    opt.value = 'Multipagamento'; opt.textContent = '🔀 Multipagamento';
+    sel.appendChild(opt);
+  }
+  sel.value = 'Multipagamento';
+  sel._multiDados = JSON.stringify(_pdvMultiPag);
+  atualizarInfoPagPDV(total);
+  fecharModal('modal-multi-pag-pdv');
+  mostrarToast('✅ Pagamento dividido configurado!', 'success');
 }
 
 async function salvarPedidoBalcao() {
@@ -3529,9 +3673,12 @@ async function salvarPedidoBalcao() {
     return;
   }
 
-  const cli      = document.getElementById('balcao-cliente').value || 'Cliente';
-  const tel      = document.getElementById('balcao-telefone').value || '';
-  const pag      = document.getElementById('balcao-pag').value;
+  const cli       = document.getElementById('balcao-cliente').value || 'Cliente';
+  const tel       = document.getElementById('balcao-telefone').value || '';
+  const pag       = document.getElementById('balcao-pag').value;
+  const sel       = document.getElementById('balcao-pag');
+  const obsPag    = pag === 'Multipagamento' && sel._multiDados ? sel._multiDados : 'Pagamento no Balcão';
+  const tipoLocal = document.getElementById('balcao-tipo-entrega')?.value || 'balcao';
   const nomeFinal = `MESA ${mesa} - ${cli}`;
 
   // ── Novos itens ganham status_item: 'pendente' ─────────────────
@@ -3561,6 +3708,7 @@ async function salvarPedidoBalcao() {
       total_geral:     novoTotal,
       subtotal:        novoTotal,
       forma_pagamento: pag,
+      obs_pagamento:   obsPag,
       cliente_nome:    nomeFinal,
       cliente_telefone: tel,
       status:          'em_preparo',
@@ -3592,7 +3740,7 @@ async function salvarPedidoBalcao() {
   const pedido = {
     uid_temporal:         `BALC-${Math.floor(Math.random() * 1000)}`,
     status:               'em_preparo',
-    tipo_entrega:         'balcao',
+    tipo_entrega:         tipoLocal,
     total_geral:          totalNovo,
     subtotal:             totalNovo,
     frete_cobrado_cliente: 0,
@@ -3601,7 +3749,7 @@ async function salvarPedidoBalcao() {
     endereco_entrega:     `Mesa ${mesa}`,
     cliente_nome:         nomeFinal,
     cliente_telefone:     tel,
-    obs_pagamento:        'Pagamento no Balcão',
+    obs_pagamento:        obsPag,
   };
 
   const { error } = await supa.from('pedidos').insert([pedido]);
@@ -3630,7 +3778,7 @@ async function atualizarBarraMesasAtivas() {
   const { data } = await supa
     .from('pedidos')
     .select('id, endereco_entrega, cliente_nome, total_geral, status, itens')
-    .eq('tipo_entrega', 'balcao')
+    .or('tipo_entrega.eq.balcao,tipo_entrega.eq.comer_local')
     .neq('status', 'entregue')
     .neq('status', 'cancelado')
     .order('id', { ascending: true });
@@ -3702,7 +3850,7 @@ async function carregarMonitorMesas() {
   const { data } = await supa
     .from('pedidos')
     .select('*')
-    .eq('tipo_entrega', 'balcao')
+    .or('tipo_entrega.eq.balcao,tipo_entrega.eq.comer_local')
     .neq('status', 'entregue') // Traz 'pendente', 'em_preparo' e 'pronto_entrega'
     .order('id', { ascending: false });
 
