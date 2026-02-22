@@ -116,14 +116,6 @@ function showTab(tabId, event) {
   // 4. Ativa o botão no menu lateral
   if (event && event.currentTarget) {
     event.currentTarget.classList.add('active');
-  } else {
-    // Restaura highlight ao carregar página (sem evento de clique)
-    document.querySelectorAll('.menu-item').forEach(m => {
-      const oc = m.getAttribute('onclick') || '';
-      if (oc.includes(`'${realTabId}'`) || oc.includes(`'${tabId}'`)) {
-        m.classList.add('active');
-      }
-    });
   }
 
   // 5. PULO DO GATO: Se a aba for produtos, categorias ou motoboys,
@@ -2770,104 +2762,40 @@ function _renderGradeSemanal(horariosSalvos = {}) {
   const container = document.getElementById('grade-semanal');
   if (!container) return;
   container.innerHTML = '';
-
-  const ICONES_DIA = { seg: '☀️', ter: '☀️', qua: '☀️', qui: '☀️', sex: '🌟', sab: '🎉', dom: '🌙' };
-
   DIAS_SEMANA.forEach(({ key, label }) => {
     const dia = horariosSalvos[key] || { fechado: false, turnos: [{ abre: '', fecha: '' }] };
     const fechado = dia.fechado === true;
     const turnos = dia.turnos && dia.turnos.length > 0 ? dia.turnos : [{ abre: '', fecha: '' }];
 
     const row = document.createElement('div');
-    row.className = `gs-dia-card ${fechado ? 'gs-fechado' : 'gs-aberto'}`;
+    row.className = 'dia-row';
     row.dataset.dia = key;
 
     let turnosHtml = turnos.map((t, i) => `
-      <div class="gs-turno-row" data-idx="${i}">
-        <span class="gs-turno-label">${i === 0 ? '🕐 Abertura' : '🕑 2º Turno'}</span>
-        <div class="gs-turno-inputs">
-          <div class="gs-time-group">
-            <span class="gs-time-label">Das</span>
-            <input type="time" class="gs-time-input turno-abre" value="${t.abre || ''}">
-          </div>
-          <span class="gs-time-sep">→</span>
-          <div class="gs-time-group">
-            <span class="gs-time-label">Até</span>
-            <input type="time" class="gs-time-input turno-fecha" value="${t.fecha || ''}">
-          </div>
-          ${i > 0 ? `<button class="gs-btn-rm" onclick="removerTurno(this)" title="Remover turno">✕</button>` : '<div style="width:28px"></div>'}
-        </div>
+      <div class="turno-row" data-idx="${i}">
+        <span class="turno-sep">${i > 0 ? 'e das' : 'das'}</span>
+        <input type="time" class="form-control turno-abre" value="${t.abre || ''}" style="width:110px">
+        <span class="turno-sep">às</span>
+        <input type="time" class="form-control turno-fecha" value="${t.fecha || ''}" style="width:110px">
+        ${i > 0 ? `<button class="btn-rm-turno" onclick="removerTurno(this)" title="Remover turno">✕</button>` : ''}
       </div>`).join('');
 
     row.innerHTML = `
-      <div class="gs-dia-header">
-        <div class="gs-dia-info">
-          <span class="gs-dia-icone">${ICONES_DIA[key] || '📅'}</span>
-          <span class="gs-dia-nome">${label}</span>
-        </div>
-        <div class="gs-dia-controls">
-          <span class="gs-status-badge ${fechado ? 'gs-badge-fechado' : 'gs-badge-aberto'}">
-            ${fechado ? '🔴 Fechado' : '🟢 Aberto'}
-          </span>
-          <label class="gs-toggle-wrap">
-            <input type="checkbox" class="dia-fechado-check" ${fechado ? 'checked' : ''} onchange="toggleDiaFechado(this)">
-            <span class="gs-toggle-slider"></span>
-          </label>
-        </div>
+      <div class="dia-row-header">
+        <label class="dia-toggle">
+          <input type="checkbox" class="dia-fechado-check" ${fechado ? 'checked' : ''} onchange="toggleDiaFechado(this)">
+          <span class="dia-toggle-slider"></span>
+        </label>
+        <span class="dia-nome">${label}</span>
+        <span class="dia-status-text">${fechado ? '<span style="color:#e74c3c">Fechado</span>' : '<span style="color:#27ae60">Aberto</span>'}</span>
       </div>
-      <div class="gs-dia-turnos" style="${fechado ? 'display:none' : ''}">
-        <div class="gs-turnos-lista">${turnosHtml}</div>
-        <button class="gs-btn-add-turno btn-add-turno" onclick="adicionarTurno(this)">
-          <i class="fas fa-plus"></i> Adicionar 2º turno
-        </button>
+      <div class="dia-turnos" style="${fechado ? 'display:none' : ''}">
+        <div class="turnos-lista">${turnosHtml}</div>
+        <button class="btn-add-turno" onclick="adicionarTurno(this)">+ 2º turno</button>
       </div>
     `;
     container.appendChild(row);
   });
-}
-
-function toggleDiaFechado(checkbox) {
-  const row = checkbox.closest('.gs-dia-card');
-  const turnos = row.querySelector('.gs-dia-turnos');
-  const badge = row.querySelector('.gs-status-badge');
-  if (checkbox.checked) {
-    if (turnos) turnos.style.display = 'none';
-    row.classList.add('gs-fechado'); row.classList.remove('gs-aberto');
-    if (badge) { badge.textContent = '🔴 Fechado'; badge.className = 'gs-status-badge gs-badge-fechado'; }
-  } else {
-    if (turnos) turnos.style.display = '';
-    row.classList.add('gs-aberto'); row.classList.remove('gs-fechado');
-    if (badge) { badge.textContent = '🟢 Aberto'; badge.className = 'gs-status-badge gs-badge-aberto'; }
-  }
-}
-
-function adicionarTurno(btn) {
-  const lista = btn.previousElementSibling;
-  const idx = lista.querySelectorAll('.gs-turno-row').length;
-  if (idx >= 2) { alert('Máximo de 2 turnos por dia.'); return; }
-  const div = document.createElement('div');
-  div.className = 'gs-turno-row';
-  div.dataset.idx = idx;
-  div.innerHTML = `
-    <span class="gs-turno-label">🕑 2º Turno</span>
-    <div class="gs-turno-inputs">
-      <div class="gs-time-group">
-        <span class="gs-time-label">Das</span>
-        <input type="time" class="gs-time-input turno-abre">
-      </div>
-      <span class="gs-time-sep">→</span>
-      <div class="gs-time-group">
-        <span class="gs-time-label">Até</span>
-        <input type="time" class="gs-time-input turno-fecha">
-      </div>
-      <button class="gs-btn-rm btn-rm-turno" onclick="removerTurno(this)" title="Remover turno">✕</button>
-    </div>
-  `;
-  lista.appendChild(div);
-}
-
-function removerTurno(btn) {
-  btn.closest('.gs-turno-row').remove();
 }
 
 function toggleDiaFechado(checkbox) {
@@ -2906,11 +2834,11 @@ function removerTurno(btn) {
 
 function _lerGradeSemanal() {
   const horarios = {};
-  document.querySelectorAll('.gs-dia-card').forEach((row) => {
+  document.querySelectorAll('.dia-row').forEach((row) => {
     const key = row.dataset.dia;
     const fechado = row.querySelector('.dia-fechado-check').checked;
     const turnos = [];
-    row.querySelectorAll('.gs-turno-row').forEach((t) => {
+    row.querySelectorAll('.turno-row').forEach((t) => {
       const abre = t.querySelector('.turno-abre').value;
       const fecha = t.querySelector('.turno-fecha').value;
       if (abre || fecha) turnos.push({ abre, fecha });
@@ -3514,35 +3442,6 @@ function filtrarPDV(valor) {
   renderizarGridPDV(valor);
 }
 
-// Categorias que NÃO recebem o upsell de extras globais
-const _CATS_SEM_EXTRAS_GLOBAIS = ['bebidas', 'bebida', 'extras', 'extra', 'molhos', 'adicionais'];
-
-// Extras globais padrão do sushi (carregados das configurações ou hardcoded como fallback)
-let _extrasGlobaisCache = null;
-async function _getExtrasGlobais() {
-  if (_extrasGlobaisCache !== null) return _extrasGlobaisCache;
-  // Tenta carregar das configurações (campo extras_globais no Supabase)
-  const { data } = await supa.from('configuracoes').select('extras_globais').single().catch(() => ({ data: null }));
-  if (data && Array.isArray(data.extras_globais) && data.extras_globais.length > 0) {
-    _extrasGlobaisCache = data.extras_globais;
-  } else {
-    // Fallback com os extras da foto
-    _extrasGlobaisCache = [
-      { nome: 'Shoyu',          preco: 2000 },
-      { nome: 'Taré (Teriaki)',  preco: 3000 },
-      { nome: 'Sunomono',       preco: 2000 },
-      { nome: 'Jengibre',       preco: 2000 },
-      { nome: 'Wasabi',         preco: 2000 },
-    ];
-  }
-  return _extrasGlobaisCache;
-}
-
-function _deveMostrarExtrasGlobais(produto) {
-  const cat = (produto.categoria_slug || '').toLowerCase();
-  return !_CATS_SEM_EXTRAS_GLOBAIS.some(c => cat.includes(c));
-}
-
 function adicionarItemPDV(p) {
   // Verifica se produto tem variações
   const cfg = p.montagem_config;
@@ -3560,144 +3459,128 @@ function adicionarItemPDV(p) {
   if (existe) existe.qtd++;
   else carrinhoPDV.push({ ...p, qtd: 1 });
   atualizarCarrinhoPDV();
-
-  // Upsell de extras globais (exceto bebidas e extras)
-  if (_deveMostrarExtrasGlobais(p)) {
-    _getExtrasGlobais().then(extras => {
-      if (extras && extras.length > 0) _mostrarUpsellExtrasPDV(p, extras);
-    });
-  }
 }
 
 function _mostrarModalVariacaoPDV(produto, variacoes) {
   // Remove modal anterior se existir
   document.getElementById('pdv-var-modal')?.remove();
+
+  // ── Overlay ────────────────────────────────────────────────────────
   const overlay = document.createElement('div');
   overlay.id = 'pdv-var-modal';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
-  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
-  
+  overlay.style.cssText = [
+    'position:fixed;inset:0;background:rgba(0,0,0,0.55)',
+    'z-index:99999;display:flex;align-items:center',
+    'justify-content:center;padding:16px',
+  ].join(';');
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+  // ── Modal container ────────────────────────────────────────────────
   const modal = document.createElement('div');
-  modal.style.cssText = 'background:#fff;border-radius:16px;padding:20px;max-width:420px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)';
-  modal.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <h4 style="margin:0;font-size:1rem;color:#333">🎨 Escolha a variação</h4>
-      <button onclick="document.getElementById('pdv-var-modal').remove()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#999">✕</button>
-    </div>
-    <p style="font-size:0.88rem;color:#666;margin-bottom:14px">${produto.nome}</p>
-    <div style="display:flex;flex-direction:column;gap:10px">
-      ${variacoes.map((v, idx) => `
-        <button onclick="
-          const p = ${JSON.stringify(produto).replace(/'/g, '&apos;')};
-          const existe = carrinhoPDV.find(i => i.id === p.id && i.variacao === '${v.nome.replace(/'/g, "\\'")}');
-          if (existe) existe.qtd++;
-          else carrinhoPDV.push({...p, preco:${v.preco || produto.preco}, qtd:1, variacao:'${v.nome.replace(/'/g, "\\'")}' });
-          atualizarCarrinhoPDV();
-          document.getElementById('pdv-var-modal').remove();
-        " style="display:flex;align-items:center;gap:12px;background:#f9f9f9;border:2px solid #e5e7eb;border-radius:10px;padding:10px 14px;cursor:pointer;text-align:left;transition:border-color 0.15s" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='#e5e7eb'">
-          ${v.img ? `<img src="${v.img}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;flex-shrink:0" onerror="this.style.display='none'">` : (produto.imagem_url ? `<img src="${produto.imagem_url}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;flex-shrink:0">` : '')}
-          <div style="flex:1">
-            <div style="font-weight:700;font-size:0.9rem;color:#333">${v.nome}</div>
-            <div style="font-size:0.82rem;color:var(--primary);font-weight:600">Gs ${(v.preco || produto.preco).toLocaleString('es-PY')}</div>
-          </div>
-        </button>
-      `).join('')}
-    </div>
-  `;
-  overlay.appendChild(modal);
-  document.body.appendChild(overlay);
-}
-
-// ── Toast de upsell de extras globais ─────────────────────────────
-function _mostrarUpsellExtrasPDV(produto, extras) {
-  // Remove toast anterior se ainda estiver aberto
-  document.getElementById('pdv-upsell-toast')?.remove();
-
-  const toast = document.createElement('div');
-  toast.id = 'pdv-upsell-toast';
-  toast.style.cssText = [
-    'position:fixed;bottom:20px;right:16px;z-index:99998',
-    'background:#fff;border-radius:14px',
-    'box-shadow:0 8px 32px rgba(0,0,0,0.18)',
-    'padding:0;max-width:300px;width:calc(100vw - 32px)',
-    'border:1px solid #f0f0f0',
-    'animation:_upsellIn 0.25s cubic-bezier(.4,0,.2,1)',
-    'overflow:hidden'
+  modal.style.cssText = [
+    'background:#fff;border-radius:16px;padding:20px',
+    'max-width:420px;width:100%;max-height:80vh',
+    'overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)',
   ].join(';');
 
-  if (!document.getElementById('_upsell-style')) {
-    const s = document.createElement('style');
-    s.id = '_upsell-style';
-    s.textContent = `
-      @keyframes _upsellIn{from{transform:translateY(20px) scale(.96);opacity:0}to{transform:none;opacity:1}}
-      #pdv-upsell-toast .ue-btn:hover{filter:brightness(0.92)}
-    `;
-    document.head.appendChild(s);
-  }
+  // ── Cabeçalho ──────────────────────────────────────────────────────
+  const header = document.createElement('div');
+  header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:16px';
 
-  // Header
-  const hdr = document.createElement('div');
-  hdr.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:12px 14px 10px;border-bottom:1px solid #f5f5f5;background:linear-gradient(135deg,#fff8f5,#fff)';
-  hdr.innerHTML = `
-    <div>
-      <div style="font-weight:700;font-size:0.85rem;color:#333">🍣 Adicionar ao pedido?</div>
-      <div style="font-size:0.73rem;color:#999;margin-top:1px">${produto.nome}</div>
-    </div>`;
-  const btnX = document.createElement('button');
-  btnX.textContent = '✕';
-  btnX.style.cssText = 'background:none;border:none;font-size:1rem;cursor:pointer;color:#bbb;padding:4px 6px;border-radius:6px;flex-shrink:0';
-  btnX.addEventListener('click', () => toast.remove());
-  hdr.appendChild(btnX);
-  toast.appendChild(hdr);
+  const titulo = document.createElement('div');
+  titulo.innerHTML = `
+    <h4 style="margin:0;font-size:1rem;color:#333">🎨 Escolha a variação</h4>
+    <p style="margin:4px 0 0;font-size:0.88rem;color:#666">${produto.nome}</p>
+  `;
 
-  // Lista de extras
+  const btnFechar = document.createElement('button');
+  btnFechar.textContent = '✕';
+  btnFechar.style.cssText = 'background:none;border:none;font-size:1.3rem;cursor:pointer;color:#999;flex-shrink:0;padding:4px 8px;border-radius:6px';
+  btnFechar.addEventListener('click', () => overlay.remove());
+
+  header.appendChild(titulo);
+  header.appendChild(btnFechar);
+  modal.appendChild(header);
+
+  // ── Lista de variações — 100% DOM, zero inline-onclick ────────────
   const lista = document.createElement('div');
-  lista.style.cssText = 'padding:6px 0';
-  extras.forEach(extra => {
-    if (!extra.nome) return;
-    const row = document.createElement('div');
-    row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:7px 14px;transition:background .1s';
-    row.onmouseenter = () => row.style.background = '#fafafa';
-    row.onmouseleave = () => row.style.background = '';
+  lista.style.cssText = 'display:flex;flex-direction:column;gap:10px';
 
-    const info = document.createElement('div');
-    info.innerHTML = `
-      <div style="font-size:0.83rem;font-weight:600;color:#333">${extra.nome}</div>
-      <div style="font-size:0.73rem;color:var(--primary,#FF441F);font-weight:700">+ Gs ${(extra.preco||0).toLocaleString('es-PY')}</div>`;
-
+  variacoes.forEach((variacao) => {
+    // Captura variacao e produto via closure — sem serialização HTML
     const btn = document.createElement('button');
-    btn.className = 'ue-btn';
-    btn.style.cssText = 'background:var(--primary,#FF441F);color:#fff;border:none;border-radius:8px;padding:5px 13px;font-size:0.78rem;cursor:pointer;font-weight:700;transition:all .15s;white-space:nowrap;flex-shrink:0';
-    btn.textContent = '+ Add';
-    btn.addEventListener('click', () => {
-      const nomeExtra = extra.nome;
-      const existe = carrinhoPDV.find(i => i._isExtra && i.nome === nomeExtra);
-      if (existe) { existe.qtd++; }
-      else {
-        carrinhoPDV.push({
-          id: 'ext_' + Date.now(),
-          nome: nomeExtra,
-          preco: extra.preco || 0,
-          qtd: 1,
-          _isExtra: true,
-        });
-      }
-      atualizarCarrinhoPDV();
-      btn.textContent = '✓';
-      btn.style.background = '#27ae60';
-      btn.disabled = true;
-      row.style.opacity = '0.6';
+    btn.style.cssText = [
+      'display:flex;align-items:center;gap:12px',
+      'background:#f9f9f9;border:2px solid #e5e7eb',
+      'border-radius:10px;padding:10px 14px',
+      'cursor:pointer;text-align:left;width:100%',
+      'transition:border-color 0.15s,box-shadow 0.15s',
+    ].join(';');
+
+    btn.addEventListener('mouseenter', () => {
+      btn.style.borderColor = 'var(--primary, #FF441F)';
+      btn.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)';
+    });
+    btn.addEventListener('mouseleave', () => {
+      btn.style.borderColor = '#e5e7eb';
+      btn.style.boxShadow = 'none';
     });
 
-    row.appendChild(info);
-    row.appendChild(btn);
-    lista.appendChild(row);
-  });
-  toast.appendChild(lista);
+    // Imagem — src atribuído via .src, nunca via innerHTML com dados externos
+    const imgSrc = variacao.img || produto.imagem_url || '';
+    if (imgSrc) {
+      const img = document.createElement('img');
+      img.src = imgSrc;
+      img.style.cssText = 'width:52px;height:52px;border-radius:8px;object-fit:cover;flex-shrink:0';
+      img.addEventListener('error', () => img.style.display = 'none');
+      btn.appendChild(img);
+    }
 
-  document.body.appendChild(toast);
-  // Auto-fecha em 10 s
-  setTimeout(() => { if (document.getElementById('pdv-upsell-toast') === toast) toast.remove(); }, 10000);
+    // Informações de texto
+    const info = document.createElement('div');
+    info.style.flex = '1';
+
+    const nomeEl = document.createElement('div');
+    nomeEl.textContent = variacao.nome; // .textContent = seguro contra XSS
+    nomeEl.style.cssText = 'font-weight:700;font-size:0.9rem;color:#333';
+
+    const precoEl = document.createElement('div');
+    const precoFinal = variacao.preco || produto.preco;
+    precoEl.textContent = `Gs ${precoFinal.toLocaleString('es-PY')}`;
+    precoEl.style.cssText = 'font-size:0.82rem;color:var(--primary, #FF441F);font-weight:600;margin-top:2px';
+
+    info.appendChild(nomeEl);
+    info.appendChild(precoEl);
+    btn.appendChild(info);
+
+    // ── Ação de adicionar ao carrinho — closure captura variacao e produto ──
+    btn.addEventListener('click', () => {
+      const chave = variacao.nome; // identifica variação
+      const existe = carrinhoPDV.find(
+        (i) => i.id === produto.id && i.variacao === chave
+      );
+
+      if (existe) {
+        existe.qtd++;
+      } else {
+        carrinhoPDV.push({
+          ...produto,
+          preco:    precoFinal,
+          qtd:      1,
+          variacao: chave,
+        });
+      }
+
+      atualizarCarrinhoPDV();
+      overlay.remove();
+    });
+
+    lista.appendChild(btn);
+  });
+
+  modal.appendChild(lista);
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
 }
 
 function removerItemPDV(idx) {

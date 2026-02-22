@@ -3,227 +3,413 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Imprimir Comanda</title>
+    <title>Comanda</title>
     <style>
-        body { font-family: 'Courier New', Courier, monospace; background: #eee; padding: 20px; }
-        
-        .ticket {
+        /* ═══════════════════════════════════════════
+           BASE — tela (preview antes de imprimir)
+        ════════════════════════════════════════════ */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            background: #d0d0d0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+
+        /* Barra de controles (invisível no papel) */
+        .controles {
             background: #fff;
-            max-width: 300px;
-            margin: 0 auto;
-            padding: 10px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            border-radius: 12px;
+            padding: 14px 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+        }
+        .controles label {
+            font-family: Arial, sans-serif;
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: #555;
+            white-space: nowrap;
+        }
+        .ctrl-btn {
+            padding: 7px 16px;
+            border: 2px solid #ddd;
+            background: #f5f5f5;
+            border-radius: 8px;
+            font-family: Arial, sans-serif;
+            font-size: 0.8rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .ctrl-btn.ativo {
+            border-color: #FF441F;
+            background: #FF441F;
+            color: #fff;
         }
 
-        h3, p { margin: 0; padding: 0; }
-        h3 { text-align: center; margin-bottom: 5px; font-size: 16px; }
-        .centered { text-align: center; font-size: 12px; margin-bottom: 10px; }
-        
-        hr { border-top: 1px dashed #000; margin: 8px 0; }
-        
-        .info-group { margin-bottom: 5px; font-size: 12px; }
-        .info-group strong { display: inline-block; width: 60px; }
-
-        table { width: 100%; border-collapse: collapse; font-size: 12px; }
-        th { text-align: left; border-bottom: 1px dashed #000; }
-        td { vertical-align: top; padding: 2px 0; }
-        
-        .totals { text-align: right; font-size: 12px; margin-top: 10px; }
-        .total-final { font-size: 16px; font-weight: bold; margin-top: 5px; }
-
-        .btn-print {
-            display: block; width: 100%; padding: 15px; background: #FF441F; 
-            color: white; border: none; font-size: 16px; font-weight: bold; 
-            cursor: pointer; margin-top: 20px; border-radius: 8px;
+        /* Envelope do ticket no preview */
+        .ticket-wrap {
+            background: #fff;
+            box-shadow: 0 6px 24px rgba(0,0,0,0.18);
         }
 
+        /* ═══════════════════════════════════════════
+           TICKET — estilos do conteúdo impresso
+        ════════════════════════════════════════════ */
+        .ticket {
+            width: 100%;
+            padding: 8px 8px 12px;
+            font-size: 15px;   /* base: legível em 58mm */
+            line-height: 1.5;
+            color: #000;
+        }
+
+        /* Cabeçalho da loja */
+        .tk-loja {
+            text-align: center;
+            font-size: 22px;
+            font-weight: 900;
+            letter-spacing: 1px;
+            margin-bottom: 2px;
+        }
+        .tk-sub {
+            text-align: center;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        /* Número do pedido — muito destacado */
+        .tk-num {
+            text-align: center;
+            font-size: 26px;
+            font-weight: 900;
+            letter-spacing: 3px;
+            border-top: 2.5px solid #000;
+            border-bottom: 2.5px solid #000;
+            padding: 5px 0;
+            margin: 7px 0 4px;
+        }
+        .tk-data {
+            text-align: center;
+            font-size: 13px;
+            color: #333;
+            margin-bottom: 2px;
+        }
+
+        /* Divisores */
+        .tk-hr  { border: none; border-top: 1px dashed #000; margin: 7px 0; }
+        .tk-hr2 { border: none; border-top: 2.5px solid #000; margin: 7px 0; }
+
+        /* Linhas de informação (Cliente, Tel, etc.) */
+        .tk-row {
+            display: flex;
+            gap: 4px;
+            font-size: 15px;
+            margin: 3px 0;
+            line-height: 1.35;
+        }
+        .tk-label {
+            font-weight: 900;
+            white-space: nowrap;
+            min-width: 62px;
+        }
+        .tk-val { flex: 1; word-break: break-word; }
+
+        /* Tipo de entrega — caixa preta invertida */
+        .tk-entrega-tipo {
+            text-align: center;
+            font-size: 19px;
+            font-weight: 900;
+            background: #000;
+            color: #fff;
+            padding: 4px 6px;
+            margin: 6px 0 3px;
+            letter-spacing: 2px;
+        }
+
+        /* Item do pedido */
+        .tk-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 4px;
+            padding: 5px 0;
+            border-bottom: 1px dotted #999;
+        }
+        .tk-item:last-child { border-bottom: none; }
+
+        .tk-item-body { flex: 1; }
+
+        .tk-item-qtd-nome {
+            font-size: 17px;
+            font-weight: 800;
+            line-height: 1.3;
+        }
+        .tk-item-qtd {
+            font-size: 19px;
+            font-weight: 900;
+        }
+        .tk-item-detalhe {
+            font-size: 13px;
+            font-style: italic;
+            color: #444;
+            margin-top: 1px;
+            padding-left: 4px;
+        }
+        .tk-item-obs {
+            font-size: 15px;
+            font-weight: 900;
+            margin-top: 2px;
+        }
+        .tk-item-preco {
+            font-size: 15px;
+            font-weight: 700;
+            text-align: right;
+            white-space: nowrap;
+            padding-top: 3px;
+        }
+
+        /* Totais */
+        .tk-t-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 15px;
+            padding: 2px 0;
+        }
+        .tk-t-final {
+            display: flex;
+            justify-content: space-between;
+            font-size: 24px;
+            font-weight: 900;
+            border-top: 2.5px solid #000;
+            padding-top: 5px;
+            margin-top: 4px;
+        }
+
+        /* Pagamento */
+        .tk-pag {
+            font-size: 16px;
+            font-weight: 700;
+            margin: 3px 0;
+        }
+
+        /* Factura */
+        .tk-factura {
+            border: 2.5px solid #000;
+            padding: 6px;
+            margin: 8px 0;
+        }
+        .tk-factura-titulo {
+            font-size: 16px;
+            font-weight: 900;
+            text-align: center;
+            margin-bottom: 4px;
+        }
+        .tk-factura-row { font-size: 14px; margin: 2px 0; }
+
+        /* Rodapé */
+        .tk-rodape {
+            text-align: center;
+            font-size: 13px;
+            margin-top: 4px;
+        }
+
+        /* ── Botão imprimir (só tela) ────────────── */
+        .btn-imprimir {
+            display: block;
+            width: 100%;
+            max-width: 400px;
+            padding: 16px;
+            background: #FF441F;
+            color: #fff;
+            border: none;
+            font-family: Arial, sans-serif;
+            font-size: 1.05rem;
+            font-weight: 900;
+            cursor: pointer;
+            border-radius: 10px;
+            box-shadow: 0 4px 14px rgba(255,68,31,0.35);
+            letter-spacing: 0.5px;
+        }
+
+        /* ═══════════════════════════════════════════
+           @media print
+        ════════════════════════════════════════════ */
         @media print {
-            body { background: none; padding: 0; margin: 0; }
-            .btn-print { display: none; }
-            .ticket { box-shadow: none; max-width: 100%; width: 100%; margin: 0; }
-            @page { margin: 0; }
+            body { background: none; padding: 0; margin: 0; display: block; }
+            .controles, .btn-imprimir { display: none !important; }
+            .ticket-wrap { box-shadow: none !important; width: 100% !important; margin: 0; }
+            .ticket { padding: 0; }
         }
     </style>
-<base target="_blank">
 </head>
 <body>
 
-    <div class="ticket">
-        <h3>SUSHITERIA DELIVERY</h3>
-        <p class="centered" style="font-weight:bold; font-size:14px; margin-top:5px;">PEDIDO #<span id="id-pedido">---</span></p>
-        <p class="centered">Mariano Roque Alonso</p>
-        <p class="centered">Tel: +595976771714</p>
-        <hr>
-        
-        <div class="info-group">
-            <strong>Data:</strong> <span id="data-hora">---</span><br>
-            <strong>Cliente:</strong> <span id="nome">---</span><br>
-            <strong>Tel:</strong> <span id="tel">---</span>
-        </div>
-        <hr>
-
-        <div style="text-align:center; font-weight:bold; font-size:14px; margin:5px 0;">
-            <span id="tipo-entrega">---</span>
-        </div>
-        <div id="endereco-box" style="font-size:11px; margin-bottom:5px; display:none;">
-            Ref: <span id="ref-entrega">---</span>
-        </div>
-        <hr>
-
-        <table>
-            <thead>
-                <tr>
-                    <th style="width:15%">Qtd</th>
-                    <th>Item</th>
-                    <th style="text-align:right">Total</th>
-                </tr>
-            </thead>
-            <tbody id="lista-itens">
-                <tr><td colspan="3" style="text-align:center;padding:10px;">Carregando...</td></tr>
-            </tbody>
-        </table>
-        <hr>
-
-        <div class="totals">
-            Subtotal: <span id="subtotal">Gs 0</span><br>
-            Frete: <span id="frete">Gs 0</span><br>
-            <div class="total-final">TOTAL: <span id="total-geral">Gs 0</span></div>
-        </div>
-        <hr>
-
-        <div class="info-group">
-            <strong>Pagto:</strong> <span id="forma-pag">---</span><br>
-            <div id="obs-pag" style="margin-top:2px; font-style:italic;"></div>
-        </div>
-
-        <div id="box-factura" style="display:none; margin-top:10px; border:1px solid #000; padding:5px;">
-            <strong>DADOS FACTURA:</strong><br>
-            RUC: <span id="ruc">---</span><br>
-            Razão: <span id="razao">---</span>
-        </div>
-
-        <br>
-        <p class="centered">*** OBRIGADO PELA PREFERÊNCIA ***</p>
+    <!-- Controles de largura — sumem na impressão -->
+    <div class="controles">
+        <label>🖨️ Modelo:</label>
+        <button class="ctrl-btn ativo" id="btn58" onclick="mudarLargura(58)">58 mm</button>
+        <button class="ctrl-btn"       id="btn40" onclick="mudarLargura(40)">40 mm</button>
+        <span id="info-tamanho" style="font-family:Arial;font-size:0.72rem;color:#999;margin-left:auto">base 15 px</span>
     </div>
 
-    <button class="btn-print" onclick="window.print()">🖨️ IMPRIMIR PEDIDO</button>
+    <div class="ticket-wrap" id="ticket-wrap" style="width:300px">
+        <div class="ticket" id="ticket">
+            <div style="text-align:center;padding:28px;color:#aaa;font-family:Arial">
+                Carregando comanda…
+            </div>
+        </div>
+    </div>
+
+    <button class="btn-imprimir" onclick="imprimir()">🖨️ IMPRIMIR COMANDA</button>
 
     <script>
-        window.onload = function() {
-            const params = new URLSearchParams(window.location.search);
-            const codigoBase64 = params.get('d');
-            
-            if(!codigoBase64) {
-                document.body.innerHTML = "<h3 style='text-align:center; color:red; margin-top:50px'>Erro: Link inválido ou incompleto.</h3>";
-                return;
-            }
+    /* ── Config por modelo ──────────────────────────────────────── */
+    const MODELOS = {
+        58: { wrapPx: 300, fontBase: 15, pagina: '58mm' },
+        40: { wrapPx: 212, fontBase: 13, pagina: '40mm' },
+    };
+    let modeloAtual = 58;
 
-            try {
-                // Decodifica Base64 URL-safe -> JSON
-                // Reverte substituições: - volta para +, _ volta para /
-                const base64Normal = codigoBase64
-                    .replace(/-/g, '+')
-                    .replace(/_/g, '/');
-                // Adiciona padding = se necessário
-                const pad = base64Normal.length % 4;
-                const base64Padded = pad ? base64Normal + '='.repeat(4 - pad) : base64Normal;
-                
-                const jsonString = decodeURIComponent(escape(atob(base64Padded)));
-                const pedido = JSON.parse(jsonString);
-                
-                console.log('Pedido recebido:', pedido);
+    function mudarLargura(mm) {
+        modeloAtual = mm;
+        const m = MODELOS[mm];
+        document.getElementById('ticket-wrap').style.width = m.wrapPx + 'px';
+        document.getElementById('ticket').style.fontSize   = m.fontBase + 'px';
+        document.getElementById('info-tamanho').textContent = `base ${m.fontBase} px`;
+        document.getElementById('btn58').classList.toggle('ativo', mm === 58);
+        document.getElementById('btn40').classList.toggle('ativo', mm === 40);
+    }
 
-                // ID DO PEDIDO
-                document.getElementById('id-pedido').innerText = pedido.id || 'S/N';
+    function imprimir() {
+        const m = MODELOS[modeloAtual];
+        // Injeta @page com tamanho correto
+        let s = document.getElementById('_ps');
+        if (!s) { s = document.createElement('style'); s.id = '_ps'; document.head.appendChild(s); }
+        s.textContent = `@media print { @page { size: ${m.pagina} auto; margin: 2mm; } }`;
+        setTimeout(() => window.print(), 80);
+    }
 
-                // 1. Cabeçalho
-                document.getElementById('data-hora').innerText = pedido.data || new Date().toLocaleString('pt-BR');
-                document.getElementById('nome').innerText = pedido.cliente?.nome || 'Cliente';
-                document.getElementById('tel').innerText = pedido.cliente?.tel || 'S/N';
-
-                // 2. Entrega
-                const tipoEntrega = pedido.entrega?.tipo || 'delivery';
-                document.getElementById('tipo-entrega').innerText = tipoEntrega.toUpperCase();
-                
-                if(tipoEntrega === 'delivery') {
-                    document.getElementById('endereco-box').style.display = 'block';
-                    document.getElementById('ref-entrega').innerText = pedido.entrega?.ref || 'Não informado';
-                }
-
-                // 3. Itens 
-                const tbody = document.getElementById('lista-itens');
-                tbody.innerHTML = '';
-                
-                console.log('🍣 Itens recebidos:', JSON.stringify(pedido.itens));
-                
-                const itens = Array.isArray(pedido.itens) ? pedido.itens : [];
-                if (itens.length > 0) {
-                    itens.forEach((item, idx) => {
-                        console.log('Item '+idx+':', JSON.stringify(item));
-                        const tr = document.createElement('tr');
-                        
-                        // Extrai quantidade: aceita q, qtd, quantidade — fallback 1
-                        const quantidade = (item.q !== undefined ? item.q : null) 
-                                        || (item.qtd !== undefined ? item.qtd : null)
-                                        || (item.quantidade !== undefined ? item.quantidade : null)
-                                        || 1;
-                        
-                        // Extrai nome
-                        const nomeItem = item.n || item.nome || item.name || ('Item '+(idx+1));
-                        
-                        // Extrai preço — usa parseFloat para garantir número
-                        const preco = parseFloat(item.p !== undefined ? item.p : (item.preco !== undefined ? item.preco : (item.valor || 0))) || 0;
-                        
-                        const montagem = item.m || item.montagem || [];
-                        const observacao = item.o || item.obs || item.observacao || '';
-                        const tipo = item.t || item.tipo || '';
-                        
-                        let detalhes = '';
-                        if (tipo && tipo !== 'Padrão' && tipo !== 'Montado') detalhes += '<br><small>('+tipo+')</small>';
-                        if (Array.isArray(montagem) && montagem.length > 0) detalhes += '<br><small style="font-style:italic">Ing: '+montagem.join(', ')+'</small>';
-                        if (observacao) detalhes += '<br><strong style="font-size:10px">OBS: '+observacao+'</strong>';
-                        
-                        const total = (preco * quantidade).toLocaleString('es-PY');
-                        tr.innerHTML = '<td style="vertical-align:top">'+quantidade+'x</td><td>'+nomeItem+detalhes+'</td><td style="text-align:right">Gs '+total+'</td>';
-                        tbody.appendChild(tr);
-                    });
-                } else {
-                    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#e74c3c;">Nenhum item encontrado</td></tr>';
-                }
-
-                // 4. Totais
-                const valores = pedido.valores || {};
-                document.getElementById('subtotal').innerText = `Gs ${(valores.sub || valores.subtotal || 0).toLocaleString('es-PY')}`;
-                document.getElementById('frete').innerText = `Gs ${(valores.frete || valores.frete_cobrado_cliente || 0).toLocaleString('es-PY')}`;
-                document.getElementById('total-geral').innerText = `Gs ${(valores.total || valores.total_geral || 0).toLocaleString('es-PY')}`;
-
-                // 5. Pagamento
-                const pagamento = pedido.pagamento || {};
-                document.getElementById('forma-pag').innerText = pagamento.metodo || pagamento.forma_pagamento || 'Não informado';
-                document.getElementById('obs-pag').innerText = pagamento.obs || pagamento.obs_pagamento || '';
-
-                // 6. Factura
-                if(pedido.factura && (pedido.factura.ruc || pedido.factura.razao)) {
-                    document.getElementById('box-factura').style.display = 'block';
-                    document.getElementById('ruc').innerText = pedido.factura.ruc || 'S/N';
-                    document.getElementById('razao').innerText = pedido.factura.razao || 'S/N';
-                }
-                
-                setTimeout(() => window.print(), 800);
-
-            } catch (e) {
-                console.error('Erro ao processar pedido:', e);
-                document.body.innerHTML = `
-                    <h3 style='text-align:center; color:red; margin-top:50px'>
-                        Erro ao ler o pedido.<br><br>
-                        <small>O link pode estar incompleto ou corrompido.</small><br><br>
-                        <button onclick="window.close()" style="padding:10px 20px; background:#FF441F; color:white; border:none; border-radius:5px; cursor:pointer;">
-                            Fechar
-                        </button>
-                    </h3>
-                `;
-            }
+    /* ── Decodifica URL e renderiza ─────────────────────────────── */
+    window.onload = function () {
+        const raw = new URLSearchParams(location.search).get('d');
+        if (!raw) {
+            document.getElementById('ticket').innerHTML =
+                '<p style="color:red;text-align:center;padding:24px">⚠ Link inválido.</p>';
+            return;
         }
+        try {
+            const b64  = raw.replace(/-/g, '+').replace(/_/g, '/');
+            const pad  = b64.length % 4;
+            const data = JSON.parse(decodeURIComponent(escape(atob(pad ? b64 + '='.repeat(4-pad) : b64))));
+            renderTicket(data);
+        } catch (e) {
+            document.getElementById('ticket').innerHTML =
+                '<p style="color:red;text-align:center;padding:24px">⚠ Erro ao ler pedido.</p>';
+            console.error(e);
+        }
+    };
+
+    /* ── Renderização do ticket ─────────────────────────────────── */
+    function renderTicket(p) {
+        const gs  = (v) => 'Gs ' + (parseFloat(v) || 0).toLocaleString('es-PY');
+        const itens = Array.isArray(p.itens) ? p.itens : [];
+        const val   = p.valores   || {};
+        const pag   = p.pagamento || {};
+        const cli   = p.cliente   || {};
+        const ent   = p.entrega   || {};
+
+        let h = '';
+
+        /* ── Cabeçalho ─────────────────────────────────────────── */
+        h += `
+            <div class="tk-loja">SUSHITERIA</div>
+            <div class="tk-sub">DELIVERY</div>
+            <div class="tk-sub">Mariano Roque Alonso</div>
+            <div class="tk-sub">+595 976 771 714</div>
+            <div class="tk-num">PEDIDO #${p.id || 'S/N'}</div>
+            <div class="tk-data">${p.data || new Date().toLocaleString('pt-BR')}</div>
+            <hr class="tk-hr">
+        `;
+
+        /* ── Cliente ───────────────────────────────────────────── */
+        h += `<div class="tk-row"><span class="tk-label">CLIENTE</span><span class="tk-val">${cli.nome || 'Cliente'}</span></div>`;
+        if (cli.tel) h += `<div class="tk-row"><span class="tk-label">TEL</span><span class="tk-val">${cli.tel}</span></div>`;
+        h += '<hr class="tk-hr">';
+
+        /* ── Entrega ───────────────────────────────────────────── */
+        h += `<div class="tk-entrega-tipo">${(ent.tipo || 'DELIVERY').toUpperCase()}</div>`;
+        if (ent.ref) h += `<div class="tk-row" style="margin-top:4px"><span class="tk-label">REF</span><span class="tk-val">${ent.ref}</span></div>`;
+        h += '<hr class="tk-hr2">';
+
+        /* ── Itens ─────────────────────────────────────────────── */
+        if (itens.length === 0) {
+            h += '<div style="text-align:center;color:#c0392b;font-size:15px;padding:8px 0">Nenhum item</div>';
+        } else {
+            itens.forEach((item) => {
+                const qtd   = item.q ?? item.qtd ?? 1;
+                const nome  = item.n || item.nome || 'Item';
+                const preco = parseFloat(item.p ?? item.preco ?? 0) || 0;
+                const mont  = Array.isArray(item.m || item.montagem) ? (item.m || item.montagem) : [];
+                const obs   = item.o || item.obs || '';
+
+                h += `<div class="tk-item">
+                    <div class="tk-item-body">
+                        <div class="tk-item-qtd-nome">
+                            <span class="tk-item-qtd">${qtd}×</span> ${nome}
+                        </div>`;
+                if (mont.length) h += `<div class="tk-item-detalhe">↳ ${mont.join(' · ')}</div>`;
+                if (obs) h += `<div class="tk-item-obs">⚠ ${obs}</div>`;
+                h += `</div><div class="tk-item-preco">${gs(preco * qtd)}</div></div>`;
+            });
+        }
+        h += '<hr class="tk-hr2">';
+
+        /* ── Totais ────────────────────────────────────────────── */
+        const sub    = val.sub   || val.subtotal      || 0;
+        const frete  = val.frete || val.frete_cobrado || 0;
+        const total  = val.total || val.total_geral   || 0;
+
+        if (frete) {
+            h += `<div class="tk-t-row"><span>Subtotal</span><span>${gs(sub)}</span></div>`;
+            h += `<div class="tk-t-row"><span>Frete</span><span>${gs(frete)}</span></div>`;
+        }
+        h += `<div class="tk-t-final"><span>TOTAL</span><span>${gs(total)}</span></div>`;
+        h += '<hr class="tk-hr">';
+
+        /* ── Pagamento ─────────────────────────────────────────── */
+        h += `<div class="tk-pag">PAGTO: ${pag.metodo || '—'}</div>`;
+        if (pag.obs) h += `<div style="font-size:14px">${pag.obs}</div>`;
+
+        /* ── Factura ───────────────────────────────────────────── */
+        if (p.factura && (p.factura.ruc || p.factura.razao)) {
+            h += `<div class="tk-factura">
+                <div class="tk-factura-titulo">[ DADOS FACTURA ]</div>
+                <div class="tk-factura-row">RUC: <strong>${p.factura.ruc || '—'}</strong></div>
+                <div class="tk-factura-row">RAZÃO: ${p.factura.razao || '—'}</div>
+            </div>`;
+        }
+
+        /* ── Rodapé ────────────────────────────────────────────── */
+        h += `
+            <hr class="tk-hr">
+            <div class="tk-rodape">OBRIGADO PELA PREFERÊNCIA!</div>
+            <div class="tk-rodape" style="font-size:16px;margin-top:2px">★ ★ ★ ★ ★</div>
+            <div class="tk-rodape" style="margin-top:4px">- - - - - - - - - - - - - - -</div>
+        `;
+
+        document.getElementById('ticket').innerHTML = h;
+    }
     </script>
 </body>
 </html>
