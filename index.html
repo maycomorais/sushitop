@@ -10,19 +10,19 @@
     <meta name="apple-mobile-web-app-title" content="Sushi Top">
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" sizes="180x180" href="img/apple-touch-icon.png">
-    <title>Sushi Top - Loma Mariano</title>
+    <title>Sushi Top - Restaurante e Pizzaria</title>
     <!-- Open Graph / WhatsApp / Facebook -->
     <meta property="og:type"        content="website">
     <meta property="og:url"         content="https://sushitopy.com/">
-    <meta property="og:title"       content="Sushi Top">
-    <meta property="og:description" content="Sushi con Delivery Rápdo">
+    <meta property="og:title"       content="Sushi Top 🍕">
+    <meta property="og:description" content="Pedi tu pizza y comida favorita con entrega rápida">
     <meta property="og:image"       content="https://files.menudino.com/merchants/0643ce70-ba76-4ae1-b5b8-06373cc01c75/logo.png">
     <meta property="og:image:width"  content="1200">
     <meta property="og:image:height" content="630">
     <!-- Twitter Card -->
     <meta name="twitter:card"        content="summary_large_image">
-    <meta name="twitter:title"       content="Sushi Top">
-    <meta name="twitter:description" content="Sushi con Delivery Rápdo">
+    <meta name="twitter:title"       content="Sushi Top 🍕">
+    <meta name="twitter:description" content="Pedi tu pizza y comida favorita con entrega rápida">
     <meta name="twitter:image"       content="https://files.menudino.com/merchants/0643ce70-ba76-4ae1-b5b8-06373cc01c75/logo.png">
     <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="img/favicon-16x16.png">
@@ -196,6 +196,7 @@ const _traducoes = {
         'como-receber':      '¿Cómo desea recibir?',
         'entrega':           'Entrega',
         'retiro':            'Retiro',
+        'comer-local':       'Comer aquí',
         'seus-dados':        'Sus Datos',
         'pagamento':         'Pago'
     },
@@ -249,6 +250,7 @@ const _traducoes = {
         'como-receber':      'Como deseja receber?',
         'entrega':           'Entrega',
         'retiro':            'Retirada',
+        'comer-local':       'Comer no Local',
         'seus-dados':        'Seus Dados',
         'pagamento':         'Pagamento'
     },
@@ -302,6 +304,7 @@ const _traducoes = {
         'como-receber':      'How would you like to receive?',
         'entrega':           'Delivery',
         'retiro':            'Pickup',
+        'comer-local':       'Dine In',
         'seus-dados':        'Your Information',
         'pagamento':         'Payment'
     },
@@ -355,6 +358,7 @@ const _traducoes = {
         'como-receber':      'Wie möchten Sie erhalten?',
         'entrega':           'Lieferung',
         'retiro':            'Abholung',
+        'comer-local':       'Vor Ort essen',
         'seus-dados':        'Ihre Daten',
         'pagamento':         'Zahlung'
     }
@@ -640,12 +644,15 @@ window.addEventListener('DOMContentLoaded', () => {
                     <h4 style="font-size: 1.1rem; color: #2D5A27; margin-bottom: 10px; text-align: center;" data-lang-key="como-receber">
                         <i class="fas fa-hand-point-down"></i> ¿Cómo desea recibir?
                     </h4>
-                    <div class="delivery-toggle">
+                    <div class="delivery-toggle delivery-toggle-3">
                         <button id="btn-delivery" class="active" onclick="mudarModoEntrega('delivery')">
                             <i class="fas fa-motorcycle"></i> <span data-lang-key="entrega">Entrega</span>
                         </button>
                         <button id="btn-retirada" onclick="mudarModoEntrega('retirada')">
                             <i class="fas fa-store"></i> <span data-lang-key="retiro">Retiro</span>
+                        </button>
+                        <button id="btn-local" onclick="mudarModoEntrega('local')">
+                            <i class="fas fa-utensils"></i> <span data-lang-key="comer-local">No Local</span>
                         </button>
                     </div>
                 </div>
@@ -708,12 +715,14 @@ window.addEventListener('DOMContentLoaded', () => {
                     <div id="pag-modo-simples">
                         <select id="forma-pag" class="input-field" onchange="verificarPagamento()">
                             <option value="" data-lang-key="forma-pag">Seleccione la forma de pago...</option>
-                            <option value="Efetivo"      data-lang-key="pag-dinheiro">Efectivo (Guaraníes)</option>
-                            <option value="Cartao"       data-lang-key="pag-cartao">Tarjeta de Crédito/Débito</option>
-                            <option value="Pix"          data-lang-key="pag-pix">Pix (BR)</option>
+                            <option value="Efetivo" data-lang-key="pag-dinheiro">Efectivo (Guaraníes)</option>
+                            <option value="Cartao" data-lang-key="pag-cartao">Tarjeta de Crédito/Débito</option>
+                            <option value="Pix" data-lang-key="pag-pix">Pix (BR)</option>
                             <option value="Transferencia" data-lang-key="pag-transfer">Transferencia / Alias (PY)</option>
                         </select>
+
                         <div id="info-pagamento-extra" class="payment-info-box" style="display:none;"></div>
+
                         <div id="box-troco" class="hidden mt-10">
                             <label style="font-size: 0.8rem;" data-lang-key="label-troco">¿Cuánto vuelto necesitas?</label>
                             <input type="text" id="troco-valor" placeholder="Ej: 100.000" class="input-field">
@@ -732,14 +741,11 @@ window.addEventListener('DOMContentLoaded', () => {
                             <i class="fas fa-layer-group"></i>
                             <span>Divida o total entre as formas abaixo</span>
                         </div>
-                        <div id="multi-pag-lista">
-                            <!-- Linhas geradas pelo JS -->
-                        </div>
+                        <div id="multi-pag-lista"></div>
                         <div id="multi-pag-restante" class="multi-pag-restante"></div>
                         <button type="button" class="btn-add-pag" onclick="adicionarLinhaPag()">
                             <i class="fas fa-plus-circle"></i> Adicionar outra forma
                         </button>
-                        <div id="multi-pag-infos"></div>
                     </div>
 
                     <div class="row-check mt-10" style="display:flex; align-items:center; gap:10px; padding: 10px; background: #f9f9f9; border-radius: 8px;">

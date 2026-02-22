@@ -327,8 +327,8 @@ async function carregarPedidos(silencioso = false) {
           checkbox = `<input type="checkbox" class="check-pedido" value="${jsonSeguro}" style="width:20px; height:20px;">`;
           acoes = `${btnPrint} ${btnCancelar} <span style="color:#155724; font-weight:bold; font-size:0.9rem; margin-left:5px;"><i class="fas fa-motorcycle"></i> Aguardando Rota</span>`;
         } else {
-          const icone = p.tipo_entrega === 'balcao' ? 'fa-store' : p.tipo_entrega === 'comer_local' ? 'fa-utensils' : 'fa-hand-holding';
-          const tipo  = p.tipo_entrega === 'balcao' ? 'BALCÃO' : p.tipo_entrega === 'comer_local' ? 'COMER NO LOCAL' : 'RETIRADA';
+          const icone = p.tipo_entrega === 'balcao' ? 'fa-store' : 'fa-hand-holding';
+          const tipo = p.tipo_entrega === 'balcao' ? 'BALCÃO' : 'RETIRADA';
           checkbox = `<div style="text-align:center; color:#e67e22; font-size:1.2rem"><i class="fas ${icone}" title="${tipo}"></i></div>`;
           acoes = `${btnPrint} ${btnCancelar} <button class="btn btn-success btn-sm" onclick="finalizarMesa(${p.id})">Baixar</button>`;
         }
@@ -391,7 +391,7 @@ async function carregarPedidos(silencioso = false) {
                             ? `<button class="btn btn-danger btn-sm" onclick="mudarStatus(${p.id}, 'cancelado')"><i class="fas fa-times"></i></button>`
                             : `<button class="btn btn-warning btn-sm" onclick="solicitarCancelamento(${p.id})"><i class="fas fa-ban"></i> Cancelar</button>`
                         }`;
-        } else if (p.status === 'pronto_entrega' && (p.tipo_entrega === 'balcao' || p.tipo_entrega === 'comer_local')) {
+        } else if (p.status === 'pronto_entrega' && p.tipo_entrega === 'balcao') {
           const _btnCancelBalcao =
             perfilUsuario === 'dono'
               ? `<button class="btn btn-danger btn-sm" onclick="mudarStatus(${p.id}, 'cancelado')"><i class="fas fa-times"></i></button>`
@@ -430,7 +430,7 @@ async function carregarPedidos(silencioso = false) {
                         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
                             <div>
                                 <div style="font-weight:700;font-size:1rem">#${p.uid_temporal || p.id} — ${p.cliente_nome || 'Cliente'}</div>
-                                <div style="font-size:0.78rem;color:#666;margin-top:2px">${p.endereco_entrega || (p.tipo_entrega === 'balcao' ? '🏪 Balcão' : p.tipo_entrega === 'comer_local' ? '🍽️ Mesa' : '')}</div>
+                                <div style="font-size:0.78rem;color:#666;margin-top:2px">${p.endereco_entrega || (p.tipo_entrega === 'balcao' ? '🏪 Balcão' : '')}</div>
                             </div>
                             <span class="status-badge st-${p.status}" style="font-size:0.7rem">${statusLabel}</span>
                         </div>
@@ -2075,17 +2075,13 @@ async function carregarCategorias() {
     const cor = paleta[idx % paleta.length];
     const cJson = JSON.stringify(c).replace(/'/g, '&apos;').replace(/"/g, '&quot;');
     const horarioBadge = c.hora_inicio && c.hora_fim
-      ? `<span class="cat-badge cat-badge-horario"><i class="fas fa-clock"></i> ${c.hora_inicio} – ${c.hora_fim}</span>`
-      : `<span class="cat-badge cat-badge-sempre"><i class="fas fa-check-circle"></i> Sempre visível</span>`;
+      ? `<span class="cat-badge cat-badge-horario">🕐 ${c.hora_inicio} – ${c.hora_fim}</span>`
+      : `<span class="cat-badge cat-badge-sempre">✅ Sempre visível</span>`;
 
     const card = document.createElement('div');
     card.className = 'cat-card';
     card.style.borderTopColor = cor;
-    card.dataset.id = c.id;
     card.innerHTML = `
-      <div class="cat-drag-handle" title="Arraste para reordenar">
-        <i class="fas fa-grip-vertical"></i>
-      </div>
       <div class="cat-card-top">
         <div class="cat-card-icon" style="background:${cor}20;color:${cor}">
           <i class="fas fa-tag"></i>
@@ -2113,53 +2109,6 @@ async function carregarCategorias() {
   });
 
   carregarSelectCategorias();
-  iniciarSortableCategoria();
-}
-
-function iniciarSortableCategoria() {
-  const grid = document.getElementById('lista-categorias');
-  if (!grid || typeof Sortable === 'undefined') return;
-
-  // Destroi instância anterior se existir
-  if (grid._sortableInstance) grid._sortableInstance.destroy();
-
-  grid._sortableInstance = Sortable.create(grid, {
-    handle: '.cat-drag-handle',
-    animation: 200,
-    ghostClass: 'cat-drag-ghost',
-    chosenClass: 'cat-drag-chosen',
-    dragClass: 'cat-drag-dragging',
-    onEnd: async function() {
-      const cards = grid.querySelectorAll('.cat-card');
-      const updates = [];
-      cards.forEach((card, idx) => {
-        const id = card.dataset.id;
-        const ordemBadge = card.querySelector('.cat-card-ordem');
-        if (ordemBadge) ordemBadge.textContent = '#' + (idx + 1);
-        updates.push({ id: parseInt(id), ordem: idx + 1 });
-      });
-
-      // Salva nova ordem no Supabase
-      try {
-        await Promise.all(updates.map(u =>
-          supa.from('categorias').update({ ordem: u.ordem }).eq('id', u.id)
-        ));
-        // Toast de sucesso
-        mostrarToast('✅ Ordem atualizada com sucesso!', 'success');
-      } catch (e) {
-        mostrarToast('❌ Erro ao salvar ordem', 'error');
-      }
-    }
-  });
-}
-
-function mostrarToast(msg, tipo = 'success') {
-  const toast = document.createElement('div');
-  const bg = tipo === 'success' ? '#2ecc71' : '#e74c3c';
-  toast.style.cssText = `position:fixed;bottom:28px;right:28px;background:${bg};color:white;padding:12px 22px;border-radius:10px;font-weight:600;z-index:99999;box-shadow:0 4px 16px rgba(0,0,0,0.18);font-size:0.9rem;transition:opacity 0.4s`;
-  toast.textContent = msg;
-  document.body.appendChild(toast);
-  setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 400); }, 2200);
 }
 
 // Carrega o Select no Modal de Produto
@@ -2806,59 +2755,36 @@ function _renderGradeSemanal(horariosSalvos = {}) {
   const container = document.getElementById('grade-semanal');
   if (!container) return;
   container.innerHTML = '';
-
-  // Icons for each day of the week
-  const diaIcons = {
-    segunda: 'fas fa-coffee',
-    terca:   'fas fa-briefcase',
-    quarta:  'fas fa-sync-alt',
-    quinta:  'fas fa-star-half-alt',
-    sexta:   'fas fa-glass-cheers',
-    sabado:  'fas fa-umbrella-beach',
-    domingo: 'fas fa-sun',
-  };
-
   DIAS_SEMANA.forEach(({ key, label }) => {
     const dia = horariosSalvos[key] || { fechado: false, turnos: [{ abre: '', fecha: '' }] };
     const fechado = dia.fechado === true;
     const turnos = dia.turnos && dia.turnos.length > 0 ? dia.turnos : [{ abre: '', fecha: '' }];
 
     const row = document.createElement('div');
-    row.className = 'dia-row dia-card' + (fechado ? ' dia-card-fechado' : '');
+    row.className = 'dia-row';
     row.dataset.dia = key;
 
-    const turnosHtml = turnos.map((t, i) => `
+    let turnosHtml = turnos.map((t, i) => `
       <div class="turno-row" data-idx="${i}">
-        <div class="turno-pill">
-          <i class="fas fa-clock turno-icon"></i>
-          <input type="time" class="turno-time-input turno-abre" value="${t.abre || ''}" placeholder="--:--">
-          <span class="turno-arrow">→</span>
-          <input type="time" class="turno-time-input turno-fecha" value="${t.fecha || ''}" placeholder="--:--">
-          ${i > 0 ? `<button class="btn-rm-turno" onclick="removerTurno(this)" title="Remover turno"><i class="fas fa-times"></i></button>` : ''}
-        </div>
+        <span class="turno-sep">${i > 0 ? 'e das' : 'das'}</span>
+        <input type="time" class="form-control turno-abre" value="${t.abre || ''}" style="width:110px">
+        <span class="turno-sep">às</span>
+        <input type="time" class="form-control turno-fecha" value="${t.fecha || ''}" style="width:110px">
+        ${i > 0 ? `<button class="btn-rm-turno" onclick="removerTurno(this)" title="Remover turno">✕</button>` : ''}
       </div>`).join('');
 
-    const iconClass = diaIcons[key] || 'fas fa-calendar-day';
-
     row.innerHTML = `
-      <div class="dia-card-header">
-        <div class="dia-card-left">
-          <span class="dia-card-icon"><i class="${iconClass}"></i></span>
-          <span class="dia-card-nome">${label}</span>
-        </div>
-        <label class="dia-pill-toggle" title="Alternar aberto/fechado">
+      <div class="dia-row-header">
+        <label class="dia-toggle">
           <input type="checkbox" class="dia-fechado-check" ${fechado ? 'checked' : ''} onchange="toggleDiaFechado(this)">
-          <span class="dia-pill-track">
-            <span class="dia-pill-thumb"></span>
-          </span>
-          <span class="dia-pill-label ${fechado ? 'txt-fechado' : 'txt-aberto'}">${fechado ? 'Fechado' : 'Aberto'}</span>
+          <span class="dia-toggle-slider"></span>
         </label>
+        <span class="dia-nome">${label}</span>
+        <span class="dia-status-text">${fechado ? '<span style="color:#e74c3c">Fechado</span>' : '<span style="color:#27ae60">Aberto</span>'}</span>
       </div>
-      <div class="dia-turnos-box" ${fechado ? 'style="display:none"' : ''}>
+      <div class="dia-turnos" style="${fechado ? 'display:none' : ''}">
         <div class="turnos-lista">${turnosHtml}</div>
-        <button class="btn-add-turno-new" onclick="adicionarTurno(this)">
-          <i class="fas fa-plus-circle"></i> Adicionar 2º turno
-        </button>
+        <button class="btn-add-turno" onclick="adicionarTurno(this)">+ 2º turno</button>
       </div>
     `;
     container.appendChild(row);
@@ -2866,35 +2792,31 @@ function _renderGradeSemanal(horariosSalvos = {}) {
 }
 
 function toggleDiaFechado(checkbox) {
-  const card = checkbox.closest('.dia-row');
-  const turnosBox = card.querySelector('.dia-turnos-box');
-  const label = card.querySelector('.dia-pill-label');
-  if (checkbox.checked) { // fechado
-    if (turnosBox) turnosBox.style.display = 'none';
-    if (label) { label.textContent = 'Fechado'; label.className = 'dia-pill-label txt-fechado'; }
-    card.classList.add('dia-card-fechado');
-  } else { // aberto
-    if (turnosBox) turnosBox.style.display = '';
-    if (label) { label.textContent = 'Aberto'; label.className = 'dia-pill-label txt-aberto'; }
-    card.classList.remove('dia-card-fechado');
+  const row = checkbox.closest('.dia-row');
+  const turnos = row.querySelector('.dia-turnos');
+  const statusTxt = row.querySelector('.dia-status-text');
+  if (checkbox.checked) {
+    if (turnos) turnos.style.display = 'none';
+    if (statusTxt) statusTxt.innerHTML = '<span style="color:#e74c3c">Fechado</span>';
+  } else {
+    if (turnos) turnos.style.display = '';
+    if (statusTxt) statusTxt.innerHTML = '<span style="color:#27ae60">Aberto</span>';
   }
 }
 
 function adicionarTurno(btn) {
-  const lista = btn.previousElementSibling; // .turnos-lista
+  const lista = btn.previousElementSibling;
   const idx = lista.querySelectorAll('.turno-row').length;
   if (idx >= 2) { alert('Máximo de 2 turnos por dia.'); return; }
   const div = document.createElement('div');
   div.className = 'turno-row';
   div.dataset.idx = idx;
   div.innerHTML = `
-    <div class="turno-pill">
-      <i class="fas fa-clock turno-icon"></i>
-      <input type="time" class="turno-time-input turno-abre" placeholder="--:--">
-      <span class="turno-arrow">→</span>
-      <input type="time" class="turno-time-input turno-fecha" placeholder="--:--">
-      <button class="btn-rm-turno" onclick="removerTurno(this)" title="Remover turno"><i class="fas fa-times"></i></button>
-    </div>
+    <span class="turno-sep">e das</span>
+    <input type="time" class="form-control turno-abre" style="width:110px">
+    <span class="turno-sep">às</span>
+    <input type="time" class="form-control turno-fecha" style="width:110px">
+    <button class="btn-rm-turno" onclick="removerTurno(this)" title="Remover turno">✕</button>
   `;
   lista.appendChild(div);
 }
@@ -3418,14 +3340,194 @@ function renderizarGridPDV() {
 }
 
 function adicionarItemPDV(p) {
-  const existe = carrinhoPDV.find((i) => i.id === p.id);
-  if (existe) existe.qtd++;
-  else carrinhoPDV.push({ ...p, qtd: 1 });
+  // Verifica se produto tem variações, montagem ou pizza
+  const cfg = p.montagem_config;
+  const tipo = (cfg && !Array.isArray(cfg) && cfg.__tipo) ? cfg.__tipo
+             : (p.e_montavel || (cfg && Array.isArray(cfg) && cfg.length > 0)) ? 'montavel'
+             : 'padrao';
+
+  if (tipo === 'variacoes' && cfg && cfg.variacoes && cfg.variacoes.length > 0) {
+    abrirModalVariacaoPDV(p, cfg, 'variacoes');
+    return;
+  }
+  if (tipo === 'montavel') {
+    abrirModalVariacaoPDV(p, cfg, 'montavel');
+    return;
+  }
+  if (tipo === 'pizza') {
+    abrirModalVariacaoPDV(p, cfg, 'pizza');
+    return;
+  }
+  if (tipo === 'almoco') {
+    abrirModalVariacaoPDV(p, cfg, 'almoco');
+    return;
+  }
+
+  // Produto simples: adiciona diretamente
+  const existe = carrinhoPDV.find((i) => i.id === p.id && !i.variacao && !i.montagem?.length);
+  if (existe) { existe.qtd++; }
+  else { carrinhoPDV.push({ ...p, qtd: 1 }); }
   atualizarCarrinhoPDV();
+  mostrarFeedbackPDV(p.nome);
+}
+
+function mostrarFeedbackPDV(nome) {
+  // Flash visual rápido de confirmação
+  const fb = document.createElement('div');
+  fb.textContent = '✓ ' + nome;
+  fb.style.cssText = `position:fixed;bottom:80px;right:20px;background:#1a7a2e;color:white;
+    padding:8px 16px;border-radius:20px;font-size:0.85rem;font-weight:700;
+    z-index:9998;animation:pdvFb 1.5s forwards;pointer-events:none;`;
+  document.body.appendChild(fb);
+  setTimeout(() => fb.remove(), 1500);
+}
+
+let _pdvProdutoAtual = null;
+let _pdvVarSelecionada = null;
+let _pdvMontagem = {};
+
+function abrirModalVariacaoPDV(produto, cfg, tipo) {
+  _pdvProdutoAtual = produto;
+  _pdvVarSelecionada = null;
+  _pdvMontagem = {};
+
+  const modal = document.getElementById('pdv-var-modal');
+  const titulo = document.getElementById('pdv-var-titulo');
+  const opcoes = document.getElementById('pdv-var-opcoes');
+  const obsInput = document.getElementById('pdv-var-obs');
+
+  titulo.textContent = produto.nome;
+  opcoes.innerHTML = '';
+  obsInput.value = '';
+  opcoes.className = 'pdv-var-opcoes';
+
+  if (tipo === 'variacoes') {
+    const variacoes = cfg.variacoes || [];
+    variacoes.forEach((v) => {
+      const card = document.createElement('div');
+      card.className = 'pdv-var-card';
+      const imgSrc = v.img || produto.imagem_url || 'https://cdn-icons-png.flaticon.com/512/2252/2252075.png';
+      card.innerHTML = `
+        <img src="${imgSrc}" onerror="this.src='https://cdn-icons-png.flaticon.com/512/2252/2252075.png'">
+        <div class="pdv-var-card-info">
+          <div class="pdv-var-card-nome">${v.nome}</div>
+          <div class="pdv-var-card-preco">Gs ${(v.preco || 0).toLocaleString('es-PY')}</div>
+        </div>
+        <div class="pdv-var-card-check">✓</div>`;
+      card.onclick = () => {
+        opcoes.querySelectorAll('.pdv-var-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        _pdvVarSelecionada = v;
+      };
+      opcoes.appendChild(card);
+    });
+
+    // Botão confirmar
+    _adicionarBotaoConfirmarPDV(opcoes, () => {
+      if (!_pdvVarSelecionada) { alert('Escolha uma opção!'); return; }
+      const obs = document.getElementById('pdv-var-obs').value.trim();
+      carrinhoPDV.push({
+        ..._pdvProdutoAtual,
+        qtd: 1,
+        nome: `${_pdvProdutoAtual.nome} (${_pdvVarSelecionada.nome})`,
+        preco: _pdvVarSelecionada.preco || _pdvProdutoAtual.preco,
+        variacao: _pdvVarSelecionada.nome,
+        obs: obs,
+        montagem: [],
+      });
+      fecharModalVariacaoPDV();
+      atualizarCarrinhoPDV();
+    });
+
+  } else if (tipo === 'montavel') {
+    const etapas = Array.isArray(cfg) ? cfg : (cfg && cfg.etapas ? cfg.etapas : []);
+    opcoes.style.display = 'block';
+    opcoes.style.gridTemplateColumns = '1fr';
+    etapas.forEach((etapa, idx) => {
+      const sec = document.createElement('div');
+      sec.className = 'pdv-var-etapa';
+      const itens = Array.isArray(etapa.itens) ? etapa.itens : (typeof etapa.itens === 'string' ? etapa.itens.split(',').map(s => s.trim()) : []);
+      sec.innerHTML = `<div class="pdv-var-etapa-titulo">${etapa.titulo} (Máx: ${etapa.max})</div>
+        <div class="pdv-var-ingr-grid" id="pdv-ingr-${idx}"></div>`;
+      opcoes.appendChild(sec);
+
+      const grid = sec.querySelector(`#pdv-ingr-${idx}`);
+      itens.forEach(ing => {
+        const btn = document.createElement('button');
+        btn.className = 'pdv-var-ingr-btn';
+        btn.textContent = ing;
+        btn.onclick = () => {
+          if (!_pdvMontagem[idx]) _pdvMontagem[idx] = [];
+          if (btn.classList.contains('selected')) {
+            btn.classList.remove('selected');
+            _pdvMontagem[idx] = _pdvMontagem[idx].filter(i => i !== ing);
+          } else {
+            if (_pdvMontagem[idx].length >= etapa.max) {
+              alert(`Máximo ${etapa.max} para "${etapa.titulo}"`);
+              return;
+            }
+            btn.classList.add('selected');
+            _pdvMontagem[idx].push(ing);
+          }
+        };
+        grid.appendChild(btn);
+      });
+    });
+
+    _adicionarBotaoConfirmarPDV(opcoes, () => {
+      const obs = document.getElementById('pdv-var-obs').value.trim();
+      const montagemFlat = Object.values(_pdvMontagem).flat();
+      carrinhoPDV.push({
+        ..._pdvProdutoAtual, qtd: 1,
+        montagem: montagemFlat,
+        obs: obs,
+      });
+      fecharModalVariacaoPDV();
+      atualizarCarrinhoPDV();
+    });
+
+  } else {
+    // pizza / almoco / outros — sem personalização especial no PDV, só adiciona direto
+    fecharModalVariacaoPDV();
+    const existe = carrinhoPDV.find(i => i.id === produto.id);
+    if (existe) existe.qtd++;
+    else carrinhoPDV.push({ ...produto, qtd: 1 });
+    atualizarCarrinhoPDV();
+    mostrarFeedbackPDV(produto.nome);
+    return;
+  }
+
+  modal.style.display = 'flex';
+}
+
+function _adicionarBotaoConfirmarPDV(container, onConfirm) {
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'padding: 0 16px 16px; grid-column: 1 / -1;';
+  const btn = document.createElement('button');
+  btn.className = 'pdv-btn-lancar';
+  btn.style.cssText = 'margin-top: 10px;';
+  btn.innerHTML = '<i class="fas fa-plus-circle"></i> Adicionar ao Pedido';
+  btn.onclick = onConfirm;
+  wrapper.appendChild(btn);
+  container.parentElement.appendChild(wrapper);
+}
+
+function fecharModalVariacaoPDV() {
+  document.getElementById('pdv-var-modal').style.display = 'none';
+  _pdvProdutoAtual = null;
+  _pdvVarSelecionada = null;
+  _pdvMontagem = {};
 }
 
 function removerItemPDV(idx) {
   carrinhoPDV.splice(idx, 1);
+  atualizarCarrinhoPDV();
+}
+
+function alterarQtdPDV(idx, delta) {
+  if (!carrinhoPDV[idx]) return;
+  carrinhoPDV[idx].qtd += delta;
+  if (carrinhoPDV[idx].qtd <= 0) carrinhoPDV.splice(idx, 1);
   atualizarCarrinhoPDV();
 }
 
@@ -3455,15 +3557,16 @@ function atualizarCarrinhoPDV() {
       const preco     = item.preco || item.p || 0;
       total += preco * qtd;
 
+      const variacaoStr = item.variacao ? `<small style="color:#aaa">${item.variacao}</small>` : '';
       const row = document.createElement('div');
       row.className = 'pdv-item-row pdv-item-existente' + (entregue ? ' pdv-item-entregue' : '');
       row.innerHTML = `
         <div class="pdv-item-info">
-          <strong>${qtd}x</strong> ${nome}
-          ${entregue ? '<span class="badge-entregue">✓ Entregue</span>' : ''}
+          <strong>${qtd}x</strong> ${nome} ${entregue ? '<span class="badge-entregue">✓</span>' : ''}
+          ${variacaoStr}
         </div>
         <div class="pdv-item-acoes">
-          <span>Gs ${(preco * qtd).toLocaleString('es-PY')}</span>
+          <span style="font-size:0.82rem;color:#555">Gs ${(preco * qtd).toLocaleString('es-PY')}</span>
           ${!entregue ? `
             <button class="btn btn-sm btn-success pdv-btn-baixar"
               title="Marcar como entregue"
@@ -3486,11 +3589,21 @@ function atualizarCarrinhoPDV() {
       total += item.preco * item.qtd;
       const row = document.createElement('div');
       row.className = 'pdv-item-row';
+      const subNome = item.variacao ? `<small style="color:#888;display:block">${item.variacao}${item.obs ? ' · ' + item.obs : ''}</small>` 
+                    : (item.obs ? `<small style="color:#888;display:block">${item.obs}</small>` : '');
+      const montagemStr = item.montagem && item.montagem.length ? `<small style="color:#999;display:block;font-size:0.72rem">+ ${item.montagem.join(', ')}</small>` : '';
       row.innerHTML = `
-        <div class="pdv-item-info"><strong>${item.qtd}x</strong> ${item.nome}</div>
+        <div class="pdv-item-info">
+          <strong style="color:#1a7a2e">${item.nome}</strong>${subNome}${montagemStr}
+        </div>
         <div class="pdv-item-acoes">
-          <span>Gs ${(item.preco * item.qtd).toLocaleString('es-PY')}</span>
-          <button class="btn btn-sm btn-danger" onclick="removerItemPDV(${idx})">✕</button>
+          <div class="pdv-qty-ctrl">
+            <button onclick="alterarQtdPDV(${idx}, -1)">−</button>
+            <span class="pdv-qty-val">${item.qtd}</span>
+            <button onclick="alterarQtdPDV(${idx}, 1)">+</button>
+          </div>
+          <span style="font-weight:700;color:#333;min-width:72px;text-align:right">Gs ${(item.preco * item.qtd).toLocaleString('es-PY')}</span>
+          <button class="btn btn-sm btn-danger" onclick="removerItemPDV(${idx})" style="padding:2px 7px;font-size:0.75rem">✕</button>
         </div>`;
       lista.appendChild(row);
     });
@@ -3509,157 +3622,13 @@ function atualizarInfoPagPDV(total) {
   const infoBox = document.getElementById('balcao-pag-info');
   if (!infoBox) return;
 
-  if (pag === 'Multipagamento') {
-    infoBox.style.display = 'block';
-    infoBox.innerHTML = `<i class="fas fa-code-branch"></i> <strong>Multipagamento</strong> — configure os valores após lançar, ou registre no obs.`;
-  } else if (pag === 'Pix' && total > 0) {
+  if (pag === 'Pix' && total > 0) {
     const valorReais = (total / _cotacaoPDV).toFixed(2);
     infoBox.style.display = 'block';
     infoBox.innerHTML = `<i class="fas fa-qrcode"></i> <strong>Cobrar em Pix: R$ ${valorReais}</strong>`;
   } else {
     infoBox.style.display = 'none';
   }
-}
-
-// ── MODAL MULTIPAGAMENTO PDV ────────────────────────────────────────
-let _pdvMultiPag = [];
-
-function abrirMultiPagPDV() {
-  const totalEl = document.getElementById('balcao-total');
-  const total = parseInt((totalEl?.innerText || '0').replace(/\D/g, '')) || 0;
-  if (total === 0) { alert('Adicione itens antes de configurar o pagamento.'); return; }
-
-  _pdvMultiPag = [
-    { metodo: 'Efetivo', valor: total, troco: '' },
-    { metodo: '',        valor: 0,     troco: '' },
-  ];
-
-  // Cria modal dinamicamente se não existir
-  let modal = document.getElementById('modal-multi-pag-pdv');
-  if (!modal) {
-    modal = document.createElement('div');
-    modal.id = 'modal-multi-pag-pdv';
-    modal.className = 'modal-overlay';
-    modal.style.cssText = 'display:none; align-items:center; justify-content:center;';
-    modal.innerHTML = `
-      <div class="modal-content" style="max-width:460px; width:95%">
-        <h3 style="margin-bottom:16px"><i class="fas fa-code-branch" style="color:#3b82f6"></i> Dividir Pagamento</h3>
-        <div id="pdv-multi-lista"></div>
-        <div id="pdv-multi-restante" style="font-size:0.85rem;font-weight:700;padding:8px 12px;border-radius:8px;margin:10px 0"></div>
-        <button class="btn btn-sm" onclick="adicionarLinhaPDVMulti()" style="background:#eff6ff;color:#3b82f6;border:1px dashed #93c5fd;width:100%;margin-bottom:12px">
-          <i class="fas fa-plus"></i> Adicionar forma
-        </button>
-        <div class="modal-actions">
-          <button class="btn btn-primary" onclick="confirmarMultiPagPDV()"><i class="fas fa-check"></i> Confirmar</button>
-          <button class="btn btn-secondary" onclick="fecharModal('modal-multi-pag-pdv')">Cancelar</button>
-        </div>
-      </div>`;
-    document.body.appendChild(modal);
-  }
-  modal.style.display = 'flex';
-  renderizarPDVMulti(total);
-}
-
-function renderizarPDVMulti(totalParam) {
-  const totalEl = document.getElementById('balcao-total');
-  const total = totalParam || parseInt((totalEl?.innerText || '0').replace(/\D/g, '')) || 0;
-  const lista = document.getElementById('pdv-multi-lista');
-  if (!lista) return;
-
-  const metodoOpts = (sel) => [
-    ['Efetivo',       '💵 Efetivo'],
-    ['Cartao',        '💳 Cartão'],
-    ['Pix',           '📱 Pix (BR)'],
-    ['Transferencia', '🏦 Transferência'],
-  ].map(([v, t]) => `<option value="${v}" ${sel===v?'selected':''}>${t}</option>`).join('');
-
-  lista.innerHTML = _pdvMultiPag.map((l, i) => {
-    const isLast = i === _pdvMultiPag.length - 1;
-    return `
-    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-      <select style="flex:1;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:0.85rem"
-        onchange="_pdvMultiPag[${i}].metodo=this.value;renderizarPDVMulti(${total})">
-        ${metodoOpts(l.metodo)}
-      </select>
-      <div style="display:flex;align-items:center;gap:4px;background:#f1f5f9;border:1px solid #ddd;border-radius:8px;padding:0 10px;width:140px">
-        <span style="font-size:0.75rem;color:#64748b;font-weight:700;flex-shrink:0">Gs</span>
-        <input type="number"
-          id="pdv-mv-${i}"
-          value="${l.valor||''}"
-          min="0"
-          ${isLast ? 'readonly tabindex="-1"' : ''}
-          style="border:none;background:transparent;font-size:0.9rem;font-weight:700;padding:8px 0;width:100%;text-align:right${isLast?';color:#059669':''}"
-          oninput="pdvMultiDigitar(${i},this.value,${total})">
-      </div>
-      ${i>0
-        ? `<button onclick="_pdvMultiPag.splice(${i},1);renderizarPDVMulti(${total})"
-            style="background:#fee2e2;color:#ef4444;border:none;border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:0.8rem;flex-shrink:0">
-            <i class="fas fa-times"></i></button>`
-        : '<div style="width:28px"></div>'}
-    </div>`;
-  }).join('');
-
-  _pdvMultiRestante(total);
-}
-
-// Digitação: NÃO re-renderiza, só atualiza último campo e badge
-function pdvMultiDigitar(idx, valor, total) {
-  _pdvMultiPag[idx].valor = parseFloat(valor) || 0;
-  const last  = _pdvMultiPag.length - 1;
-  const soma  = _pdvMultiPag.slice(0, last).reduce((s,l) => s + (parseFloat(l.valor)||0), 0);
-  _pdvMultiPag[last].valor = Math.max(0, total - soma);
-  const lastEl = document.getElementById(`pdv-mv-${last}`);
-  if (lastEl && idx !== last) lastEl.value = _pdvMultiPag[last].valor || '';
-  _pdvMultiRestante(total);
-}
-
-function _pdvMultiRestante(total) {
-  const soma = _pdvMultiPag.reduce((s,l) => s+(parseFloat(l.valor)||0), 0);
-  const rest = total - soma;
-  const el   = document.getElementById('pdv-multi-restante');
-  if (!el) return;
-  if (Math.abs(rest) < 1) {
-    el.style.cssText = 'background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;font-size:0.85rem;font-weight:700;padding:8px 12px;border-radius:8px;margin:10px 0';
-    el.innerHTML = `<i class="fas fa-check-circle"></i> Total coberto: Gs ${total.toLocaleString('es-PY')}`;
-  } else {
-    el.style.cssText = 'background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;font-size:0.85rem;font-weight:700;padding:8px 12px;border-radius:8px;margin:10px 0';
-    el.innerHTML = `<i class="fas fa-exclamation-circle"></i> Faltam: Gs ${Math.abs(rest).toLocaleString('es-PY')}`;
-  }
-}
-
-function _autoLastPDVMulti(total) {
-  const somaExceto = _pdvMultiPag.slice(0,-1).reduce((s,l)=>s+(parseFloat(l.valor)||0),0);
-  _pdvMultiPag[_pdvMultiPag.length-1].valor = Math.max(0, total - somaExceto);
-}
-
-function adicionarLinhaPDVMulti() {
-  if (_pdvMultiPag.length >= 4) { alert('Máximo 4 formas.'); return; }
-  const totalEl = document.getElementById('balcao-total');
-  const total = parseInt((totalEl?.innerText||'0').replace(/\D/g,''))||0;
-  _pdvMultiPag.push({ metodo:'Efetivo', valor:0, troco:'' });
-  _autoLastPDVMulti(total);
-  renderizarPDVMulti(total);
-}
-
-function confirmarMultiPagPDV() {
-  const totalEl = document.getElementById('balcao-total');
-  const total = parseInt((totalEl?.innerText||'0').replace(/\D/g,''))||0;
-  const soma = _pdvMultiPag.reduce((s,l)=>s+(parseFloat(l.valor)||0),0);
-  if (Math.abs(soma-total)>5) { alert('Os valores não batem com o total.'); return; }
-  for (const l of _pdvMultiPag) {
-    if (!l.metodo) { alert('Selecione a forma em todas as linhas.'); return; }
-  }
-  const sel = document.getElementById('balcao-pag');
-  if (!sel.querySelector('option[value="Multipagamento"]')) {
-    const opt = document.createElement('option');
-    opt.value = 'Multipagamento'; opt.textContent = '🔀 Multipagamento';
-    sel.appendChild(opt);
-  }
-  sel.value = 'Multipagamento';
-  sel._multiDados = JSON.stringify(_pdvMultiPag);
-  atualizarInfoPagPDV(total);
-  fecharModal('modal-multi-pag-pdv');
-  mostrarToast('✅ Pagamento dividido configurado!', 'success');
 }
 
 async function salvarPedidoBalcao() {
@@ -3673,12 +3642,9 @@ async function salvarPedidoBalcao() {
     return;
   }
 
-  const cli       = document.getElementById('balcao-cliente').value || 'Cliente';
-  const tel       = document.getElementById('balcao-telefone').value || '';
-  const pag       = document.getElementById('balcao-pag').value;
-  const sel       = document.getElementById('balcao-pag');
-  const obsPag    = pag === 'Multipagamento' && sel._multiDados ? sel._multiDados : 'Pagamento no Balcão';
-  const tipoLocal = document.getElementById('balcao-tipo-entrega')?.value || 'balcao';
+  const cli      = document.getElementById('balcao-cliente').value || 'Cliente';
+  const tel      = document.getElementById('balcao-telefone').value || '';
+  const pag      = _obterPagamentoPDV();
   const nomeFinal = `MESA ${mesa} - ${cli}`;
 
   // ── Novos itens ganham status_item: 'pendente' ─────────────────
@@ -3688,8 +3654,9 @@ async function salvarPedidoBalcao() {
     preco:        i.preco,
     qtd:          i.qtd,
     montagem:     i.montagem || [],
-    obs:          i.obs     || '',
-    status_item:  'pendente',   // ← campo de status por item
+    obs:          i.obs      || '',
+    variacao:     i.variacao || '',
+    status_item:  'pendente',
     lancado_em:   new Date().toISOString(),
   }));
 
@@ -3708,7 +3675,6 @@ async function salvarPedidoBalcao() {
       total_geral:     novoTotal,
       subtotal:        novoTotal,
       forma_pagamento: pag,
-      obs_pagamento:   obsPag,
       cliente_nome:    nomeFinal,
       cliente_telefone: tel,
       status:          'em_preparo',
@@ -3740,7 +3706,7 @@ async function salvarPedidoBalcao() {
   const pedido = {
     uid_temporal:         `BALC-${Math.floor(Math.random() * 1000)}`,
     status:               'em_preparo',
-    tipo_entrega:         tipoLocal,
+    tipo_entrega:         'balcao',
     total_geral:          totalNovo,
     subtotal:             totalNovo,
     frete_cobrado_cliente: 0,
@@ -3749,7 +3715,7 @@ async function salvarPedidoBalcao() {
     endereco_entrega:     `Mesa ${mesa}`,
     cliente_nome:         nomeFinal,
     cliente_telefone:     tel,
-    obs_pagamento:        obsPag,
+    obs_pagamento:        'Pagamento no Balcão',
   };
 
   const { error } = await supa.from('pedidos').insert([pedido]);
@@ -3778,7 +3744,7 @@ async function atualizarBarraMesasAtivas() {
   const { data } = await supa
     .from('pedidos')
     .select('id, endereco_entrega, cliente_nome, total_geral, status, itens')
-    .or('tipo_entrega.eq.balcao,tipo_entrega.eq.comer_local')
+    .eq('tipo_entrega', 'balcao')
     .neq('status', 'entregue')
     .neq('status', 'cancelado')
     .order('id', { ascending: true });
@@ -3850,7 +3816,7 @@ async function carregarMonitorMesas() {
   const { data } = await supa
     .from('pedidos')
     .select('*')
-    .or('tipo_entrega.eq.balcao,tipo_entrega.eq.comer_local')
+    .eq('tipo_entrega', 'balcao')
     .neq('status', 'entregue') // Traz 'pendente', 'em_preparo' e 'pronto_entrega'
     .order('id', { ascending: false });
 
@@ -4542,4 +4508,257 @@ if (typeof fecharModal !== 'function') {
       modal.style.display = 'none';
     }
   }
+}
+
+// ══════════════════════════════════════════════════════
+// PDV EXTRAS — Filtro de categoria, busca, limpar pedido
+// ══════════════════════════════════════════════════════
+
+let _pdvCatAtiva = null;
+
+function filtrarCategoriaPDV(slug, btn) {
+  _pdvCatAtiva = slug;
+  document.querySelectorAll('.pdv-cat-pill').forEach(p => p.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const txt = document.getElementById('pdv-search') ? document.getElementById('pdv-search').value : '';
+  _renderizarGridPDVFiltrado(slug, txt);
+}
+
+function filtrarGridPDV(texto) {
+  _renderizarGridPDVFiltrado(_pdvCatAtiva, texto);
+}
+
+function _renderizarGridPDVFiltrado(filtroCategoria, filtroTexto) {
+  const grid = document.getElementById('pdv-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  // Monta filtros de categoria na toolbar (só na primeira vez)
+  const catFilter = document.getElementById('pdv-cat-filter');
+  if (catFilter && catFilter.children.length === 0) {
+    const allPill = document.createElement('button');
+    allPill.className = 'pdv-cat-pill active';
+    allPill.textContent = 'Todos';
+    allPill.onclick = () => { filtrarCategoriaPDV(null, allPill); };
+    catFilter.appendChild(allPill);
+    produtosCatsPDV.forEach(cat => {
+      const pill = document.createElement('button');
+      pill.className = 'pdv-cat-pill';
+      pill.textContent = cat.nome_exibicao;
+      pill.onclick = () => { filtrarCategoriaPDV(cat.slug, pill); };
+      catFilter.appendChild(pill);
+    });
+  }
+
+  let produtos = produtosCachePDV;
+  if (filtroCategoria) produtos = produtos.filter(p => p.categoria_slug === filtroCategoria);
+  if (filtroTexto) {
+    const txt = filtroTexto.toLowerCase();
+    produtos = produtos.filter(p => p.nome.toLowerCase().includes(txt));
+  }
+
+  if (produtos.length === 0) {
+    grid.innerHTML = '<p style="text-align:center;color:#aaa;padding:30px;font-size:0.9rem;">Nenhum produto encontrado.</p>';
+    return;
+  }
+
+  const porCategoria = {};
+  produtos.forEach((p) => {
+    const cat = p.categoria_slug || 'outros';
+    if (!porCategoria[cat]) porCategoria[cat] = [];
+    porCategoria[cat].push(p);
+  });
+
+  const ordemCats = produtosCatsPDV.map((c) => c.slug);
+  const slugsOrdenados = Object.keys(porCategoria).sort((a, b) => {
+    const ia = ordemCats.indexOf(a), ib = ordemCats.indexOf(b);
+    if (ia === -1 && ib === -1) return a.localeCompare(b);
+    if (ia === -1) return 1; if (ib === -1) return -1;
+    return ia - ib;
+  });
+
+  slugsOrdenados.forEach((slug) => {
+    const catInfo = produtosCatsPDV.find((c) => c.slug === slug);
+    const catNome = catInfo ? catInfo.nome_exibicao : slug;
+
+    const h = document.createElement('div');
+    h.className = 'pdv-cat-header';
+    h.textContent = catNome;
+    grid.appendChild(h);
+
+    const row = document.createElement('div');
+    row.className = 'pdv-cat-row';
+
+    porCategoria[slug].forEach((p) => {
+      const img = p.imagem_url || '';
+      const cfg = p.montagem_config;
+      const tipo = (cfg && !Array.isArray(cfg) && cfg.__tipo) ? cfg.__tipo
+                 : (p.e_montavel || (cfg && Array.isArray(cfg) && cfg.length > 0)) ? 'montavel'
+                 : 'padrao';
+      const temVariacoes = tipo !== 'padrao';
+
+      const card = document.createElement('div');
+      card.className = 'pdv-card';
+      card.title = p.nome;
+      // Imagem via background-image (mais confiável que <img>)
+      if (img) {
+        card.style.backgroundImage = `url('${img}')`;
+        card.style.backgroundSize = 'cover';
+        card.style.backgroundPosition = 'center';
+      }
+      card.innerHTML = `
+        <div class="pdv-card-price-badge">Gs ${p.preco.toLocaleString('es-PY')}</div>
+        ${temVariacoes ? '<div class="pdv-card-var-badge">⚙</div>' : ''}
+        <div class="pdv-card-footer">
+          <div class="pdv-card-footer-nome">${p.nome}</div>
+        </div>
+      `;
+      card.onclick = () => adicionarItemPDV(p);
+      row.appendChild(card);
+    });
+
+    grid.appendChild(row);
+  });
+}
+
+// Inicializar o grid PDV usando a nova versão com filtros
+function _initPDVGrid() {
+  // Popula categoria pills
+  const catFilter = document.getElementById('pdv-cat-filter');
+  if (catFilter) {
+    catFilter.innerHTML = '';
+    const allPill = document.createElement('button');
+    allPill.className = 'pdv-cat-pill active';
+    allPill.textContent = 'Todos';
+    allPill.onclick = () => filtrarCategoriaPDV(null, allPill);
+    catFilter.appendChild(allPill);
+    produtosCatsPDV.forEach(cat => {
+      const pill = document.createElement('button');
+      pill.className = 'pdv-cat-pill';
+      pill.textContent = cat.nome_exibicao;
+      pill.onclick = () => filtrarCategoriaPDV(cat.slug, pill);
+      catFilter.appendChild(pill);
+    });
+  }
+  _renderizarGridPDVFiltrado(null, '');
+}
+
+function pdvLimparPedido() {
+  if (carrinhoPDV.length === 0 && !window._mesaAbertaId) return;
+  if (!confirm('Limpar pedido atual?')) return;
+  carrinhoPDV = [];
+  window._mesaAbertaId = null;
+  window._mesaAbertaTotal = 0;
+  window._mesaAbertaPedido = null;
+  const mesaEl = document.getElementById('balcao-mesa');
+  const cliEl = document.getElementById('balcao-cliente');
+  const telEl = document.getElementById('balcao-telefone');
+  const labelEl = document.getElementById('pdv-mesa-label');
+  if (mesaEl) mesaEl.value = '';
+  if (cliEl) cliEl.value = '';
+  if (telEl) telEl.value = '';
+  if (labelEl) labelEl.textContent = 'Mesa não selecionada';
+  atualizarCarrinhoPDV();
+}
+
+
+// ══════════════════════════════════════════════════════
+// DIVIDIR PAGAMENTO — PDV Balcão
+// ══════════════════════════════════════════════════════
+
+let _divisoesPagamento = [];
+
+function toggleDividirPagamento() {
+  const box = document.getElementById('box-dividir-pag');
+  if (!box) return;
+  const aberto = box.style.display !== 'none';
+  box.style.display = aberto ? 'none' : 'block';
+  if (!aberto && _divisoesPagamento.length === 0) {
+    // Inicia com 2 divisões
+    _divisoesPagamento = [
+      { metodo: 'Efetivo', valor: '' },
+      { metodo: 'Pix',     valor: '' },
+    ];
+    renderizarDivisoes();
+  }
+}
+
+function adicionarDivisaoPagamento() {
+  _divisoesPagamento.push({ metodo: 'Efetivo', valor: '' });
+  renderizarDivisoes();
+}
+
+function removerDivisao(idx) {
+  _divisoesPagamento.splice(idx, 1);
+  renderizarDivisoes();
+}
+
+function renderizarDivisoes() {
+  const container = document.getElementById('pdv-divisoes');
+  if (!container) return;
+  const totalStr = document.getElementById('balcao-total')?.innerText || '0';
+  const total = parseInt(totalStr.replace(/\D/g, '')) || 0;
+
+  container.innerHTML = '';
+  let somaAtual = 0;
+
+  _divisoesPagamento.forEach((div, idx) => {
+    somaAtual += parseInt(div.valor) || 0;
+    const row = document.createElement('div');
+    row.className = 'pdv-divisao-row';
+    row.innerHTML = `
+      <select class="pdv-divisao-select" onchange="_divisoesPagamento[${idx}].metodo = this.value">
+        <option value="Efetivo"   ${div.metodo === 'Efetivo'      ? 'selected' : ''}>💵 Efetivo</option>
+        <option value="Cartao"    ${div.metodo === 'Cartao'       ? 'selected' : ''}>💳 Cartão</option>
+        <option value="Pix"       ${div.metodo === 'Pix'          ? 'selected' : ''}>📲 Pix</option>
+        <option value="Transferencia" ${div.metodo === 'Transferencia' ? 'selected' : ''}>🏦 Transferência</option>
+      </select>
+      <input type="number" class="pdv-divisao-valor"
+        placeholder="Gs 0"
+        value="${div.valor}"
+        oninput="_divisoesPagamento[${idx}].valor = this.value; atualizarRestanteDivisao()"
+      >
+      ${_divisoesPagamento.length > 1 ? `<button class="pdv-divisao-del" onclick="removerDivisao(${idx})">✕</button>` : ''}
+    `;
+    container.appendChild(row);
+  });
+
+  atualizarRestanteDivisao();
+}
+
+function atualizarRestanteDivisao() {
+  const totalStr = document.getElementById('balcao-total')?.innerText || '0';
+  const total = parseInt(totalStr.replace(/\D/g, '')) || 0;
+  const soma = _divisoesPagamento.reduce((acc, d) => acc + (parseInt(d.valor) || 0), 0);
+  const restante = total - soma;
+
+  // Atualiza ou cria indicador de restante
+  let restEl = document.getElementById('pdv-divisao-restante');
+  if (!restEl) {
+    restEl = document.createElement('div');
+    restEl.id = 'pdv-divisao-restante';
+    restEl.className = 'pdv-divisao-restante';
+    const box = document.getElementById('box-dividir-pag');
+    if (box) box.appendChild(restEl);
+  }
+  restEl.style.color = restante === 0 ? '#27ae60' : restante < 0 ? '#e74c3c' : '#f39c12';
+  restEl.innerHTML = restante === 0
+    ? '<i class="fas fa-check-circle"></i> Valores conferem!'
+    : restante > 0
+      ? `Faltam: Gs ${restante.toLocaleString('es-PY')}`
+      : `Excesso: Gs ${Math.abs(restante).toLocaleString('es-PY')}`;
+}
+
+// Sobrescreve forma_pagamento ao salvar se houver divisão ativa
+function _obterPagamentoPDV() {
+  const box = document.getElementById('box-dividir-pag');
+  const dividindo = box && box.style.display !== 'none' && _divisoesPagamento.length > 0;
+  if (!dividindo) {
+    return document.getElementById('balcao-pag').value;
+  }
+  // Retorna descrição das divisões
+  return _divisoesPagamento
+    .filter(d => d.valor)
+    .map(d => `${d.metodo}: Gs ${parseInt(d.valor).toLocaleString('es-PY')}`)
+    .join(' + ');
 }

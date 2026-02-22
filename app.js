@@ -1360,6 +1360,8 @@ function mudarModoEntrega(modo) {
   modoEntrega = modo;
   document.getElementById('btn-delivery').classList.toggle('active', modo === 'delivery');
   document.getElementById('btn-retirada').classList.toggle('active', modo === 'retirada');
+  const btnLocal = document.getElementById('btn-local');
+  if (btnLocal) btnLocal.classList.toggle('active', modo === 'local');
   document.getElementById('box-endereco').style.display = modo === 'delivery' ? 'block' : 'none';
   atualizarTotalCheckout();
 }
@@ -1367,182 +1369,6 @@ function mudarModoEntrega(modo) {
 function toggleFactura() {
   const checked = document.getElementById('check-factura').checked;
   document.getElementById('box-ruc').classList.toggle('hidden', !checked);
-}
-
-// ==========================================
-// MULTIPAGAMENTO — estado e funções
-// ==========================================
-let _multiPagAtivo = false;
-let _linhasPag = []; // [{metodo:'', valor:0}]
-
-function _totalCarrinhoAtual() {
-  const totalItens = carrinho.reduce((a, i) => a + i.preco * i.qtd, 0);
-  let freteAplicado = modoEntrega === 'delivery' ? freteCalculado : 0;
-  let desconto = 0;
-  if (cupomAplicado) {
-    if (cupomAplicado.tipo === 'percentual') desconto = Math.round(totalItens * (cupomAplicado.valor / 100));
-    else if (cupomAplicado.tipo === 'frete') freteAplicado = 0;
-  }
-  return totalItens - desconto + freteAplicado;
-}
-
-function toggleMultiPag() {
-  _multiPagAtivo = !_multiPagAtivo;
-  const modoSimples = document.getElementById('pag-modo-simples');
-  const modoMulti   = document.getElementById('pag-modo-multi');
-  const btnTxt      = document.getElementById('txt-dividir-pag');
-  const btn         = document.getElementById('btn-dividir-pag');
-
-  if (_multiPagAtivo) {
-    modoSimples.style.display = 'none';
-    modoMulti.style.display   = 'block';
-    btn.classList.add('ativo');
-    btnTxt.textContent = 'Usar pagamento único';
-    // Inicializa com 2 linhas
-    _linhasPag = [
-      { metodo: '', valor: '' },
-      { metodo: '', valor: '' },
-    ];
-    renderizarLinhasPag();
-  } else {
-    modoSimples.style.display = '';
-    modoMulti.style.display   = 'none';
-    btn.classList.remove('ativo');
-    btnTxt.textContent = 'Dividir pagamento';
-    _linhasPag = [];
-    // Reset simples
-    document.getElementById('forma-pag').value = '';
-    document.getElementById('info-pagamento-extra').style.display = 'none';
-    document.getElementById('box-troco').classList.add('hidden');
-  }
-}
-
-// Re-renderiza tudo (só ao trocar método, add/remove linha — NUNCA no oninput de valor)
-function renderizarLinhasPag() {
-  const lista = document.getElementById('multi-pag-lista');
-  if (!lista) return;
-
-  const metodos = [
-    { v: 'Efetivo',       txt: '💵 Efetivo (Gs)' },
-    { v: 'Cartao',        txt: '💳 Cartão' },
-    { v: 'Pix',           txt: '📱 Pix (BR)' },
-    { v: 'Transferencia', txt: '🏦 Transferência/Alias' },
-  ];
-
-  lista.innerHTML = _linhasPag.map((l, i) => {
-    const isLast = i === _linhasPag.length - 1;
-    const opts = metodos.map(m =>
-      `<option value="${m.v}" ${l.metodo === m.v ? 'selected' : ''}>${m.txt}</option>`
-    ).join('');
-
-    return `
-      <div class="multi-pag-linha" data-idx="${i}">
-        <div class="multi-pag-linha-top">
-          <span class="multi-pag-num">${i + 1}ª forma</span>
-          ${_linhasPag.length > 2 && i > 0 ? `<button type="button" class="btn-rm-pag" onclick="removerLinhaPag(${i})"><i class="fas fa-times"></i></button>` : ''}
-        </div>
-        <div class="multi-pag-linha-body">
-          <select class="multi-pag-select" onchange="multiPagTrocarMetodo(${i}, this.value)">
-            <option value="">Selecionar forma...</option>
-            ${opts}
-          </select>
-          <div class="multi-pag-valor-wrap">
-            <span class="multi-pag-gs">Gs</span>
-            <input type="number"
-              id="mpag-val-${i}"
-              class="multi-pag-input"
-              placeholder="0"
-              value="${l.valor || ''}"
-              min="0"
-              ${isLast ? 'readonly tabindex="-1"' : ''}
-              oninput="multiPagDigitar(${i}, this.value)"
-            >
-          </div>
-        </div>
-        ${l.metodo === 'Efetivo' ? `
-          <div class="multi-pag-troco">
-            <label>Troco para:</label>
-            <input type="text" class="multi-pag-input-troco" placeholder="Ex: 100.000"
-              value="${l.troco || ''}"
-              oninput="_linhasPag[${i}].troco = this.value">
-          </div>` : ''}
-        ${l.metodo === 'Pix' && parseFloat(l.valor) > 0 ? `
-          <div class="multi-pag-info-box">
-            <i class="fas fa-qrcode"></i>
-            Chave Pix: <strong>${CHAVE_PIX}</strong><br>
-            Valor: <strong>R$ ${(parseFloat(l.valor) / COTACAO_REAL).toFixed(2)}</strong>
-            <small>(Gs ${parseFloat(l.valor).toLocaleString('es-PY')})</small>
-          </div>` : ''}
-        ${l.metodo === 'Transferencia' ? `
-          <div class="multi-pag-info-box">
-            <i class="fas fa-university"></i> ${DADOS_ALIAS}<br>${ALIAS_PY}
-          </div>` : ''}
-      </div>`;
-  }).join('');
-
-  _recalcUltimo();
-}
-
-// Troca de método → re-renderiza (sem input de valor ativo)
-function multiPagTrocarMetodo(idx, valor) {
-  _linhasPag[idx].metodo = valor;
-  renderizarLinhasPag();
-}
-
-// Digitação → NUNCA re-renderiza, só atualiza estado + campo readonly do último
-function multiPagDigitar(idx, valor) {
-  _linhasPag[idx].valor = parseFloat(valor) || 0;
-  _recalcUltimo();
-}
-
-function _recalcUltimo() {
-  const total   = _totalCarrinhoAtual();
-  const last    = _linhasPag.length - 1;
-  const soma    = _linhasPag.slice(0, last).reduce((s, l) => s + (parseFloat(l.valor) || 0), 0);
-  _linhasPag[last].valor = Math.max(0, total - soma);
-
-  // Atualiza só o campo readonly sem tocar no DOM do campo ativo
-  const lastEl = document.getElementById(`mpag-val-${last}`);
-  if (lastEl) lastEl.value = _linhasPag[last].valor || '';
-
-  atualizarRestante();
-}
-
-function adicionarLinhaPag() {
-  if (_linhasPag.length >= 4) { alert('Máximo de 4 formas de pagamento.'); return; }
-  _linhasPag.push({ metodo: '', valor: '' });
-  renderizarLinhasPag();
-}
-
-function removerLinhaPag(idx) {
-  _linhasPag.splice(idx, 1);
-  renderizarLinhasPag();
-}
-
-function atualizarRestante() {
-  const total = _totalCarrinhoAtual();
-  const soma  = _linhasPag.reduce((s, l) => s + (parseFloat(l.valor) || 0), 0);
-  const restante = total - soma;
-  const el = document.getElementById('multi-pag-restante');
-  if (!el) return;
-  if (Math.abs(restante) < 1) {
-    el.innerHTML = `<i class="fas fa-check-circle"></i> Total coberto: Gs ${total.toLocaleString('es-PY')}`;
-    el.className = 'multi-pag-restante ok';
-  } else {
-    el.innerHTML = `<i class="fas fa-exclamation-circle"></i> Faltam: Gs ${Math.abs(restante).toLocaleString('es-PY')}`;
-    el.className = 'multi-pag-restante pendente';
-  }
-}
-
-function _validarMultiPag() {
-  const total = _totalCarrinhoAtual();
-  for (const l of _linhasPag) {
-    if (!l.metodo) { alert('Selecione a forma de pagamento em todas as linhas.'); return false; }
-    if (!l.valor || parseFloat(l.valor) <= 0) { alert('Informe o valor de cada forma de pagamento.'); return false; }
-  }
-  const soma = _linhasPag.reduce((s, l) => s + parseFloat(l.valor), 0);
-  if (Math.abs(soma - total) > 5) { alert(`Os valores não batem com o total.\nTotal: Gs ${total.toLocaleString('es-PY')}\nSoma: Gs ${soma.toLocaleString('es-PY')}`); return false; }
-  return true;
 }
 
 function verificarPagamento() {
@@ -1639,6 +1465,154 @@ function calcularDistancia(lat1, lon1, lat2, lon2) {
 }
 
 // ==========================================
+// MULTIPAGAMENTO — estado e funções
+// ==========================================
+let _multiPagAtivo = false;
+let _linhasPag = [];
+
+function _totalCarrinhoAtual() {
+  const totalItens = carrinho.reduce((a, i) => a + i.preco * i.qtd, 0);
+  let freteAplicado = modoEntrega === 'delivery' ? freteCalculado : 0;
+  let desconto = 0;
+  if (cupomAplicado) {
+    if (cupomAplicado.tipo === 'percentual') desconto = Math.round(totalItens * (cupomAplicado.valor / 100));
+    else if (cupomAplicado.tipo === 'frete') freteAplicado = 0;
+  }
+  return totalItens - desconto + freteAplicado;
+}
+
+function toggleMultiPag() {
+  _multiPagAtivo = !_multiPagAtivo;
+  const modoSimples = document.getElementById('pag-modo-simples');
+  const modoMulti   = document.getElementById('pag-modo-multi');
+  const btnTxt      = document.getElementById('txt-dividir-pag');
+  const btn         = document.getElementById('btn-dividir-pag');
+
+  if (_multiPagAtivo) {
+    modoSimples.style.display = 'none';
+    modoMulti.style.display   = 'block';
+    btn.classList.add('ativo');
+    btnTxt.textContent = 'Usar pagamento único';
+    _linhasPag = [{ metodo: '', valor: '' }, { metodo: '', valor: '' }];
+    renderizarLinhasPag();
+  } else {
+    modoSimples.style.display = '';
+    modoMulti.style.display   = 'none';
+    btn.classList.remove('ativo');
+    btnTxt.textContent = 'Dividir pagamento';
+    _linhasPag = [];
+    document.getElementById('forma-pag').value = '';
+    document.getElementById('info-pagamento-extra').style.display = 'none';
+    document.getElementById('box-troco').classList.add('hidden');
+  }
+}
+
+function renderizarLinhasPag() {
+  const lista = document.getElementById('multi-pag-lista');
+  if (!lista) return;
+  const metodos = [
+    { v: 'Efetivo',       txt: '\u{1F4B5} Efetivo (Gs)' },
+    { v: 'Cartao',        txt: '\u{1F4B3} Cartão' },
+    { v: 'Pix',           txt: '\u{1F4F1} Pix (BR)' },
+    { v: 'Transferencia', txt: '\u{1F3E6} Transferência/Alias' },
+  ];
+  lista.innerHTML = _linhasPag.map((l, i) => {
+    const isLast = i === _linhasPag.length - 1;
+    const opts = metodos.map(m => `<option value="${m.v}" ${l.metodo === m.v ? 'selected' : ''}>${m.txt}</option>`).join('');
+    const infoBox = l.metodo === 'Efetivo' ? `
+      <div class="multi-pag-troco">
+        <label>Troco para:</label>
+        <input type="text" class="multi-pag-input-troco" placeholder="Ex: 100.000"
+          value="${l.troco || ''}" oninput="_linhasPag[${i}].troco = this.value">
+      </div>` : l.metodo === 'Pix' && parseFloat(l.valor) > 0 ? `
+      <div class="multi-pag-info-box">
+        Chave Pix: <strong>${'${CHAVE_PIX}'}</strong><br>
+        Valor: <strong>R$ ${'${(parseFloat(l.valor)/COTACAO_REAL).toFixed(2)}'}</strong>
+      </div>` : l.metodo === 'Transferencia' ? `
+      <div class="multi-pag-info-box">${'${DADOS_ALIAS}'}<br>${'${ALIAS_PY}'}</div>` : '';
+    return `
+      <div class="multi-pag-linha" data-idx="${i}">
+        <div class="multi-pag-linha-top">
+          <span class="multi-pag-num">${i + 1}\u00AA forma</span>
+          ${_linhasPag.length > 2 && i > 0 ? `<button type="button" class="btn-rm-pag" onclick="removerLinhaPag(${i})"><i class="fas fa-times"></i></button>` : ''}
+        </div>
+        <div class="multi-pag-linha-body">
+          <select class="multi-pag-select" onchange="multiPagTrocarMetodo(${i}, this.value)">
+            <option value="">Selecionar forma...</option>
+            ${opts}
+          </select>
+          <div class="multi-pag-valor-wrap">
+            <span class="multi-pag-gs">Gs</span>
+            <input type="number" id="mpag-val-${i}" class="multi-pag-input"
+              placeholder="0" value="${l.valor || ''}" min="0"
+              ${isLast ? 'readonly tabindex="-1"' : ''}
+              oninput="multiPagDigitar(${i}, this.value)">
+          </div>
+        </div>
+        ${infoBox}
+      </div>`;
+  }).join('');
+  _recalcUltimo();
+}
+
+function multiPagTrocarMetodo(idx, valor) {
+  _linhasPag[idx].metodo = valor;
+  renderizarLinhasPag();
+}
+
+function multiPagDigitar(idx, valor) {
+  _linhasPag[idx].valor = parseFloat(valor) || 0;
+  _recalcUltimo();
+}
+
+function _recalcUltimo() {
+  const total = _totalCarrinhoAtual();
+  const last  = _linhasPag.length - 1;
+  const soma  = _linhasPag.slice(0, last).reduce((s, l) => s + (parseFloat(l.valor) || 0), 0);
+  _linhasPag[last].valor = Math.max(0, total - soma);
+  const lastEl = document.getElementById(`mpag-val-${last}`);
+  if (lastEl) lastEl.value = _linhasPag[last].valor || '';
+  atualizarRestante();
+}
+
+function adicionarLinhaPag() {
+  if (_linhasPag.length >= 4) { alert('Máximo de 4 formas de pagamento.'); return; }
+  _linhasPag.push({ metodo: '', valor: '' });
+  renderizarLinhasPag();
+}
+
+function removerLinhaPag(idx) {
+  _linhasPag.splice(idx, 1);
+  renderizarLinhasPag();
+}
+
+function atualizarRestante() {
+  const total = _totalCarrinhoAtual();
+  const soma  = _linhasPag.reduce((s, l) => s + (parseFloat(l.valor) || 0), 0);
+  const restante = total - soma;
+  const el = document.getElementById('multi-pag-restante');
+  if (!el) return;
+  if (Math.abs(restante) < 1) {
+    el.innerHTML = `<i class="fas fa-check-circle"></i> Total coberto: Gs ${total.toLocaleString('es-PY')}`;
+    el.className = 'multi-pag-restante ok';
+  } else {
+    el.innerHTML = `<i class="fas fa-exclamation-circle"></i> Faltam: Gs ${Math.abs(restante).toLocaleString('es-PY')}`;
+    el.className = 'multi-pag-restante pendente';
+  }
+}
+
+function _validarMultiPag() {
+  const total = _totalCarrinhoAtual();
+  for (const l of _linhasPag) {
+    if (!l.metodo) { alert('Selecione a forma de pagamento em todas as linhas.'); return false; }
+    if (!l.valor || parseFloat(l.valor) <= 0) { alert('Informe o valor de cada forma de pagamento.'); return false; }
+  }
+  const soma = _linhasPag.reduce((s, l) => s + parseFloat(l.valor), 0);
+  if (Math.abs(soma - total) > 5) { alert(`Os valores não batem com o total.\nTotal: Gs ${total.toLocaleString('es-PY')}\nSoma: Gs ${soma.toLocaleString('es-PY')}`); return false; }
+  return true;
+}
+
+// ==========================================
 // 8. ENVIO DO PEDIDO
 // ==========================================
 async function enviarZap() {
@@ -1646,7 +1620,6 @@ async function enviarZap() {
   const ddi = document.getElementById('cli-ddi').value;
   const tel = document.getElementById('cli-tel').value.trim();
 
-  // ── Valida pagamento (simples ou multi) ──────────────────────────
   let pag, obsPag;
   if (_multiPagAtivo) {
     if (!_validarMultiPag()) return;
@@ -1672,21 +1645,14 @@ async function enviarZap() {
   const totalItens = carrinho.reduce((a, i) => a + i.preco * i.qtd, 0);
   let desconto = 0;
   let freteAplicado = freteCalculado;
-  
   if (cupomAplicado) {
-    if (cupomAplicado.tipo === 'percentual') {
-      desconto = Math.round(totalItens * (cupomAplicado.valor / 100));
-    } else if (cupomAplicado.tipo === 'frete') {
-      freteAplicado = 0;
-    }
+    if (cupomAplicado.tipo === 'percentual') desconto = Math.round(totalItens * (cupomAplicado.valor / 100));
+    else if (cupomAplicado.tipo === 'frete') freteAplicado = 0;
   }
-  
   const totalGeral = totalItens - desconto + (modoEntrega === 'delivery' ? freteAplicado : 0);
 
-  // 1. Salva no Banco PRIMEIRO para pegar o ID real
   let pedidoDbId = null;
   let numeroPedido = null;
-  
   if (typeof supa !== 'undefined') {
     const pedidoDb = {
       status: 'pendente',
@@ -1707,25 +1673,14 @@ async function enviarZap() {
         ? { ruc: document.getElementById('cli-ruc').value, razao: document.getElementById('cli-zao').value }
         : null,
     };
-
     const { data: pedidoSalvo, error } = await supa.from('pedidos').insert([pedidoDb]).select().single();
-
-    if (error) {
-      console.error('Erro ao salvar pedido:', error);
-      alert('⚠️ Erro ao salvar pedido no sistema. Tente novamente.');
-      return;
-    }
-    
+    if (error) { console.error('Erro ao salvar pedido:', error); alert('⚠️ Erro ao salvar pedido no sistema. Tente novamente.'); return; }
     if (pedidoSalvo) {
       pedidoDbId = pedidoSalvo.id;
       numeroPedido = pedidoSalvo.id;
       console.log('✅ Pedido salvo com ID:', pedidoDbId);
-
       if (cupomAplicado?.id) {
-        const novosUsos = (cupomAplicado.usos_realizados || 0) + 1;
-        await supa.from('cupons')
-          .update({ usos_realizados: novosUsos })
-          .eq('id', cupomAplicado.id);
+        await supa.from('cupons').update({ usos_realizados: (cupomAplicado.usos_realizados || 0) + 1 }).eq('id', cupomAplicado.id);
       }
     }
   }
@@ -1734,12 +1689,13 @@ async function enviarZap() {
   localStorage.setItem('sushi_user', JSON.stringify({ nome, tel }));
 
   const idDisplay = numeroPedido || 'TEMP';
-  
-  let msg = `🍣 PEDIDO #${idDisplay} - SUSHITERIA\n`;
+  const tipoLabel = modoEntrega === 'delivery' ? 'DELIVERY' : modoEntrega === 'local' ? 'COMER NO LOCAL' : 'RETIRADA';
+
+  let msg = `🍣 PEDIDO #${idDisplay} - SUSHI TOP\n`;
   msg += `--------------------------\n`;
   msg += `👤 Cliente: ${nome}\n`;
   msg += `📱 Tel: ${telCompleto}\n`;
-  msg += `🛵 Tipo: ${modoEntrega === 'delivery' ? 'DELIVERY' : 'RETIRADA'}\n`;
+  msg += `🏷️ Tipo: ${tipoLabel}\n`;
 
   if (modoEntrega === 'delivery') {
     if (localCliente && freteAplicado > 0) {
@@ -1763,28 +1719,19 @@ async function enviarZap() {
 
   msg += `--------------------------\n`;
   msg += `Subtotal: Gs ${totalItens.toLocaleString('es-PY')}\n`;
-  
-  if (desconto > 0) {
-    msg += `Desconto (${cupomAplicado.codigo}): -Gs ${desconto.toLocaleString('es-PY')}\n`;
-  }
-  
-  if (modoEntrega === 'delivery' && !usouPlanoB) {
-      msg += `Delivery: Gs ${freteAplicado.toLocaleString('es-PY')}\n`;
-  }
+  if (desconto > 0) msg += `Desconto (${cupomAplicado.codigo}): -Gs ${desconto.toLocaleString('es-PY')}\n`;
+  if (modoEntrega === 'delivery' && !usouPlanoB) msg += `Delivery: Gs ${freteAplicado.toLocaleString('es-PY')}\n`;
   msg += `TOTAL: Gs ${totalGeral.toLocaleString('es-PY')}\n`;
   msg += `--------------------------\n`;
 
-  // ── Bloco de pagamento ──────────────────────────────────────────
   if (_multiPagAtivo && _linhasPag.length > 0) {
     msg += `💳 PAGAMENTO DIVIDIDO:\n`;
     _linhasPag.forEach((l, i) => {
-      const valorFmt = parseFloat(l.valor).toLocaleString('es-PY');
-      msg += `  ${i + 1}. ${l.metodo}: Gs ${valorFmt}`;
+      msg += `  ${i + 1}. ${l.metodo}: Gs ${parseFloat(l.valor).toLocaleString('es-PY')}`;
       if (l.metodo === 'Efetivo' && l.troco) msg += ` (Troco p/ ${l.troco})`;
       msg += `\n`;
       if (l.metodo === 'Pix') {
-        const brl = (parseFloat(l.valor) / COTACAO_REAL).toFixed(2);
-        msg += `     Chave Pix: ${CHAVE_PIX} — R$ ${brl}\n`;
+        msg += `     Chave Pix: ${CHAVE_PIX} — R$ ${(parseFloat(l.valor) / COTACAO_REAL).toFixed(2)}\n`;
         msg += `     ⚠️ Envie o comprovante após o pagamento!\n`;
       }
       if (l.metodo === 'Transferencia') {
@@ -1794,43 +1741,36 @@ async function enviarZap() {
     });
   } else {
     if (pag === 'Efetivo') {
-       const trocoVal = document.getElementById('troco-valor').value;
-       msg += `💰 Pagamento: Efetivo (Troco p/: ${trocoVal})\n`;
+      msg += `💰 Pagamento: Efetivo (Troco p/: ${document.getElementById('troco-valor').value})\n`;
     } else {
-       msg += `💰 Pagamento: ${pag}\n`;
+      msg += `💰 Pagamento: ${pag}\n`;
     }
     if (pag === 'Pix' || pag === 'Transferencia') {
-        if (pag === 'Pix') {
-            const totalBrl = COTACAO_REAL > 0 ? (totalGeral / COTACAO_REAL).toFixed(2) : '---';
-            msg += `\n💠 Chave Pix: ${CHAVE_PIX}\n`;
-            msg += `💰 Valor em Reais: R$ ${totalBrl} (Gs ${totalGeral.toLocaleString('es-PY')} ÷ ${COTACAO_REAL})\n`;
-        }
-        if (pag === 'Transferencia') msg += `\n📎 Alias: ${ALIAS_PY}\n`;
-        msg += `\n⚠️ ATENÇÃO: Envie o comprovante / Enviar comprobante.\n`;
-        msg += `\n⚠️ *ATENÇÃO: SEU PEDIDO SERÁ CONFIRMADO APENAS APÓS O ENVIO DE SEU COMPROVANTE*\n`;
+      if (pag === 'Pix') {
+        const totalBrl = COTACAO_REAL > 0 ? (totalGeral / COTACAO_REAL).toFixed(2) : '---';
+        msg += `\n💠 Chave Pix: ${CHAVE_PIX}\n`;
+        msg += `💰 Valor em Reais: R$ ${totalBrl} (Gs ${totalGeral.toLocaleString('es-PY')} ÷ ${COTACAO_REAL})\n`;
+      }
+      if (pag === 'Transferencia') msg += `\n📎 Alias: ${ALIAS_PY}\n`;
+      msg += `\n⚠️ ATENÇÃO: Envie o comprovante / Enviar comprobante.\n`;
+      msg += `\n⚠️ *ATENÇÃO: SEU PEDIDO SERÁ CONFIRMADO APENAS APÓS O ENVIO DE SEU COMPROVANTE*\n`;
     }
   }
 
-  // Factura
   if (document.getElementById('check-factura').checked) {
-      msg += `\n📄 RUC: ${document.getElementById('cli-ruc').value}\nRazão: ${document.getElementById('cli-zao').value}\n`;
+    msg += `\n📄 RUC: ${document.getElementById('cli-ruc').value}\nRazão: ${document.getElementById('cli-zao').value}\n`;
   }
 
   window.open(`https://wa.me/${FONE_LOJA}?text=${encodeURIComponent(msg)}`, '_blank');
 
-  // Limpa e fecha
   carrinho = [];
   cupomAplicado = null;
   _multiPagAtivo = false;
   _linhasPag = [];
   updateUI();
   fecharCheckout();
-  
   alert('✅ Pedido Enviado! Agora você pode acompanhar seu pedido abaixo.');
-  
-  if (numeroPedido) {
-    mostrarCardTracking(numeroPedido);
-  }
+  if (numeroPedido) mostrarCardTracking(numeroPedido);
 }
 
 // ==========================================

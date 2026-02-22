@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PAdmin Sushi Top</title>
+    <title>Painel Administrativo - Sushi Top</title>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link
@@ -21,7 +21,7 @@
     </audio>
 
     <div class="sidebar">
-      <div class="brand">Sushi Top ADMIN</div>
+      <div class="brand">SUSHI TOP ADMIN</div>
 
       <div
         style="padding: 10px; text-align: center; font-size: 0.8rem; background: rgba(0, 0, 0, 0.2)"
@@ -216,79 +216,127 @@
       </div>
 
       <div id="pdv" class="tab-content">
-        <h2 class="section-title">🏪 Venda Balcão (PDV)</h2>
 
+        <!-- PDV Mobile Tabs (hidden on desktop) -->
         <div class="pdv-tabs" id="pdv-tabs" style="display:none">
           <button class="pdv-tab-btn active" onclick="pdvMudarAba('carrinho',this)">🛒 Pedido</button>
-          <button class="pdv-tab-btn" onclick="pdvMudarAba('produtos',this)">🍣 Cardápio</button>
+          <button class="pdv-tab-btn" onclick="pdvMudarAba('produtos',this)">🍽️ Cardápio</button>
           <button class="pdv-tab-btn" onclick="pdvMudarAba('monitor',this)">📋 Mesas</button>
         </div>
 
+        <!-- PDV Main Layout: 3 colunas -->
         <div class="pdv-container">
+
+          <!-- COLUNA ESQUERDA: Carrinho / Pedido -->
           <div class="pdv-carrinho pdv-tab-active">
-            <h4 class="pdv-carrinho-titulo">🛒 Novo Pedido</h4>
-
-            <div class="pdv-form-row">
-              <div class="pdv-mesa-col">
-                <label class="pdv-label">Mesa <span class="obrig">*</span></label>
-                <input type="number" id="balcao-mesa" class="form-control" placeholder="Nº" min="1" required />
+            <!-- Cabeçalho do carrinho -->
+            <div class="pdv-cart-header">
+              <div class="pdv-cart-header-icon"><i class="fas fa-receipt"></i></div>
+              <div>
+                <div class="pdv-cart-title">Novo Pedido</div>
+                <div class="pdv-cart-sub" id="pdv-mesa-label">Mesa não selecionada</div>
               </div>
-              <div class="pdv-cliente-col">
-                <label class="pdv-label">Tipo</label>
-                <select id="balcao-tipo-entrega" class="form-control">
-                  <option value="comer_local">🍽️ Comer no Local</option>
-                  <option value="balcao">🏪 Balcão / Levar</option>
-                </select>
-              </div>
-            </div>
-            <div class="pdv-form-row" style="margin-top:8px">
-              <div style="flex:1">
-                <label class="pdv-label">Cliente</label>
-                <input type="text" id="balcao-cliente" class="form-control" placeholder="Nome do cliente" />
-              </div>
-            </div>
-            <div class="pdv-tel-row">
-              <label class="pdv-label">Telefone (WhatsApp)</label>
-              <input type="tel" id="balcao-telefone" class="form-control" placeholder="Ex: 0981234567" />
+              <button class="pdv-btn-limpar" onclick="pdvLimparPedido()" title="Limpar pedido">
+                <i class="fas fa-trash-alt"></i>
+              </button>
             </div>
 
-            <div class="pdv-lista-itens" id="pdv-lista"></div>
+            <!-- Dados rápidos (mesa + cliente numa linha) -->
+            <div class="pdv-quick-form">
+              <div class="pdv-quick-field">
+                <i class="fas fa-chair pdv-field-icon"></i>
+                <input type="number" id="balcao-mesa" class="pdv-quick-input" placeholder="Mesa Nº" min="1"
+                  onchange="document.getElementById('pdv-mesa-label').textContent = this.value ? 'Mesa ' + this.value : 'Mesa não selecionada'" />
+              </div>
+              <div class="pdv-quick-field">
+                <i class="fas fa-user pdv-field-icon"></i>
+                <input type="text" id="balcao-cliente" class="pdv-quick-input" placeholder="Nome do cliente" />
+              </div>
+              <div class="pdv-quick-field">
+                <i class="fas fa-phone pdv-field-icon"></i>
+                <input type="tel" id="balcao-telefone" class="pdv-quick-input" placeholder="Telefone" />
+              </div>
+            </div>
 
+            <!-- Lista de itens do carrinho -->
+            <div class="pdv-lista-itens" id="pdv-lista">
+              <p class="pdv-lista-vazio"><i class="fas fa-shopping-basket"></i><br>Clique nos produtos para adicionar</p>
+            </div>
+
+            <!-- Totais + Pagamento + Botão -->
             <div class="pdv-total-box">
               <div class="pdv-total-row">
-                <span>Total:</span>
-                <span>Gs <span id="balcao-total">0</span></span>
+                <span>TOTAL</span>
+                <span class="pdv-total-valor">Gs <span id="balcao-total">0</span></span>
               </div>
-              <select id="balcao-pag" class="form-control" class="pdv-select-pag"
-                onchange="atualizarInfoPagPDV(parseInt(document.getElementById('balcao-total').innerText.replace(/\D/g,'')))">
-                <option value="Efetivo">Efetivo</option>
-                <option value="Cartao">Cartão</option>
-                <option value="Pix">Pix</option>
-                <option value="Transferencia">Transferência</option>
-              </select>
-              <button type="button" onclick="abrirMultiPagPDV()" title="Dividir pagamento entre mais de uma forma"
-                style="margin-top:6px;width:100%;padding:7px;background:#eff6ff;color:#3b82f6;border:1.5px dashed #93c5fd;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer">
-                <i class="fas fa-code-branch"></i> Dividir pagamento
+              <div class="pdv-pag-row">
+                <i class="fas fa-credit-card"></i>
+                <select id="balcao-pag" class="pdv-select-pag"
+                  onchange="atualizarInfoPagPDV(parseInt(document.getElementById('balcao-total').innerText.replace(/\D/g,'')))">
+                  <option value="Efetivo">💵 Efetivo</option>
+                  <option value="Cartao">💳 Cartão</option>
+                  <option value="Pix">📲 Pix</option>
+                  <option value="Transferencia">🏦 Transferência</option>
+                </select>
+              </div>
+              <div id="balcao-pag-info" style="display:none; background:#e8f5e9; border:1px solid #4caf50; border-radius:6px; padding:8px 12px; font-size:0.85rem; color:#1b5e20; margin-bottom:8px"></div>
+
+              <!-- DIVIDIR PAGAMENTO -->
+              <button class="pdv-btn-dividir" onclick="toggleDividirPagamento()">
+                <i class="fas fa-divide"></i> Dividir pagamento
               </button>
-              <div id="balcao-pag-info" style="display:none; background:#e8f5e9; border:1px solid #4caf50; border-radius:6px; padding:8px 12px; font-size:0.9rem; color:#1b5e20; margin-bottom:8px"></div>
-              <button class="btn btn-success" class="btn-lancar-cozinha" onclick="salvarPedidoBalcao()">
-                🚀 LANÇAR NA COZINHA
+              <div id="box-dividir-pag" style="display:none;">
+                <div class="pdv-dividir-header">Divisão do pagamento</div>
+                <div id="pdv-divisoes"></div>
+                <button class="pdv-btn-add-divisao" onclick="adicionarDivisaoPagamento()">
+                  <i class="fas fa-plus"></i> Adicionar forma
+                </button>
+              </div>
+
+              <button class="pdv-btn-lancar" onclick="salvarPedidoBalcao()">
+                <i class="fas fa-paper-plane"></i> LANÇAR NA COZINHA
               </button>
             </div>
           </div>
 
-          <div class="pdv-produtos">
-          <div class="pdv-mesas-bar" id="pdv-mesas-bar">
-            <span class="pdv-mesas-label"><i class="fas fa-chair"></i> Mesas:</span>
-            <span class="mesa-monitor-vazio" id="pdv-mesas-vazio">Nenhuma mesa ativa</span>
+          <!-- COLUNA CENTRAL: Grade de Produtos -->
+          <div class="pdv-produtos pdv-tab-active">
+            <!-- Barra de busca + filtro de categoria -->
+            <div class="pdv-toolbar">
+              <div class="pdv-search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" id="pdv-search" placeholder="Buscar produto..." oninput="filtrarGridPDV(this.value)">
+              </div>
+              <div class="pdv-cat-filter" id="pdv-cat-filter"></div>
+            </div>
+            <!-- Mesas ativas (barra rápida) -->
+            <div class="pdv-mesas-bar" id="pdv-mesas-bar">
+              <span class="pdv-mesas-label"><i class="fas fa-chair"></i> Mesas abertas:</span>
+              <span class="mesa-monitor-vazio" id="pdv-mesas-vazio">Nenhuma ativa</span>
+            </div>
+            <!-- Grid de produtos -->
+            <div id="pdv-grid" class="pdv-grid-wrap"></div>
           </div>
-          <div id="pdv-grid"></div>
+
+          <!-- COLUNA DIREITA: Monitor de Mesas -->
+          <div class="pdv-monitor">
+            <h4 class="pdv-monitor-titulo"><i class="fas fa-utensils"></i> Mesas em Andamento</h4>
+            <div id="lista-mesas-andamento">
+              <p style="text-align:center;font-size:0.8rem;color:#aaa;margin-top:20px">Nenhum pedido ativo.</p>
+            </div>
+          </div>
         </div>
 
-          <div class="pdv-monitor">
-            <h4 class="pdv-monitor-titulo"><i class="fas fa-utensils"></i> Pedidos em Andamento</h4>
-            <div id="lista-mesas-andamento">
-              <p style="text-align: center; font-size: 0.8rem; color: #aaa; margin-top: 20px">Nenhum pedido ativo.</p>
+        <!-- Modal de variações do PDV -->
+        <div id="pdv-var-modal" class="pdv-var-modal-overlay" style="display:none" onclick="if(event.target===this)fecharModalVariacaoPDV()">
+          <div class="pdv-var-modal-box">
+            <div class="pdv-var-modal-header">
+              <span id="pdv-var-titulo">Escolha a opção</span>
+              <button onclick="fecharModalVariacaoPDV()" class="pdv-var-close">✕</button>
+            </div>
+            <div id="pdv-var-opcoes" class="pdv-var-opcoes"></div>
+            <div class="pdv-var-obs-row">
+              <input type="text" id="pdv-var-obs" placeholder="Observação (opcional)" class="pdv-var-obs-input">
             </div>
           </div>
         </div>
@@ -520,7 +568,6 @@
         <div>
           <h3 class="cat-section-title">🏷️ Categorias do Cardápio</h3>
           <p class="cat-section-subtitle">Gerencie a organização e horários de exibição</p>
-          <p class="cat-drag-hint"><i class="fas fa-grip-vertical"></i> Arraste os cards para reordenar o cardápio</p>
         </div>
         <button class="btn btn-primary cat-btn-nova" onclick="abrirModalCategoria()">
           <i class="fas fa-plus"></i> Nova Categoria
@@ -712,7 +759,7 @@
           <div class="cfg-grid">
             <div class="form-group">
               <label>Nome da Loja</label>
-              <input type="text" id="cfg-nome-loja" class="form-control" placeholder="Ex: minha loja">
+              <input type="text" id="cfg-nome-loja" class="form-control" placeholder="Nome da Sua Loja">
             </div>
             <div class="form-group">
               <label>Cor Principal (botões)</label>
@@ -1087,7 +1134,6 @@
 </div>
 
     <script src="supabaseClient.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
     <script src="admin.js"></script>
   
     <!-- ===== MODAL GRÁFICOS ===== -->

@@ -1310,11 +1310,25 @@ footer {
 .var-card.selected .var-card-check {
   opacity: 1;
 }
+/* 3-button delivery toggle */
+.delivery-toggle-3 {
+    flex-wrap: wrap;
+}
+.delivery-toggle-3 button {
+    flex: 1 1 calc(33% - 10px);
+    min-width: 100px;
+    padding: 12px 8px;
+    font-size: 0.9rem;
+}
+@media (max-width: 380px) {
+    .delivery-toggle-3 button {
+        flex: 1 1 100%;
+    }
+}
 /* =============================================
    MULTIPAGAMENTO — UI
    ============================================= */
 
-/* Botão "Dividir pagamento" */
 .btn-dividir-pag {
     display: flex;
     align-items: center;
@@ -1343,7 +1357,6 @@ footer {
     border-style: solid;
 }
 
-/* Header do modo multi */
 .multi-pag-header {
     display: flex;
     align-items: center;
@@ -1355,9 +1368,9 @@ footer {
     border-radius: 8px;
     padding: 8px 12px;
     margin-bottom: 12px;
+    margin-top: 10px;
 }
 
-/* Linha de pagamento */
 .multi-pag-linha {
     background: #fff;
     border: 1.5px solid #e2e8f0;
@@ -1450,7 +1463,6 @@ footer {
     background: transparent;
 }
 
-/* Troco (para linha Efetivo) */
 .multi-pag-troco {
     display: flex;
     align-items: center;
@@ -1468,7 +1480,6 @@ footer {
 }
 .multi-pag-input-troco:focus { outline: none; border-color: #60a5fa; }
 
-/* Info box dentro da linha (Pix / Transfer) */
 .multi-pag-info-box {
     margin-top: 8px;
     background: #eff6ff;
@@ -1480,7 +1491,6 @@ footer {
     line-height: 1.5;
 }
 
-/* Restante / validação */
 .multi-pag-restante {
     display: flex;
     align-items: center;
@@ -1502,7 +1512,6 @@ footer {
     border: 1px solid #fed7aa;
 }
 
-/* Botão adicionar outra forma */
 .btn-add-pag {
     display: flex;
     align-items: center;
