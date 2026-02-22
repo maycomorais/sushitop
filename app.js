@@ -1360,6 +1360,8 @@ function mudarModoEntrega(modo) {
   modoEntrega = modo;
   document.getElementById('btn-delivery').classList.toggle('active', modo === 'delivery');
   document.getElementById('btn-retirada').classList.toggle('active', modo === 'retirada');
+  const btnLocal = document.getElementById('btn-local');
+  if (btnLocal) btnLocal.classList.toggle('active', modo === 'local');
   document.getElementById('box-endereco').style.display = modo === 'delivery' ? 'block' : 'none';
   atualizarTotalCheckout();
 }
@@ -1556,7 +1558,7 @@ async function enviarZap() {
   msg += `--------------------------\n`;
   msg += `👤 Cliente: ${nome}\n`;
   msg += `📱 Tel: ${telCompleto}\n`;
-  msg += `🛵 Tipo: ${modoEntrega === 'delivery' ? 'DELIVERY' : 'RETIRADA'}\n`;
+  msg += `🛵 Tipo: ${modoEntrega === 'delivery' ? 'DELIVERY' : modoEntrega === 'local' ? 'COMER NO LOCAL 🍽️' : 'RETIRADA'}\n`;
 
   if (modoEntrega === 'delivery') {
     if (localCliente && freteAplicado > 0) {

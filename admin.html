@@ -216,68 +216,111 @@
       </div>
 
       <div id="pdv" class="tab-content">
-        <h2 class="section-title">🏪 Venda Balcão (PDV)</h2>
+        <!-- PDV Header -->
+        <div class="pdv-header-bar">
+          <h2 class="section-title" style="margin:0">🏪 Venda Balcão (PDV)</h2>
+          <div class="pdv-view-btns">
+            <button id="pdv-view-btn-venda" class="pdv-view-btn active" onclick="pdvMudarView('venda')">
+              <i class="fas fa-cash-register"></i> <span>Venda</span>
+            </button>
+            <button id="pdv-view-btn-mesas" class="pdv-view-btn" onclick="pdvMudarView('mesas')">
+              <i class="fas fa-clipboard-list"></i> <span>Mesas</span>
+              <span class="pdv-badge-mesas" id="pdv-badge-mesas" style="display:none">0</span>
+            </button>
+          </div>
+        </div>
 
+        <!-- MOBILE TABS (só aparece em mobile) -->
         <div class="pdv-tabs" id="pdv-tabs" style="display:none">
-          <button class="pdv-tab-btn active" onclick="pdvMudarAba('carrinho',this)">🛒 Pedido</button>
-          <button class="pdv-tab-btn" onclick="pdvMudarAba('produtos',this)">🍣 Cardápio</button>
+          <button class="pdv-tab-btn active" onclick="pdvMudarAba('produtos',this)">🍣 Cardápio</button>
+          <button class="pdv-tab-btn" onclick="pdvMudarAba('carrinho',this)">🛒 Pedido</button>
           <button class="pdv-tab-btn" onclick="pdvMudarAba('monitor',this)">📋 Mesas</button>
         </div>
 
-        <div class="pdv-container">
-          <div class="pdv-carrinho pdv-tab-active">
-            <h4 class="pdv-carrinho-titulo">🛒 Novo Pedido</h4>
+        <!-- VIEW: VENDA -->
+        <div id="pdv-panel-venda" class="pdv-view-panel">
+          <div class="pdv-container">
 
-            <div class="pdv-form-row">
-              <div class="pdv-mesa-col">
-                <label class="pdv-label">Mesa <span class="obrig">*</span></label>
-                <input type="number" id="balcao-mesa" class="form-control" placeholder="Nº" min="1" required />
+            <!-- COLUNA ESQUERDA: Produtos -->
+            <div class="pdv-produtos pdv-tab-active">
+              <!-- Barra de categorias + busca -->
+              <div class="pdv-cat-filterbar">
+                <div class="pdv-cat-chips" id="pdv-cat-filter">
+                  <!-- chips gerados por JS -->
+                </div>
+                <input type="text" id="pdv-busca" class="pdv-busca-input" placeholder="🔍 Buscar produto..." oninput="filtrarPDV(this.value)" />
               </div>
-              <div class="pdv-cliente-col">
-                <label class="pdv-label">Cliente</label>
-                <input type="text" id="balcao-cliente" class="form-control" placeholder="Nome do cliente" />
+              <!-- Mesas ativas (chips) -->
+              <div class="pdv-mesas-bar" id="pdv-mesas-bar">
+                <span class="pdv-mesas-label"><i class="fas fa-chair"></i> Mesas:</span>
+                <span class="mesa-monitor-vazio" id="pdv-mesas-vazio">Nenhuma mesa ativa</span>
+              </div>
+              <!-- Grid de produtos -->
+              <div id="pdv-grid"></div>
+            </div>
+
+            <!-- COLUNA DIREITA: Carrinho -->
+            <div class="pdv-carrinho pdv-tab-active">
+              <h4 class="pdv-carrinho-titulo">🛒 Novo Pedido</h4>
+
+              <div class="pdv-form-row">
+                <div class="pdv-mesa-col">
+                  <label class="pdv-label">Mesa <span class="obrig">*</span></label>
+                  <input type="number" id="balcao-mesa" class="form-control" placeholder="Nº" min="1" required />
+                </div>
+                <div class="pdv-cliente-col">
+                  <label class="pdv-label">Cliente</label>
+                  <input type="text" id="balcao-cliente" class="form-control" placeholder="Nome" />
+                </div>
+              </div>
+              <div class="pdv-tel-row">
+                <label class="pdv-label">Telefone</label>
+                <input type="tel" id="balcao-telefone" class="form-control" placeholder="Ex: 0981234567" />
+              </div>
+
+              <div class="pdv-lista-itens" id="pdv-lista"></div>
+
+              <div class="pdv-total-box">
+                <div class="pdv-total-row">
+                  <span>Total:</span>
+                  <span>Gs <span id="balcao-total">0</span></span>
+                </div>
+                <select id="balcao-pag" class="form-control pdv-select-pag"
+                  onchange="atualizarInfoPagPDV(parseInt(document.getElementById('balcao-total').innerText.replace(/\D/g,'')))">
+                  <option value="Efetivo">Efetivo</option>
+                  <option value="Cartao">Cartão</option>
+                  <option value="Pix">Pix</option>
+                  <option value="Transferencia">Transferência</option>
+                </select>
+                <div id="balcao-pag-info" style="display:none; background:#e8f5e9; border:1px solid #4caf50; border-radius:6px; padding:8px 12px; font-size:0.9rem; color:#1b5e20; margin-bottom:8px"></div>
+                <button class="btn btn-success btn-lancar-cozinha" onclick="salvarPedidoBalcao()">
+                  🚀 LANÇAR NA COZINHA
+                </button>
               </div>
             </div>
-            <div class="pdv-tel-row">
-              <label class="pdv-label">Telefone (WhatsApp)</label>
-              <input type="tel" id="balcao-telefone" class="form-control" placeholder="Ex: 0981234567" />
-            </div>
 
-            <div class="pdv-lista-itens" id="pdv-lista"></div>
-
-            <div class="pdv-total-box">
-              <div class="pdv-total-row">
-                <span>Total:</span>
-                <span>Gs <span id="balcao-total">0</span></span>
-              </div>
-              <select id="balcao-pag" class="form-control" class="pdv-select-pag"
-                onchange="atualizarInfoPagPDV(parseInt(document.getElementById('balcao-total').innerText.replace(/\D/g,'')))">
-                <option value="Efetivo">Efetivo</option>
-                <option value="Cartao">Cartão</option>
-                <option value="Pix">Pix</option>
-                <option value="Transferencia">Transferência</option>
-              </select>
-              <div id="balcao-pag-info" style="display:none; background:#e8f5e9; border:1px solid #4caf50; border-radius:6px; padding:8px 12px; font-size:0.9rem; color:#1b5e20; margin-bottom:8px"></div>
-              <button class="btn btn-success" class="btn-lancar-cozinha" onclick="salvarPedidoBalcao()">
-                🚀 LANÇAR NA COZINHA
-              </button>
-            </div>
           </div>
-
-          <div class="pdv-produtos">
-          <div class="pdv-mesas-bar" id="pdv-mesas-bar">
-            <span class="pdv-mesas-label"><i class="fas fa-chair"></i> Mesas:</span>
-            <span class="mesa-monitor-vazio" id="pdv-mesas-vazio">Nenhuma mesa ativa</span>
-          </div>
-          <div id="pdv-grid"></div>
         </div>
 
-          <div class="pdv-monitor">
+        <!-- VIEW: MESAS (monitor) -->
+        <div id="pdv-panel-mesas" class="pdv-view-panel" style="display:none">
+          <div class="pdv-monitor pdv-tab-active" style="height:calc(100vh - 200px); overflow-y:auto">
             <h4 class="pdv-monitor-titulo"><i class="fas fa-utensils"></i> Pedidos em Andamento</h4>
             <div id="lista-mesas-andamento">
               <p style="text-align: center; font-size: 0.8rem; color: #aaa; margin-top: 20px">Nenhum pedido ativo.</p>
             </div>
           </div>
+        </div>
+
+        <!-- MOBILE: barra inferior fixa com total + botão -->
+        <div class="pdv-mobile-footer" id="pdv-mobile-footer" style="display:none">
+          <div class="pdv-mobile-total">
+            <span id="pdv-mobile-qtd">0 itens</span>
+            <span class="pdv-mobile-valor">Gs <strong id="pdv-mobile-total-val">0</strong></span>
+          </div>
+          <button class="pdv-mobile-checkout-btn" onclick="pdvMudarAba('carrinho', document.querySelector('.pdv-tab-btn:nth-child(2)'))">
+            <i class="fas fa-shopping-cart"></i> VER PEDIDO
+          </button>
         </div>
       </div>
 

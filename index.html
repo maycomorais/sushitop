@@ -158,6 +158,7 @@ const _traducoes = {
         'cart-empty-sub':    'Agrega items del menú',
         'btn-delivery':      '🛵 Delivery',
         'btn-retirada':      '🏃 Retiro',
+        'btn-local':         '🍽️ Comer aquí',
         'btn-balcao':        '🏪 Balcón',
         'checkout-title':    'Finalizar Pedido',
         'label-nome':        'Nombre Completo *',
@@ -211,6 +212,7 @@ const _traducoes = {
         'cart-empty-sub':    'Adicione itens do menu',
         'btn-delivery':      '🛵 Delivery',
         'btn-retirada':      '🏃 Retirada',
+        'btn-local':         '🍽️ Comer no Local',
         'btn-balcao':        '🏪 Balcão',
         'checkout-title':    'Finalizar Pedido',
         'label-nome':        'Nome Completo *',
@@ -264,6 +266,7 @@ const _traducoes = {
         'cart-empty-sub':    'Add items from the menu',
         'btn-delivery':      '🛵 Delivery',
         'btn-retirada':      '🏃 Pickup',
+        'btn-local':         '🍽️ Dine In',
         'btn-balcao':        '🏪 Counter',
         'checkout-title':    'Checkout',
         'label-nome':        'Full Name *',
@@ -317,6 +320,7 @@ const _traducoes = {
         'cart-empty-sub':    'Fügen Sie Artikel aus dem Menü hinzu',
         'btn-delivery':      '🛵 Lieferung',
         'btn-retirada':      '🏃 Abholung',
+        'btn-local':         '🍽️ Vor Ort essen',
         'btn-balcao':        '🏪 Theke',
         'checkout-title':    'Bestellung abschließen',
         'label-nome':        'Vollständiger Name *',
@@ -646,6 +650,9 @@ window.addEventListener('DOMContentLoaded', () => {
                         </button>
                         <button id="btn-retirada" onclick="mudarModoEntrega('retirada')">
                             <i class="fas fa-store"></i> <span data-lang-key="retiro">Retiro</span>
+                        </button>
+                        <button id="btn-local" onclick="mudarModoEntrega('local')">
+                            <i class="fas fa-utensils"></i> <span data-lang-key="btn-local">Comer aqui</span>
                         </button>
                     </div>
                 </div>
