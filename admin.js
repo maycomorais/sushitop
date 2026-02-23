@@ -672,9 +672,10 @@ async function carregarCozinha() {
 
     let itensHtml = '';
     itensPendentes.forEach((item) => {
-      // Suporta {qtd, nome, montagem, obs} E {q, n, m, o}
       const quantidade = item.qtd || item.q || 1;
       const nomeItem = item.nome || item.n || 'Item';
+      const variacaoItem = item.variacao || item.t || '';   // variação separada do nome
+      const preparoItem = item.preparo || item.pr || '';    // preparo (cru/flambado etc)
       const observacao = item.obs || item.o || '';
       const montagemArray = item.montagem || item.m || [];
 
@@ -685,10 +686,17 @@ async function carregarCozinha() {
       const montagem = listaMontagem
         ? `<div style="font-size:0.8rem; color:#666; margin-left:10px;">+ ${listaMontagem}</div>`
         : '';
+      const variacaoHtml = variacaoItem
+        ? `<span style="color:#FF441F; font-size:0.85rem; font-weight:600;"> ▸ ${variacaoItem}</span>`
+        : '';
+      const preparoHtml = preparoItem
+        ? `<div style="color:#2980b9; font-size:0.82rem; margin-left:10px;">🍳 ${preparoItem}</div>`
+        : '';
 
       itensHtml += `
                     <li style="border-bottom:1px dashed #444; padding:5px 0;">
-                        <strong>${quantidade}x</strong> ${nomeItem}
+                        <strong>${quantidade}x</strong> ${nomeItem}${variacaoHtml}
+                        ${preparoHtml}
                         ${montagem}
                         ${obs}
                     </li>
@@ -1138,7 +1146,16 @@ async function carregarRelatorio() {
         cancelado: '❌ Cancelado',
       }[p.status] || p.status;
     const itensList = (p.itens || [])
-      .map((i) => (i.qtd || i.q || 1) + 'x ' + (i.nome || i.n || '?'))
+      .map((i) => {
+        const qtd = i.qtd || i.q || 1;
+        const nome = i.nome || i.n || '?';
+        const variacao = i.variacao || i.t || '';
+        const preparo = i.preparo || i.pr || '';
+        let label = `${qtd}x ${nome}`;
+        if (variacao && variacao !== nome) label += ` ▸ ${variacao}`;
+        if (preparo) label += ` [${preparo}]`;
+        return label;
+      })
       .join(', ');
     tbody.innerHTML +=
       '<tr><td><strong>#' +
@@ -1664,11 +1681,22 @@ async function salvarProduto() {
     if (temExtras) {
       const extras = [];
       document.querySelectorAll('.extra-row').forEach((row) => {
-        const n = row.querySelector('[data-f="enome"]').value;
-        const p = parseFloat(row.querySelector('[data-f="epreco"]').value) || 0;
+        const n = row.querySelector('[data-f="enome"]')?.value;
+        const p = parseFloat(row.querySelector('[data-f="epreco"]')?.value) || 0;
         if (n) extras.push({ nome: n, preco: p });
       });
       configFinal.extras = extras;
+    }
+
+    // Opções de Preparo
+    const temPreparo = document.getElementById('prod-tem-preparo')?.checked;
+    if (temPreparo) {
+      const preparoOpcoes = [];
+      document.querySelectorAll('.preparo-opcao-input').forEach(inp => {
+        const v = inp.value.trim();
+        if (v) preparoOpcoes.push(v);
+      });
+      if (preparoOpcoes.length > 0) configFinal.preparo_opcoes = preparoOpcoes;
     }
 
     // Variações de sabor
@@ -1809,6 +1837,16 @@ async function abrirModalProduto(produto = null, tipoInicial = null) {
         document.getElementById('prod-tem-extras').checked = true;
         document.getElementById('extras-area').style.display = 'block';
         cfg.extras.forEach((ex) => addExtra(ex));
+      }
+      // Opções de Preparo
+      const prepEl = document.getElementById('prod-tem-preparo');
+      const preparoArea = document.getElementById('preparo-area');
+      const preparoLista = document.getElementById('preparo-lista');
+      if (prepEl && cfg.preparo_opcoes && cfg.preparo_opcoes.length > 0) {
+        prepEl.checked = true;
+        if (preparoArea) preparoArea.style.display = 'block';
+        if (preparoLista) preparoLista.innerHTML = '';
+        cfg.preparo_opcoes.forEach(op => addOpcaoPreparo(op));
       }
     } else if (cfg && Array.isArray(cfg)) {
       // Compatibilidade: array antigo = montavel
@@ -2095,6 +2133,65 @@ function addExtra(dados = {}) {
     <button class="btn btn-sm btn-danger" onclick="this.closest('.extra-row').remove()" title="Remover">✕</button>
   `;
   lista.appendChild(row);
+}
+
+// ── PREPARO ──────────────────────────────────
+function togglePreparo() {
+  const ativo = document.getElementById('prod-tem-preparo').checked;
+  document.getElementById('preparo-area').style.display = ativo ? 'block' : 'none';
+}
+
+function addOpcaoPreparo(valor = '') {
+  const lista = document.getElementById('preparo-lista');
+  const row = document.createElement('div');
+  row.className = 'extra-row preparo-row-admin';
+  row.innerHTML = `
+    <input class="form-control preparo-opcao-input" value="${valor}" placeholder="Ex: Salmão Flambado, Batata Frita">
+    <button class="btn btn-sm btn-danger" onclick="this.closest('.preparo-row-admin').remove()" title="Remover">✕</button>
+  `;
+  lista.appendChild(row);
+}
+
+// ── ADICIONAIS GLOBAIS ────────────────────────
+function addExtraGlobal(dados = {}) {
+  const lista = document.getElementById('extras-globais-lista');
+  const row = document.createElement('div');
+  row.className = 'extra-row';
+  row.style.marginBottom = '8px';
+  row.innerHTML = `
+    <input data-f="gnome" class="form-control" value="${dados.nome || ''}" placeholder="Ex: Shoyu Extra, Cream Cheese">
+    <input data-f="gpreco" type="number" class="form-control" value="${dados.preco || 0}" placeholder="Preço (0 = Grátis)">
+    <button class="btn btn-sm btn-danger" onclick="this.closest('.extra-row').remove()" title="Remover">✕</button>
+  `;
+  lista.appendChild(row);
+}
+
+async function salvarExtrasGlobais() {
+  const extras = [];
+  document.querySelectorAll('#extras-globais-lista .extra-row').forEach(row => {
+    const nome = row.querySelector('[data-f="gnome"]').value.trim();
+    const preco = parseFloat(row.querySelector('[data-f="gpreco"]').value) || 0;
+    if (nome) extras.push({ nome, preco });
+  });
+
+  const { error } = await supa.from('configuracoes').update({ extras_globais: extras }).eq('id', 1);
+  if (error) {
+    alert('Erro ao salvar adicionais globais: ' + error.message);
+  } else {
+    alert('✅ Adicionais globais salvos com sucesso!');
+  }
+}
+
+async function carregarExtrasGlobaisAdmin() {
+  const lista = document.getElementById('extras-globais-lista');
+  if (!lista) return;
+  lista.innerHTML = '';
+  try {
+    const { data } = await supa.from('configuracoes').select('extras_globais').single();
+    if (data?.extras_globais && Array.isArray(data.extras_globais)) {
+      data.extras_globais.forEach(ex => addExtraGlobal(ex));
+    }
+  } catch (e) { /* tabela sem extras ainda */ }
 }
 
 // =========================================
@@ -3232,6 +3329,9 @@ async function carregarConfiguracoes() {
     if (prevIcone) prevIcone.src = data.icone_url;
     if (boxIcone) boxIcone.style.display = 'block';
   }
+
+  // Carrega adicionais globais
+  await carregarExtrasGlobaisAdmin();
 }
 
 async function salvarConfiguracoes() {
@@ -3857,49 +3957,78 @@ function adicionarItemPDV(p) {
   }
 }
 
+// Cache seguro de produto — evita JSON.stringify em onclick (causava crash com montagem_config)
+window._pdvProdCache = {};
+
 function _mostrarModalVariacaoPDV(produto, variacoes) {
-  // Remove modal anterior se existir
   document.getElementById('pdv-var-modal')?.remove();
+
+  // Guarda produto no cache por ID
+  const cacheKey = 'pdv_' + (produto.id || Date.now());
+  window._pdvProdCache[cacheKey] = produto;
+
   const overlay = document.createElement('div');
   overlay.id = 'pdv-var-modal';
   overlay.style.cssText =
     'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
-  overlay.onclick = (e) => {
-    if (e.target === overlay) overlay.remove();
-  };
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
 
   const modal = document.createElement('div');
   modal.style.cssText =
     'background:#fff;border-radius:16px;padding:20px;max-width:420px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)';
-  modal.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <h4 style="margin:0;font-size:1rem;color:#333">🎨 Escolha a variação</h4>
-      <button onclick="document.getElementById('pdv-var-modal').remove()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#999">✕</button>
-    </div>
-    <p style="font-size:0.88rem;color:#666;margin-bottom:14px">${produto.nome}</p>
-    <div style="display:flex;flex-direction:column;gap:10px">
-      ${variacoes
-        .map(
-          (v, idx) => `
-        <button onclick="
-          const p = ${JSON.stringify(produto).replace(/'/g, '&apos;')};
-          const existe = carrinhoPDV.find(i => i.id === p.id && i.variacao === '${v.nome.replace(/'/g, "\\'")}');
-          if (existe) existe.qtd++;
-          else carrinhoPDV.push({...p, preco:${v.preco || produto.preco}, qtd:1, variacao:'${v.nome.replace(/'/g, "\\'")}' });
-          atualizarCarrinhoPDV();
-          document.getElementById('pdv-var-modal').remove();
-        " style="display:flex;align-items:center;gap:12px;background:#f9f9f9;border:2px solid #e5e7eb;border-radius:10px;padding:10px 14px;cursor:pointer;text-align:left;transition:border-color 0.15s" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='#e5e7eb'">
-          ${v.img ? `<img src="${v.img}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;flex-shrink:0" onerror="this.style.display='none'">` : produto.imagem_url ? `<img src="${produto.imagem_url}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;flex-shrink:0">` : ''}
-          <div style="flex:1">
-            <div style="font-weight:700;font-size:0.9rem;color:#333">${v.nome}</div>
-            <div style="font-size:0.82rem;color:var(--primary);font-weight:600">Gs ${(v.preco || produto.preco).toLocaleString('es-PY')}</div>
-          </div>
-        </button>
-      `,
-        )
-        .join('')}
-    </div>
-  `;
+
+  const header = document.createElement('div');
+  header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:16px';
+  header.innerHTML = `
+    <h4 style="margin:0;font-size:1rem;color:#333">🎨 Escolha a variação</h4>
+    <button id="_pdv-var-close" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#999">✕</button>`;
+  modal.appendChild(header);
+  modal.querySelector('#_pdv-var-close').onclick = () => overlay.remove();
+
+  const nomeProd = document.createElement('p');
+  nomeProd.style.cssText = 'font-size:0.88rem;color:#666;margin-bottom:14px';
+  nomeProd.textContent = produto.nome;
+  modal.appendChild(nomeProd);
+
+  const lista = document.createElement('div');
+  lista.style.cssText = 'display:flex;flex-direction:column;gap:10px';
+
+  variacoes.forEach((v) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.style.cssText =
+      'display:flex;align-items:center;gap:12px;background:#f9f9f9;border:2px solid #e5e7eb;border-radius:10px;padding:10px 14px;cursor:pointer;text-align:left;transition:border-color 0.15s;width:100%';
+    btn.onmouseover = () => { btn.style.borderColor = 'var(--primary)'; };
+    btn.onmouseout  = () => { btn.style.borderColor = '#e5e7eb'; };
+
+    const imgSrc = v.img || produto.imagem_url;
+    btn.innerHTML = `
+      ${imgSrc ? `<img src="${imgSrc}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;flex-shrink:0" onerror="this.style.display='none'">` : ''}
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:0.9rem;color:#333">${v.nome}</div>
+        <div style="font-size:0.82rem;color:var(--primary);font-weight:600">Gs ${(v.preco || produto.preco || 0).toLocaleString('es-PY')}</div>
+      </div>`;
+
+    btn.onclick = () => {
+      const p = window._pdvProdCache[cacheKey];
+      if (!p) return;
+      const existe = carrinhoPDV.find(i => i.id === p.id && i.variacao === v.nome);
+      if (existe) {
+        existe.qtd++;
+      } else {
+        carrinhoPDV.push({
+          id: p.id, nome: p.nome, img: p.imagem_url,
+          preco: v.preco || p.preco || 0,
+          qtd: 1, variacao: v.nome, montagem: [], obs: ''
+        });
+      }
+      atualizarCarrinhoPDV();
+      overlay.remove();
+    };
+    lista.appendChild(btn);
+  });
+
+  modal.appendChild(lista);
   overlay.appendChild(modal);
   document.body.appendChild(overlay);
 }
@@ -4100,15 +4229,123 @@ function atualizarCarrinhoPDV() {
 function atualizarInfoPagPDV(total) {
   const pag = document.getElementById('balcao-pag')?.value;
   const infoBox = document.getElementById('balcao-pag-info');
+  const boxMultiPDV = document.getElementById('box-multi-pdv');
+  const selectPag = document.getElementById('balcao-pag');
   if (!infoBox) return;
+
+  infoBox.style.display = 'none';
+  if (boxMultiPDV) boxMultiPDV.style.display = 'none';
+  if (selectPag) selectPag.style.display = '';
 
   if (pag === 'Pix' && total > 0) {
     const valorReais = (total / _cotacaoPDV).toFixed(2);
     infoBox.style.display = 'block';
     infoBox.innerHTML = `<i class="fas fa-qrcode"></i> <strong>Cobrar em Pix: R$ ${valorReais}</strong>`;
-  } else {
-    infoBox.style.display = 'none';
+  } else if (pag === 'Multipagamento') {
+    if (selectPag) selectPag.style.display = 'none';
+    if (boxMultiPDV) {
+      boxMultiPDV.style.display = 'block';
+      const partesEl = document.getElementById('multi-partes-pdv');
+      if (partesEl && partesEl.children.length === 0) {
+        adicionarPartePagamentoPDV();
+        adicionarPartePagamentoPDV();
+      }
+      atualizarRestanteMultiPDV();
+    }
   }
+}
+
+// ── MULTIPAGAMENTO PDV ─────────────────────────────────────────────
+let _multiContadorPDV = 0;
+
+function voltarPagamentoPDVUnico() {
+  document.getElementById('balcao-pag').value = 'Efetivo';
+  document.getElementById('box-multi-pdv').style.display = 'none';
+  document.getElementById('multi-partes-pdv').innerHTML = '';
+  document.getElementById('balcao-pag').style.display = '';
+  _multiContadorPDV = 0;
+  atualizarInfoPagPDV(parseInt(document.getElementById('balcao-total').innerText.replace(/\D/g, '')) || 0);
+}
+
+function adicionarPartePagamentoPDV() {
+  const container = document.getElementById('multi-partes-pdv');
+  if (!container) return;
+  _multiContadorPDV++;
+  const id = _multiContadorPDV;
+  const ordinal = ['1ª', '2ª', '3ª', '4ª', '5ª'][id - 1] || `${id}ª`;
+  const opts = [
+    { v:'Efetivo', l:'💵 Efectivo' }, { v:'Cartao', l:'💳 Tarjeta' },
+    { v:'Pix', l:'🟢 Pix' }, { v:'Transferencia', l:'🏦 Alias' }
+  ].map(m => `<option value="${m.v}">${m.l}</option>`).join('');
+
+  const card = document.createElement('div');
+  card.id = `multi-parte-pdv-${id}`;
+  card.style.cssText = 'background:white;border:1.5px solid #e0e0e0;border-radius:10px;padding:12px;margin-bottom:8px';
+  card.innerHTML = `
+    <div style="font-size:0.72rem;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">${ordinal} FORMA</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <select id="multi-metodo-pdv-${id}" onchange="atualizarRestanteMultiPDV()"
+          style="flex:1.5;padding:8px;border:1.5px solid #e0e0e0;border-radius:7px;font-size:0.85rem;background:white;font-weight:600">
+        <option value="">Selecionar...</option>${opts}
+      </select>
+      <div style="flex:1;position:relative">
+        <span style="position:absolute;left:8px;top:50%;transform:translateY(-50%);color:#888;font-size:0.8rem;pointer-events:none">Gs</span>
+        <input type="number" id="multi-valor-pdv-${id}" placeholder="0" min="0" step="1000"
+            oninput="atualizarRestanteMultiPDV()"
+            style="width:100%;padding:8px 8px 8px 28px;border:1.5px solid #e0e0e0;border-radius:7px;font-size:0.9rem;font-weight:700;box-sizing:border-box">
+      </div>
+      ${id > 2 ? `<button type="button" onclick="removerPartePDV(${id})"
+          style="background:#ffeaea;color:#e74c3c;border:none;padding:8px 10px;border-radius:7px;cursor:pointer;flex-shrink:0">✕</button>` : ''}
+    </div>`;
+  container.appendChild(card);
+  atualizarRestanteMultiPDV();
+}
+
+function removerPartePDV(id) {
+  document.getElementById(`multi-parte-pdv-${id}`)?.remove();
+  atualizarRestanteMultiPDV();
+}
+
+function atualizarRestanteMultiPDV() {
+  const total = parseInt(document.getElementById('balcao-total')?.innerText.replace(/\D/g, '') || '0');
+  const inputs = [...document.querySelectorAll('[id^="multi-valor-pdv-"]')];
+  let soma = 0;
+  inputs.forEach(inp => { soma += parseFloat(inp.value) || 0; });
+
+  // Auto-fill: se exatamente 1 input vazio e sobra valor
+  const vazios = inputs.filter(inp => !inp.value || parseFloat(inp.value) === 0);
+  if (vazios.length === 1 && total - soma > 0) {
+    vazios[0].value = total - soma;
+    soma = total;
+  }
+
+  const bar = document.getElementById('multi-status-pdv');
+  const el = document.getElementById('multi-restante-pdv');
+  if (!el || !bar) return;
+  bar.style.display = 'block';
+
+  const diff = total - soma;
+  if (Math.abs(diff) < 1) {
+    bar.style.background = '#eafaf1'; bar.style.borderColor = '#27ae60';
+    el.innerHTML = `<span style="color:#27ae60">✅ Total coberto: Gs ${total.toLocaleString('es-PY')}</span>`;
+  } else if (diff > 0) {
+    bar.style.background = '#fff8e6'; bar.style.borderColor = '#f0a500';
+    el.innerHTML = `<span style="color:#e67e22">⚠️ Faltam: Gs ${diff.toLocaleString('es-PY')}</span>`;
+  } else {
+    bar.style.background = '#fdf3f3'; bar.style.borderColor = '#e74c3c';
+    el.innerHTML = `<span style="color:#e74c3c">❌ Excede: Gs ${Math.abs(diff).toLocaleString('es-PY')}</span>`;
+  }
+}
+
+function _coletarMultiPagamentoPDV() {
+  const partes = [];
+  document.querySelectorAll('[id^="multi-parte-pdv-"]').forEach(div => {
+    const idStr = div.id.replace('multi-parte-pdv-', '');
+    const metodo = document.getElementById(`multi-metodo-pdv-${idStr}`)?.value || '';
+    const valor = parseFloat(document.getElementById(`multi-valor-pdv-${idStr}`)?.value) || 0;
+    if (metodo && valor > 0) partes.push({ metodo, valor });
+  });
+  return partes;
 }
 
 async function salvarPedidoBalcao() {
@@ -4125,8 +4362,22 @@ async function salvarPedidoBalcao() {
 
   const cli = document.getElementById('balcao-cliente').value || 'Cliente';
   const tel = document.getElementById('balcao-telefone').value || '';
-  const pag = document.getElementById('balcao-pag').value;
+  let pag = document.getElementById('balcao-pag').value;
   const nomeFinal = `MESA ${mesa} - ${cli}`;
+
+  // ── Tratamento Multipagamento ────────────────────────────────
+  let obsPagPDV = 'Pagamento no Balcão';
+  if (pag === 'Multipagamento') {
+    const partesPDV = _coletarMultiPagamentoPDV();
+    if (partesPDV.length === 0) { alert('Adicione ao menos 1 forma de pagamento!'); return; }
+    const totalPedido = parseInt(document.getElementById('balcao-total')?.innerText.replace(/\D/g, '') || '0');
+    const somaPartes = partesPDV.reduce((a, p) => a + p.valor, 0);
+    if (Math.abs(somaPartes - totalPedido) > 1) {
+      alert(`⚠️ Total das formas (Gs ${somaPartes.toLocaleString('es-PY')}) não bate com o total do pedido (Gs ${totalPedido.toLocaleString('es-PY')}).`);
+      return;
+    }
+    obsPagPDV = JSON.stringify(partesPDV);
+  }
 
   // ── Novos itens ganham status_item: 'pendente' ─────────────────
   const novosItens = carrinhoPDV.map((i) => ({
@@ -4157,6 +4408,7 @@ async function salvarPedidoBalcao() {
         total_geral: novoTotal,
         subtotal: novoTotal,
         forma_pagamento: pag,
+        obs_pagamento: obsPagPDV,
         cliente_nome: nomeFinal,
         cliente_telefone: tel,
         status: 'em_preparo',
@@ -4198,7 +4450,7 @@ async function salvarPedidoBalcao() {
     endereco_entrega: `Mesa ${mesa}`,
     cliente_nome: nomeFinal,
     cliente_telefone: tel,
-    obs_pagamento: 'Pagamento no Balcão',
+    obs_pagamento: obsPagPDV,
   };
 
   const { error } = await supa.from('pedidos').insert([pedido]);
@@ -4211,6 +4463,14 @@ async function salvarPedidoBalcao() {
   document.getElementById('balcao-cliente').value = '';
   document.getElementById('balcao-mesa').value = '';
   document.getElementById('balcao-telefone').value = '';
+  // Reset multipagamento PDV
+  const multiPartesPDV = document.getElementById('multi-partes-pdv');
+  if (multiPartesPDV) multiPartesPDV.innerHTML = '';
+  _multiContadorPDV = 0;
+  document.getElementById('balcao-pag').value = 'Efetivo';
+  document.getElementById('balcao-pag').style.display = '';
+  const boxMultiPDV = document.getElementById('box-multi-pdv');
+  if (boxMultiPDV) boxMultiPDV.style.display = 'none';
   atualizarCarrinhoPDV();
   atualizarBarraMesasAtivas();
   carregarMonitorMesas();

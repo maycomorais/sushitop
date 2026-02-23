@@ -5,69 +5,64 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Imprimir Comanda - Sushi Top</title>
     <style>
-        /* ── TELA (preview antes de imprimir) ── */
+        /* ────────────────────────────────────────────
+           TELA: preview antes de imprimir
+        ──────────────────────────────────────────── */
         body {
             font-family: 'Courier New', Courier, monospace;
-            background: #e0e0e0;
+            background: #d0d0d0;
             padding: 20px;
-            font-size: 16px; /* base maior para melhor leitura na tela */
+            font-size: 15px;
         }
 
         .ticket {
             background: #fff;
-            max-width: 380px;
+            max-width: 360px;
             margin: 0 auto;
             padding: 14px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
         }
 
         h3, p { margin: 0; padding: 0; }
 
-        /* Cabeçalho: nome da loja bem destacado */
         h3 {
             text-align: center;
-            font-size: 22px;
+            font-size: 24px;
             font-weight: bold;
-            letter-spacing: 1px;
-            margin-bottom: 6px;
+            letter-spacing: 2px;
+            margin-bottom: 4px;
         }
 
-        .centered        { text-align: center; font-size: 15px; margin-bottom: 4px; }
+        .centered        { text-align: center; font-size: 14px; margin-bottom: 3px; }
         .num-pedido      { font-weight: bold; font-size: 18px; }
         .tipo-entrega-tx { font-weight: bold; font-size: 18px; text-align: center; margin: 6px 0; }
 
-        hr { border: none; border-top: 1px dashed #000; margin: 8px 0; }
+        hr { border: none; border-top: 2px dashed #000; margin: 7px 0; }
 
-        /* Bloco de info (data, cliente, tel) */
-        .info-group       { margin-bottom: 6px; font-size: 15px; line-height: 1.6; }
-        .info-group strong { display: inline-block; width: 68px; font-size: 14px; }
+        .info-group        { margin-bottom: 5px; font-size: 14px; line-height: 1.65; }
+        .info-group strong { display: inline-block; width: 60px; font-size: 13px; }
 
-        /* Endereço */
-        #endereco-box { font-size: 15px; margin-bottom: 6px; }
+        #endereco-box { font-size: 14px; margin-bottom: 5px; }
 
-        /* Tabela de itens */
-        table { width: 100%; border-collapse: collapse; font-size: 16px; }
+        table { width: 100%; border-collapse: collapse; font-size: 15px; }
         th {
             text-align: left;
-            border-bottom: 1px dashed #000;
-            font-size: 14px;
-            padding-bottom: 4px;
+            border-bottom: 2px dashed #000;
+            font-size: 13px;
+            padding-bottom: 3px;
+            font-weight: bold;
         }
-        td { vertical-align: top; padding: 3px 0; }
-        td small { font-size: 13px; }
+        td { vertical-align: top; padding: 4px 0; font-weight: 600; }
+        td small { font-size: 12px; font-weight: normal; }
 
-        /* Totais */
-        .totals       { text-align: right; font-size: 15px; margin-top: 10px; line-height: 1.7; }
+        .totals       { text-align: right; font-size: 14px; margin-top: 8px; line-height: 1.8; }
         .total-final  { font-size: 22px; font-weight: bold; margin-top: 6px; }
 
-        /* Pagamento */
-        #forma-pag { font-size: 15px; }
-        #obs-pag   { font-size: 14px; margin-top: 3px; font-style: italic; line-height: 1.5; }
+        #forma-pag { font-size: 14px; font-weight: bold; }
+        #obs-pag   { font-size: 13px; margin-top: 3px; font-style: italic; line-height: 1.5; }
 
-        /* Rodapé */
-        .rodape { text-align: center; font-size: 14px; margin-top: 4px; }
+        .rodape { text-align: center; font-size: 13px; margin-top: 4px; }
 
-        /* Botão imprimir (não sai na impressão) */
         .btn-print {
             display: block; width: 100%; padding: 16px;
             background: #1a7a2e; color: white; border: none;
@@ -75,13 +70,19 @@
             cursor: pointer; margin-top: 20px; border-radius: 8px;
         }
 
-        /* ── IMPRESSÃO ── tudo fica ainda maior */
+        /* ────────────────────────────────────────────
+           IMPRESSÃO — Otimizado para rolos térmicos
+           40mm (área útil ~32mm) e 58mm (área útil ~48mm)
+           Fontes grandes e negrito para boa leitura
+        ──────────────────────────────────────────── */
         @media print {
             body {
                 background: none;
                 padding: 0;
                 margin: 0;
-                font-size: 18px; /* base de impressão */
+                font-size: 20px;          /* base grande para térmica */
+                font-weight: bold;
+                -webkit-print-color-adjust: exact;
             }
             .btn-print { display: none; }
             .ticket {
@@ -89,25 +90,57 @@
                 max-width: 100%;
                 width: 100%;
                 margin: 0;
-                padding: 4px;
+                padding: 2px;
             }
-            @page { margin: 4mm; }
+            @page {
+                margin: 2mm;
+                size: 58mm auto; /* ajusta para 58mm; a 40mm reduzirá automaticamente */
+            }
 
-            h3              { font-size: 26px; }
-            .num-pedido     { font-size: 22px; }
-            .centered       { font-size: 17px; }
-            .tipo-entrega-tx{ font-size: 22px; }
-            .info-group     { font-size: 17px; }
-            .info-group strong { font-size: 16px; }
-            #endereco-box   { font-size: 17px; }
-            table           { font-size: 18px; }
-            th              { font-size: 16px; }
-            td small        { font-size: 15px; }
-            .totals         { font-size: 17px; }
-            .total-final    { font-size: 26px; }
-            #forma-pag      { font-size: 17px; }
-            #obs-pag        { font-size: 16px; }
-            .rodape         { font-size: 15px; }
+            /* Títulos e cabeçalho */
+            h3 {
+                font-size: 30px;
+                font-weight: bold;
+                letter-spacing: 2px;
+            }
+            .num-pedido      { font-size: 26px; font-weight: bold; }
+            .centered        { font-size: 18px; }
+            .tipo-entrega-tx { font-size: 26px; font-weight: bold; }
+
+            /* Info do pedido */
+            .info-group        { font-size: 18px; font-weight: bold; line-height: 1.8; }
+            .info-group strong { font-size: 17px; width: 56px; }
+            #endereco-box      { font-size: 18px; font-weight: bold; }
+
+            /* Itens */
+            table  { font-size: 20px; }
+            th     { font-size: 18px; font-weight: bold; border-bottom-width: 2px; }
+            td     { padding: 5px 0; font-weight: bold; }
+            td small { font-size: 16px; font-weight: normal; }
+
+            /* Observações e variação */
+            td small[style*="color:#555"],  /* variação */
+            td small[style*="color:#2980b9"] /* preparo */ {
+                font-size: 16px;
+                font-weight: bold;
+            }
+            td strong[style*="font-size:10px"] { /* OBS */
+                font-size: 17px !important;
+                font-weight: bold;
+            }
+
+            /* Totais */
+            .totals      { font-size: 18px; font-weight: bold; line-height: 2; }
+            .total-final { font-size: 30px; font-weight: bold; }
+
+            /* Pagamento */
+            #forma-pag { font-size: 18px; font-weight: bold; }
+            #obs-pag   { font-size: 17px; font-weight: bold; }
+
+            /* Rodapé */
+            .rodape { font-size: 16px; font-weight: bold; }
+
+            hr { border-top: 2px dashed #000; }
         }
     </style>
 <base target="_blank">
@@ -239,10 +272,15 @@
                         
                         const montagem = item.m || item.montagem || [];
                         const observacao = item.o || item.obs || item.observacao || '';
-                        const tipo = item.t || item.tipo || '';
+                        const tipo = item.t || item.tipo || '';    // variação (ex: "Combo Grande")
+                        const preparo = item.pr || item.preparo || ''; // preparo (ex: "Flambado")
                         
                         let detalhes = '';
-                        if (tipo && tipo !== 'Padrão' && tipo !== 'Montado') detalhes += '<br><small>('+tipo+')</small>';
+                        // Mostra variação apenas se for diferente do nome do item (evita duplicação)
+                        if (tipo && tipo !== nomeItem && tipo !== 'Padrão' && tipo !== 'Montado') {
+                          detalhes += '<br><small style="color:#555">▸ '+tipo+'</small>';
+                        }
+                        if (preparo) detalhes += '<br><small style="color:#2980b9">🍳 '+preparo+'</small>';
                         if (Array.isArray(montagem) && montagem.length > 0) detalhes += '<br><small style="font-style:italic">Ing: '+montagem.join(', ')+'</small>';
                         if (observacao) detalhes += '<br><strong style="font-size:10px">OBS: '+observacao+'</strong>';
                         

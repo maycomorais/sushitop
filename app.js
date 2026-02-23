@@ -214,6 +214,7 @@ let modoEntrega = 'delivery';
 let prodAtual = null, optAtual = null, qtd = 1;
 let itensMontagem = {};
 let cupomAplicado = null;
+let EXTRAS_GLOBAIS = []; // Adicionais que aparecem em TODOS os produtos
 
 // Variável Global de Menu (Preenchida via Banco)
 let MENU = {
@@ -243,8 +244,25 @@ document.addEventListener('DOMContentLoaded', async () => {
   restaurarTrackingSeExistir();
 
   // Restaura timer se página foi recarregada durante entrega
-    restaurarTimerSeNecessario();
+  restaurarTimerSeNecessario();
+  
+  // 5. Carrega extras globais (adicionais que aparecem em todos os produtos)
+  await carregarExtrasGlobais();
 });
+
+// Carrega os extras globais da tabela configuracoes
+// (coluna extras_globais pode não existir ainda — SQL: ALTER TABLE configuracoes ADD COLUMN extras_globais JSONB DEFAULT '[]')
+async function carregarExtrasGlobais() {
+  try {
+    const { data, error } = await supa.from('configuracoes').select('extras_globais').single();
+    if (!error && data && Array.isArray(data.extras_globais) && data.extras_globais.length > 0) {
+      EXTRAS_GLOBAIS = data.extras_globais;
+    }
+  } catch (e) {
+    // Coluna ainda não existe no banco — ignora silenciosamente
+    EXTRAS_GLOBAIS = [];
+  }
+}
 
 // ==========================================
 // 4. FUNÇÕES DE BANCO DE DADOS E MENU
@@ -558,10 +576,21 @@ function abrirModal(item) {
     _renderVariacoes(item, cfg, divOptions);
   }
 
-  // Extras (para qualquer tipo)
+  // Extras do produto específico
   const extras = cfg && cfg.extras ? cfg.extras : null;
   if (extras && extras.length > 0) {
     _renderExtras(extras, divOptions);
+  }
+
+  // Opções de preparo (ex: "Batata Frita / Mandioca", "Cru / Flambado")
+  const preparoOpcoes = cfg && cfg.preparo_opcoes ? cfg.preparo_opcoes : [];
+  if (preparoOpcoes.length > 0) {
+    _renderPreparo(preparoOpcoes, divOptions);
+  }
+
+  // Extras globais (adicionais disponíveis para TODOS os produtos)
+  if (EXTRAS_GLOBAIS.length > 0) {
+    _renderExtrasGlobais(EXTRAS_GLOBAIS, divOptions);
   }
 
   // Atualiza preço inicial
@@ -986,6 +1015,42 @@ function _renderExtras(extras, container) {
   container.appendChild(sec);
 }
 
+// Renderiza opções de PREPARO (radio buttons — o cliente escolhe uma opção)
+function _renderPreparo(opcoes, container) {
+  const sec = document.createElement('div');
+  sec.className = 'extras-section preparo-section';
+  sec.innerHTML = `<h5 style="color:#2980b9">🍳 Como deseja o preparo?</h5>`;
+  
+  opcoes.forEach((op, idx) => {
+    const label = document.createElement('label');
+    label.className = 'extra-check-row preparo-row';
+    label.style.cssText = 'cursor:pointer;';
+    label.innerHTML = `
+      <input type="radio" class="preparo-radio-input" name="preparo-opcao" value="${op}" style="accent-color:#2980b9;width:18px;height:18px;margin-right:8px;">
+      <span class="extra-check-label">${op}</span>`;
+    sec.appendChild(label);
+  });
+  container.appendChild(sec);
+}
+
+// Renderiza EXTRAS GLOBAIS (adicionais disponíveis para qualquer produto)
+function _renderExtrasGlobais(extras, container) {
+  if (!extras || extras.length === 0) return;
+  const sec = document.createElement('div');
+  sec.className = 'extras-section extras-globais-section';
+  sec.innerHTML = `<h5 style="color:#8e44ad">⭐ Adicionais extras</h5>`;
+  extras.forEach((ex) => {
+    const row = document.createElement('label');
+    row.className = 'extra-check-row';
+    row.innerHTML = `
+      <input type="checkbox" class="extra-check-input" data-preco="${ex.preco || 0}" onchange="_atualizarPrecoPizza()">
+      <span class="extra-check-label">${ex.nome}</span>
+      ${ex.preco > 0 ? `<span class="extra-check-price">+Gs ${(ex.preco).toLocaleString('es-PY')}</span>` : '<span class="extra-check-price" style="color:#27ae60">Grátis</span>'}`;
+    sec.appendChild(row);
+  });
+  container.appendChild(sec);
+}
+
 function fecharModalProduto() {
   document.getElementById('product-modal').classList.remove('active');
 }
@@ -1087,15 +1152,20 @@ function adicionarDoModal() {
     borda:   _pizzaConfig.bordaConfig?.nome          || null,
   } : null;
 
+  // Captura preparo selecionado
+  const preparoSel = document.querySelector('.preparo-radio-input:checked');
+  const preparoEscolhido = preparoSel ? preparoSel.value : '';
+
   carrinho.push({
     id:       Date.now(),
-    nome:     prodAtual.nome + (variacao ? ` (${variacao})` : ''),
+    nome:     prodAtual.nome,
+    variacao: variacao || '',          // Guardado separado para não duplicar o nome
+    preparo:  preparoEscolhido,        // Opção de preparo (ex: "Flambado", "Batata Frita")
     preco:    precoFinal,
     qtd:      qtd,
     montagem: montagem.filter(Boolean),
     obs:      document.getElementById('modal-obs').value,
     img:      prodAtual._variacaoImg || prodAtual.img,
-    // Metadados estruturados — úteis para exibir no resumo e na cozinha
     ...(pizzaMeta ? { pizzaMeta } : {}),
   });
 
@@ -1192,7 +1262,6 @@ function renderCarrinho() {
 
   carrinho.forEach((item, idx) => {
     const totalItem = item.preco * item.qtd;
-    // Pizza: exibe tamanho/sabores/borda de forma estruturada quando disponível
     let detalhes = '';
     if (item.pizzaMeta) {
       const m = item.pizzaMeta;
@@ -1201,8 +1270,18 @@ function renderCarrinho() {
       if (m.sabores && m.sabores.length > 0) partes.push(`🍕 ${m.sabores.join(' / ')}`);
       if (m.borda) partes.push(`🧀 ${m.borda}`);
       detalhes = `<br><small style="color:#888">${partes.join(' · ')}</small>`;
-    } else if (item.montagem && item.montagem.length > 0) {
-      detalhes = `<br><small style="color:#888">${item.montagem.join(', ')}</small>`;
+    } else {
+      // Variação (ex: "Combo Grande") — aparece como badge separado, não duplica o nome
+      if (item.variacao) {
+        detalhes += `<br><small style="color:#FF441F;font-weight:600">▸ ${item.variacao}</small>`;
+      }
+      // Preparo (ex: "Flambado", "Batata Frita")
+      if (item.preparo) {
+        detalhes += `<br><small style="color:#2980b9;font-weight:600">🍳 ${item.preparo}</small>`;
+      }
+      if (item.montagem && item.montagem.length > 0) {
+        detalhes += `<br><small style="color:#888">${item.montagem.join(', ')}</small>`;
+      }
     }
     const obs = item.obs ? `<br><small style="color:#666"><strong>Obs:</strong> ${item.obs}</small>` : '';
 
@@ -1376,6 +1455,7 @@ function verificarPagamento() {
   const infoDiv = document.getElementById('info-pagamento-extra');
   const boxTroco = document.getElementById('box-troco');
   const boxMulti = document.getElementById('box-multipagamento');
+  const selectPag = document.getElementById('forma-pag');
 
   infoDiv.style.display = 'none';
   boxTroco.classList.add('hidden');
@@ -1394,21 +1474,28 @@ function verificarPagamento() {
     }
     const totalGs = totalItens - desconto + freteAplicado;
     const totalBrl = COTACAO_REAL > 0 ? (totalGs / COTACAO_REAL).toFixed(2) : '---';
-    infoDiv.innerHTML = `<strong>💳 Chave Pix:</strong><br>${CHAVE_PIX}<br><small>Titular: ${NOME_PIX}</small><br><strong style="color:#c0392b;font-size:1rem">💰 Valor a pagar: R$ ${totalBrl}</strong><br><small style="color:#888">(Gs ${totalGs.toLocaleString('es-PY')} ÷ ${COTACAO_REAL})</small>`;
+    infoDiv.innerHTML = `<strong>💳 Chave Pix:</strong><br>${CHAVE_PIX}<br><small>Titular: ${NOME_PIX}</small><br><strong style="color:#27ae60;font-size:1rem">💰 Valor: R$ ${totalBrl}</strong>`;
   } else if (pag === 'Transferencia') {
     infoDiv.style.display = 'block';
     infoDiv.innerHTML = `<strong>🏦 Dados para Transferência:</strong><br>${DADOS_ALIAS}<br>${ALIAS_PY}`;
   } else if (pag === 'Multipagamento') {
     if (boxMulti) {
       boxMulti.style.display = 'block';
-      // Inicializa com uma parte se ainda não há nenhuma
+      // Esconde o select enquanto está no modo multi
+      selectPag.style.display = 'none';
+      // Inicializa com 2 formas se ainda não há nenhuma
       const partes = document.getElementById('multi-partes');
       if (partes && partes.children.length === 0) {
-        adicionarPartePagamento();
+        adicionarPartePagamento(); // 1ª forma
+        adicionarPartePagamento(); // 2ª forma
       }
       atualizarRestanteMulti();
     }
+    return; // Não chama atualizarRestanteMulti de novo
   }
+
+  // Garante que o select volte a aparecer se não for Multipagamento
+  if (selectPag) selectPag.style.display = '';
 }
 
 // ==========================================
@@ -1416,7 +1503,12 @@ function verificarPagamento() {
 // ==========================================
 let _multiContador = 0;
 
-const METODOS_PAG = ['Efetivo', 'Cartao', 'Pix', 'Transferencia'];
+const METODOS_PAG = [
+  { value: 'Efetivo',       label: '💵 Efectivo' },
+  { value: 'Cartao',        label: '💳 Tarjeta' },
+  { value: 'Pix',           label: '🟢 Pix (BR)' },
+  { value: 'Transferencia', label: '🏦 Alias/Transferencia' },
+];
 
 function _getTotalPedidoAtual() {
   const totalItens = carrinho.reduce((a, i) => a + i.preco * i.qtd, 0);
@@ -1429,69 +1521,148 @@ function _getTotalPedidoAtual() {
   return totalItens - desconto + freteAplicado;
 }
 
+function voltarPagamentoUnico() {
+  // Reseta o select para "nada selecionado" e esconde o painel multi
+  document.getElementById('forma-pag').value = '';
+  document.getElementById('box-multipagamento').style.display = 'none';
+  // Limpa as partes
+  document.getElementById('multi-partes').innerHTML = '';
+  _multiContador = 0;
+  verificarPagamento();
+}
+
 function adicionarPartePagamento() {
   const container = document.getElementById('multi-partes');
   if (!container) return;
   _multiContador++;
   const id = _multiContador;
+  const ordinal = ['1ª', '2ª', '3ª', '4ª', '5ª'][id - 1] || `${id}ª`;
 
   const metodoOptions = METODOS_PAG.map(m =>
-    `<option value="${m}">${m === 'Efetivo' ? 'Efectivo' : m === 'Cartao' ? 'Tarjeta' : m === 'Transferencia' ? 'Alias/Transfer.' : m}</option>`
+    `<option value="${m.value}">${m.label}</option>`
   ).join('');
 
-  const div = document.createElement('div');
-  div.id = `multi-parte-${id}`;
-  div.style.cssText = 'display:flex; gap:8px; align-items:center; margin-bottom:8px; background:white; border-radius:8px; padding:8px; border:1px solid #e0e0e0;';
-  div.innerHTML = `
-    <select id="multi-metodo-${id}" onchange="verificarPartePix(${id})"
-        style="flex:1.4; padding:9px 8px; border:1px solid #ddd; border-radius:8px; font-size:0.88rem; background:white;">
-      ${metodoOptions}
-    </select>
-    <input type="number" id="multi-valor-${id}" placeholder="Gs 0" min="0" step="1000"
-        oninput="atualizarRestanteMulti()"
-        style="flex:1.2; padding:9px 8px; border:1px solid #ddd; border-radius:8px; font-size:0.88rem;">
-    <div id="multi-troco-${id}" style="display:none; flex:1; font-size:0.8rem;">
-      <input type="number" id="multi-troco-val-${id}" placeholder="Troco p/ Gs" min="0" step="1000"
-          style="width:100%; padding:7px 6px; border:1px solid #ddd; border-radius:8px; font-size:0.82rem;">
-    </div>
-    <button type="button" onclick="removerPartePagamento(${id})"
-        style="background:#ffeaea; color:#e74c3c; border:1px solid #fbb; padding:8px 10px; border-radius:8px; cursor:pointer; font-size:0.9rem; flex-shrink:0;">
-      ✕
-    </button>
+  const card = document.createElement('div');
+  card.id = `multi-parte-${id}`;
+  card.style.cssText = `
+    background: white;
+    border: 1.5px solid #e0e0e0;
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 10px;
+    position: relative;
   `;
-  container.appendChild(div);
+  card.innerHTML = `
+    <div style="font-size:0.78rem; font-weight:700; color:#888; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:10px;">
+      ${ordinal} FORMA
+    </div>
+    <div style="display:flex; gap:10px; align-items:flex-start;">
+      <select id="multi-metodo-${id}" onchange="verificarPartePix(${id})"
+          style="flex:1.5; padding:10px; border:1.5px solid #e0e0e0; border-radius:8px; font-size:0.9rem; background:white; font-weight:600;">
+        <option value="">Selecionar forma...</option>
+        ${metodoOptions}
+      </select>
+      <div style="flex:1; position:relative;">
+        <span style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#888; font-size:0.85rem; pointer-events:none;">Gs</span>
+        <input type="number" id="multi-valor-${id}" placeholder="0" min="0" step="1000"
+            oninput="atualizarRestanteMulti()"
+            style="width:100%; padding:10px 10px 10px 30px; border:1.5px solid #e0e0e0; border-radius:8px; font-size:0.95rem; font-weight:700; box-sizing:border-box;">
+      </div>
+      ${id > 2 ? `<button type="button" onclick="removerPartePagamento(${id})"
+          style="background:#ffeaea; color:#e74c3c; border:none; padding:10px 12px; border-radius:8px; cursor:pointer; font-size:0.9rem; flex-shrink:0;">✕</button>` : ''}
+    </div>
+    <!-- Info Efetivo (troco) -->
+    <div id="multi-troco-${id}" style="display:none; margin-top:8px;">
+      <input type="number" id="multi-troco-val-${id}" placeholder="Troco para (Gs)" min="0" step="1000"
+          style="width:100%; padding:9px; border:1.5px solid #f0a500; border-radius:8px; font-size:0.87rem; box-sizing:border-box;">
+    </div>
+    <!-- Info Pix -->
+    <div id="multi-pix-info-${id}" style="display:none; margin-top:8px; font-size:0.83rem; color:#27ae60; font-weight:600; text-align:right;"></div>
+  `;
+  container.appendChild(card);
   atualizarRestanteMulti();
 }
 
+// Chamado quando muda o SELECT de método — mostra/esconde troco e info Pix
+// NÃO chama atualizarRestanteMulti (evita loop infinito)
 function verificarPartePix(id) {
   const metodo = document.getElementById(`multi-metodo-${id}`)?.value;
   const trocoBox = document.getElementById(`multi-troco-${id}`);
-  if (trocoBox) trocoBox.style.display = metodo === 'Efetivo' ? 'flex' : 'none';
+  if (trocoBox) trocoBox.style.display = metodo === 'Efetivo' ? 'block' : 'none';
+  // Atualiza info pix sem recursar
+  _atualizarPixInfo(id, metodo);
+  // Só chama atualizar ao mudar método, sem recursão
+  atualizarRestanteMulti(false);
+}
+
+// Atualiza o bloco de info Pix para um card específico (sem chamar atualizarRestanteMulti)
+function _atualizarPixInfo(id, metodo) {
+  const pixInfo = document.getElementById(`multi-pix-info-${id}`);
+  if (!pixInfo) return;
+  if (metodo === 'Pix') {
+    const valor = parseFloat(document.getElementById(`multi-valor-${id}`)?.value) || 0;
+    if (valor > 0 && COTACAO_REAL > 0) {
+      const brl = (valor / COTACAO_REAL).toFixed(2);
+      pixInfo.style.display = 'block';
+      pixInfo.innerHTML = `💠 Pix: <strong>R$ ${brl}</strong> &nbsp;·&nbsp; Chave: ${CHAVE_PIX}`;
+    } else {
+      pixInfo.style.display = 'none';
+    }
+  } else {
+    pixInfo.style.display = 'none';
+  }
 }
 
 function removerPartePagamento(id) {
   const el = document.getElementById(`multi-parte-${id}`);
   if (el) el.remove();
-  atualizarRestanteMulti();
+  atualizarRestanteMulti(false);
 }
 
-function atualizarRestanteMulti() {
+// skipPixUpdate evita recursão: quando chamado DE verificarPartePix, passa false
+function atualizarRestanteMulti(atualizarPix = true) {
   const total = _getTotalPedidoAtual();
-  const partes = document.querySelectorAll('[id^="multi-valor-"]');
+  const inputs = [...document.querySelectorAll('[id^="multi-valor-"]')];
   let soma = 0;
-  partes.forEach(inp => {
-    const v = parseFloat(inp.value) || 0;
-    soma += v;
-  });
+  inputs.forEach(inp => { soma += parseFloat(inp.value) || 0; });
+  
   const restante = total - soma;
+  const bar = document.getElementById('multi-status-bar');
   const el = document.getElementById('multi-restante');
-  if (!el) return;
-  if (Math.abs(restante) < 1) {
-    el.innerHTML = `<span style="color:#27ae60">✅ Total distribuído</span>`;
-  } else if (restante > 0) {
-    el.innerHTML = `<span style="color:#e67e22">Faltam: Gs ${restante.toLocaleString('es-PY')}</span>`;
+
+  // ── AUTO-FILL: se há exatamente 1 input vazio e ainda sobra valor, preenche ──
+  const inputsVazios = inputs.filter(inp => !inp.value || parseFloat(inp.value) === 0);
+  if (inputsVazios.length === 1 && restante > 0) {
+    inputsVazios[0].value = restante;
+    // Recalcula com o novo valor preenchido
+    soma = total;
+  }
+
+  if (!el || !bar) return;
+  bar.style.display = 'block';
+
+  const diff = total - soma;
+  if (Math.abs(diff) < 1) {
+    bar.style.background = '#eafaf1';
+    bar.style.borderColor = '#27ae60';
+    el.innerHTML = `<span style="color:#27ae60">✅ Total coberto: Gs ${total.toLocaleString('es-PY')}</span>`;
+  } else if (diff > 0) {
+    bar.style.background = '#fff8e6';
+    bar.style.borderColor = '#f0a500';
+    el.innerHTML = `<span style="color:#e67e22">⚠️ Faltam: Gs ${diff.toLocaleString('es-PY')}</span>`;
   } else {
-    el.innerHTML = `<span style="color:#e74c3c">⚠️ Excede: Gs ${Math.abs(restante).toLocaleString('es-PY')}</span>`;
+    bar.style.background = '#fdf3f3';
+    bar.style.borderColor = '#e74c3c';
+    el.innerHTML = `<span style="color:#e74c3c">❌ Excede: Gs ${Math.abs(diff).toLocaleString('es-PY')}</span>`;
+  }
+
+  // Atualiza info de Pix — SEM chamar verificarPartePix (que chamaria atualizarRestanteMulti de volta)
+  if (atualizarPix) {
+    inputs.forEach(inp => {
+      const idNum = inp.id.replace('multi-valor-', '');
+      const metodo = document.getElementById(`multi-metodo-${idNum}`)?.value;
+      _atualizarPixInfo(idNum, metodo || '');
+    });
   }
 }
 
@@ -1634,7 +1805,15 @@ async function enviarZap() {
       obs_pagamento: pag === 'Efetivo' ? document.getElementById('troco-valor').value
                    : pag === 'Multipagamento' ? JSON.stringify(_coletarMultiPagamento())
                    : '',
-      itens: carrinho.map((i) => ({ n: i.nome, p: i.preco, q: i.qtd, t: i.variacao, m: i.montagem, o: i.obs })),
+      itens: carrinho.map((i) => ({
+        n: i.nome,
+        p: i.preco,
+        q: i.qtd,
+        t: i.variacao || '',    // variação (ex: "Combo Grande") — separado do nome
+        pr: i.preparo || '',    // preparo (ex: "Flambado", "Batata Frita")
+        m: i.montagem,
+        o: i.obs
+      })),
       endereco_entrega: ref,
       geo_lat: localCliente ? localCliente.lat.toString() : null,
       geo_lng: localCliente ? localCliente.lng.toString() : null,
@@ -1696,7 +1875,8 @@ async function enviarZap() {
   msg += `--------------------------\n`;
   carrinho.forEach((item) => {
     msg += `${item.qtd}x ${item.nome}`;
-    if (item.variacao) msg += ` (${item.variacao})`;
+    if (item.variacao) msg += ` — ${item.variacao}`;
+    if (item.preparo) msg += ` [${item.preparo}]`;
     msg += `\n`;
     if (item.montagem && item.montagem.length > 0) msg += `   + ${item.montagem.join(', ')}\n`;
     if (item.obs) msg += `   Obs: ${item.obs}\n`;
@@ -1736,31 +1916,26 @@ async function enviarZap() {
       if(pag === 'Pix') {
           const totalBrl = COTACAO_REAL > 0 ? (totalGeral / COTACAO_REAL).toFixed(2) : '---';
           msg += `\n💠 Chave Pix: ${CHAVE_PIX}\n`;
-          msg += `💰 Valor em Reais: R$ ${totalBrl} (Gs ${totalGeral.toLocaleString('es-PY')} ÷ ${COTACAO_REAL})\n`;
+          msg += `💰 Valor em Reais: R$ ${totalBrl}\n`;
       }
       if(pag === 'Transferencia') msg += `\n📎 Alias: ${ALIAS_PY}\n`;
-      
-      msg += `\n⚠️ ATENÇÃO: Envie o comprovante / Enviar comprobante.\n`;
-      
-      msg += `\n⚠️ *ATENÇÃO: SEU PEDIDO SERÁ CONFIRMADO APENAS APÓS O ENVIO DE SEU COMPROVANTE*\n`;
+      msg += `\n⚠️ *Envie o comprovante após o pagamento!*\n`;
   }
   
   // Para multipagamento: avisar sobre Pix ou Transferencia se incluídos
   if (pag === 'Multipagamento') {
     const partes = _coletarMultiPagamento();
-    const temPix = partes.find(p => p.metodo === 'Pix');
-    const temTransfer = partes.find(p => p.metodo === 'Transferencia');
-    if (temPix) {
-      const valBrl = COTACAO_REAL > 0 ? (temPix.valor / COTACAO_REAL).toFixed(2) : '---';
-      msg += `\n💠 Chave Pix (parte ${partes.indexOf(temPix)+1}): ${CHAVE_PIX}\n`;
-      msg += `💰 Valor Pix em Reais: R$ ${valBrl}\n`;
-    }
-    if (temTransfer) {
-      msg += `\n📎 Alias para transferência: ${ALIAS_PY}\n`;
-    }
-    if (temPix || temTransfer) {
-      msg += `\n⚠️ *Envie o comprovante após o pagamento!*\n`;
-    }
+    partes.forEach((p, idx) => {
+      if (p.metodo === 'Pix') {
+        const valBrl = COTACAO_REAL > 0 ? (p.valor / COTACAO_REAL).toFixed(2) : '---';
+        msg += `\n💠 Pix (forma ${idx+1}): Chave ${CHAVE_PIX} — R$ ${valBrl}\n`;
+      }
+      if (p.metodo === 'Transferencia') {
+        msg += `\n📎 Alias (forma ${idx+1}): ${ALIAS_PY}\n`;
+      }
+    });
+    const temDigital = partes.some(p => p.metodo === 'Pix' || p.metodo === 'Transferencia');
+    if (temDigital) msg += `\n⚠️ *Envie o(s) comprovante(s) após o pagamento!*\n`;
   }
 
   // Factura

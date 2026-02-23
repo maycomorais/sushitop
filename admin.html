@@ -291,8 +291,26 @@
                   <option value="Cartao">Cartão</option>
                   <option value="Pix">Pix</option>
                   <option value="Transferencia">Transferência</option>
+                  <option value="Multipagamento">🔀 Dividir Pagamento</option>
                 </select>
                 <div id="balcao-pag-info" style="display:none; background:#e8f5e9; border:1px solid #4caf50; border-radius:6px; padding:8px 12px; font-size:0.9rem; color:#1b5e20; margin-bottom:8px"></div>
+
+                <!-- Painel Multipagamento PDV -->
+                <div id="box-multi-pdv" style="display:none; margin-top:8px">
+                  <button type="button" onclick="voltarPagamentoPDVUnico()"
+                    style="width:100%;padding:9px;background:#eef4ff;color:#2980b9;border:1.5px solid #2980b9;border-radius:8px;font-weight:700;cursor:pointer;font-size:0.82rem;margin-bottom:8px;">
+                    🔁 Usar pagamento único
+                  </button>
+                  <p style="text-align:center;color:#888;font-size:0.75rem;margin:0 0 8px 0">≡ Divida o total entre as formas</p>
+                  <div id="multi-partes-pdv"></div>
+                  <button type="button" onclick="adicionarPartePagamentoPDV()"
+                    style="width:100%;padding:8px;background:#f8f9fa;color:#555;border:1.5px dashed #ccc;border-radius:8px;font-weight:600;cursor:pointer;font-size:0.8rem;margin-top:4px;">
+                    + Adicionar forma
+                  </button>
+                  <div id="multi-status-pdv" style="display:none;margin-top:8px;padding:9px 12px;border-radius:8px;background:#eafaf1;border:1.5px solid #27ae60">
+                    <span id="multi-restante-pdv" style="font-weight:700;font-size:0.88rem"></span>
+                  </div>
+                </div>
                 <button class="btn btn-success btn-lancar-cozinha" onclick="salvarPedidoBalcao()">
                   🚀 LANÇAR NA COZINHA
                 </button>
@@ -635,6 +653,20 @@
           </button>
         </div>
 
+        <!-- ===== ADICIONAIS GLOBAIS ===== -->
+        <div class="card cfg-card" style="margin-top:16px">
+          <div class="cfg-section-title"><i class="fas fa-plus-circle"></i> Adicionais Globais
+            <small style="font-weight:400;color:#888;font-size:0.82rem;display:block;margin-top:4px">
+              Estes adicionais aparecem na tela do cliente para <strong>todos os produtos</strong>. Use para opções universais (ex: "Molho Shoyu Extra", "Gengibre").
+            </small>
+          </div>
+          <div id="extras-globais-lista" style="margin-bottom:12px"></div>
+          <button class="btn btn-sm" style="background:#8e44ad;color:white" onclick="addExtraGlobal()">+ Adicionar Adicional Global</button>
+          <button class="btn btn-primary" onclick="salvarExtrasGlobais()" style="margin-top:12px;width:100%">
+            <i class="fas fa-save"></i> Salvar Adicionais Globais
+          </button>
+        </div>
+
         <!-- DEPOIS DA SEÇÃO DE PERSONALIZAÇÃO VISUAL -->
 <div id="card-cupons-cfg" class="card cfg-card" style="margin-top:16px">
     <div class="cfg-section-title">
@@ -974,6 +1006,24 @@
           <div id="extras-area" style="display:none">
             <div id="extras-lista"></div>
             <button class="btn btn-sm btn-info" onclick="addExtra()" style="margin-top:8px">+ Adicionar Extra</button>
+          </div>
+        </div>
+
+        <!-- ===== OPÇÕES DE PREPARO ===== -->
+        <div class="form-group" style="border:1px solid #e0f0ff; border-radius:10px; padding:14px; background:#f7fbff;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <label style="font-weight:700; margin:0">
+              🍳 Opções de Preparo
+              <small style="display:block; font-weight:normal; color:#888">Ex: "Salmão Cru / Flambado", "Batata Frita / Mandioca"</small>
+            </label>
+            <div style="display:flex; align-items:center; gap:8px">
+              <input type="checkbox" id="prod-tem-preparo" style="width:18px;height:18px" onchange="togglePreparo()">
+              <label for="prod-tem-preparo" style="cursor:pointer; font-size:0.9rem">Ativar preparo</label>
+            </div>
+          </div>
+          <div id="preparo-area" style="display:none">
+            <div id="preparo-lista"></div>
+            <button class="btn btn-sm" style="background:#2980b9;color:white;margin-top:8px" onclick="addOpcaoPreparo()">+ Adicionar Opção</button>
           </div>
         </div>
 
