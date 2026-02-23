@@ -118,7 +118,7 @@ function showTab(tabId, event) {
     event.currentTarget.classList.add('active');
   } else {
     // Restaura highlight ao carregar página (sem evento de clique)
-    document.querySelectorAll('.menu-item').forEach(m => {
+    document.querySelectorAll('.menu-item').forEach((m) => {
       const oc = m.getAttribute('onclick') || '';
       if (oc.includes(`'${realTabId}'`) || oc.includes(`'${tabId}'`)) {
         m.classList.add('active');
@@ -664,7 +664,7 @@ async function carregarCozinha() {
     // === Filtra apenas itens PENDENTES para a cozinha ===
     // Itens sem status_item são tratados como pendente (retrocompatibilidade)
     const itensPendentes = (p.itens || []).filter(
-      (item) => !item.status_item || item.status_item === 'pendente'
+      (item) => !item.status_item || item.status_item === 'pendente',
     );
 
     // Se não há nenhum item pendente neste pedido, pula o card
@@ -672,21 +672,21 @@ async function carregarCozinha() {
 
     let itensHtml = '';
     itensPendentes.forEach((item) => {
-        // Suporta {qtd, nome, montagem, obs} E {q, n, m, o}
-        const quantidade = item.qtd || item.q || 1;
-        const nomeItem = item.nome || item.n || 'Item';
-        const observacao = item.obs || item.o || '';
-        const montagemArray = item.montagem || item.m || [];
+      // Suporta {qtd, nome, montagem, obs} E {q, n, m, o}
+      const quantidade = item.qtd || item.q || 1;
+      const nomeItem = item.nome || item.n || 'Item';
+      const observacao = item.obs || item.o || '';
+      const montagemArray = item.montagem || item.m || [];
 
-        const obs = observacao
-          ? `<div style="color:#e74c3c; font-size:0.85rem">⚠️ ${observacao}</div>`
-          : '';
-        const listaMontagem = Array.isArray(montagemArray) ? montagemArray.join(', ') : '';
-        const montagem = listaMontagem
-          ? `<div style="font-size:0.8rem; color:#666; margin-left:10px;">+ ${listaMontagem}</div>`
-          : '';
+      const obs = observacao
+        ? `<div style="color:#e74c3c; font-size:0.85rem">⚠️ ${observacao}</div>`
+        : '';
+      const listaMontagem = Array.isArray(montagemArray) ? montagemArray.join(', ') : '';
+      const montagem = listaMontagem
+        ? `<div style="font-size:0.8rem; color:#666; margin-left:10px;">+ ${listaMontagem}</div>`
+        : '';
 
-        itensHtml += `
+      itensHtml += `
                     <li style="border-bottom:1px dashed #444; padding:5px 0;">
                         <strong>${quantidade}x</strong> ${nomeItem}
                         ${montagem}
@@ -1334,17 +1334,17 @@ function enviarRotaZap() {
       msg += `📦 *PEDIDO #${p.uid_temporal || p.id}*\n`;
       msg += `👤 ${p.cliente_nome} | 📞 ${p.cliente_telefone || ''}\n`;
 
-      // LÓGICA DE BEBIDAS 
       if (p.itens && Array.isArray(p.itens)) {
-        const bebidas = p.itens.filter((i) =>
-          /coca|fanta|energetico|milk|suco|sprite|guarana|agua|cerveja|refri/i.test(i.nome),
-        );
+        // Filtra dinamicamente verificando a categoria real do produto no banco
+        const bebidas = p.itens.filter((i) => i.categoria_slug === 'bebidas');
+
         if (bebidas.length > 0) {
+          // Usa b.qtd (ou b.quantidade dependendo de como está no seu carrinho)
           msg += `🥤 *LEVAR:* ${bebidas.map((b) => `${b.qtd}x ${b.nome}`).join(', ')}\n`;
         }
       }
 
-      // LÓGICA DE MAPA 
+      // LÓGICA DE MAPA
       if (p.geo_lat && p.geo_lng) {
         const link = `https://www.google.com/maps/search/?api=1&query=${p.geo_lat},${p.geo_lng}`;
         msg += `📍 ${link}\n`;
@@ -1437,9 +1437,8 @@ function filtrarProdutos(termo) {
     return;
   }
   const t = termo.toLowerCase();
-  const filtrados = _todosProdutos.filter(p =>
-    p.nome.toLowerCase().includes(t) ||
-    (p.categoria_slug || '').toLowerCase().includes(t)
+  const filtrados = _todosProdutos.filter(
+    (p) => p.nome.toLowerCase().includes(t) || (p.categoria_slug || '').toLowerCase().includes(t),
   );
   renderizarCardsProdutos(filtrados);
 }
@@ -1450,29 +1449,46 @@ function renderizarCardsProdutos(lista) {
   grid.innerHTML = '';
 
   if (!lista || lista.length === 0) {
-    grid.innerHTML = '<p style="color:#bbb;font-size:0.9rem;padding:20px 0">Nenhum produto encontrado.</p>';
+    grid.innerHTML =
+      '<p style="color:#bbb;font-size:0.9rem;padding:20px 0">Nenhum produto encontrado.</p>';
     return;
   }
 
   const _TIPO_ICONS = {
-    padrao:'📦', bebida:'🥤', lanche:'🍔', pizza:'🍕',
-    acai:'🍇', shake:'🥤', suco:'🍊', sorvete:'🍦',
-    montavel:'🥗', almoco:'🍽️', combo:'⭐'
+    padrao: '📦',
+    bebida: '🥤',
+    lanche: '🍔',
+    pizza: '🍕',
+    acai: '🍇',
+    shake: '🥤',
+    suco: '🍊',
+    sorvete: '🍦',
+    montavel: '🥗',
+    almoco: '🍽️',
+    combo: '⭐',
   };
   const _TIPO_NAMES = {
-    padrao:'Simples', bebida:'Bebida', lanche:'Lanche', pizza:'Pizza',
-    acai:'Açaí', shake:'Shake', suco:'Suco', sorvete:'Sorvete',
-    montavel:'Montável', almoco:'Prato', combo:'Combo'
+    padrao: 'Simples',
+    bebida: 'Bebida',
+    lanche: 'Lanche',
+    pizza: 'Pizza',
+    acai: 'Açaí',
+    shake: 'Shake',
+    suco: 'Suco',
+    sorvete: 'Sorvete',
+    montavel: 'Montável',
+    almoco: 'Prato',
+    combo: 'Combo',
   };
 
-  lista.forEach(p => {
+  lista.forEach((p) => {
     const cfg = p.montagem_config;
     let tipoKey = 'padrao';
     if (cfg && !Array.isArray(cfg) && cfg.__tipo) tipoKey = cfg.__tipo;
     else if (p.e_montavel || (cfg && Array.isArray(cfg) && cfg.length > 0)) tipoKey = 'montavel';
 
-    const tipoIcon  = _TIPO_ICONS[tipoKey]  || '📦';
-    const tipoName  = _TIPO_NAMES[tipoKey]  || tipoKey;
+    const tipoIcon = _TIPO_ICONS[tipoKey] || '📦';
+    const tipoName = _TIPO_NAMES[tipoKey] || tipoKey;
     const extrasQtd = cfg?.extras?.length || 0;
 
     const imgHtml = p.imagem_url
@@ -1480,8 +1496,11 @@ function renderizarCardsProdutos(lista) {
       : `<div class="produto-card-img-placeholder">${tipoIcon}</div>`;
 
     const badgePausado = !p.ativo ? `<span class="badge-pausado">⏸ Pausado</span>` : '';
-    const badgeBalcao  = p.somente_balcao ? `<span class="badge-balcao">🏪 Balcão</span>` : '';
-    const badgeExtras  = extrasQtd > 0 ? `<span title="${extrasQtd} adicionais" style="font-size:0.7rem;color:#3498db;font-weight:700">➕${extrasQtd}</span>` : '';
+    const badgeBalcao = p.somente_balcao ? `<span class="badge-balcao">🏪 Balcão</span>` : '';
+    const badgeExtras =
+      extrasQtd > 0
+        ? `<span title="${extrasQtd} adicionais" style="font-size:0.7rem;color:#3498db;font-weight:700">➕${extrasQtd}</span>`
+        : '';
 
     const pJson = JSON.stringify(p).replace(/'/g, '&apos;').replace(/"/g, '&quot;');
 
@@ -1574,14 +1593,18 @@ async function salvarProduto() {
     // Monta o config completo
     let configFinal = { __tipo: tipo };
 
-    const usaMontavel = ['montavel','acai','shake','suco'];
+    const usaMontavel = ['montavel', 'acai', 'shake', 'suco'];
     if (usaMontavel.includes(tipo)) {
       const etapas = [];
       document.querySelectorAll('.etapa-item').forEach((div) => {
         etapas.push({
           titulo: div.querySelector('.step-titulo').value,
           max: parseInt(div.querySelector('.step-max').value),
-          itens: div.querySelector('.step-itens').value.split(',').map((s) => s.trim()).filter((s) => s),
+          itens: div
+            .querySelector('.step-itens')
+            .value.split(',')
+            .map((s) => s.trim())
+            .filter((s) => s),
         });
       });
       configFinal.etapas = etapas;
@@ -1591,18 +1614,18 @@ async function salvarProduto() {
       const tamanhos = [];
       document.querySelectorAll('.pizza-tamanho-row').forEach((row) => {
         const pTrad = parseFloat(row.querySelector('[data-f="preco_tradicional"]')?.value) || 0;
-        const pEsp  = parseFloat(row.querySelector('[data-f="preco_especial"]')?.value) || 0;
+        const pEsp = parseFloat(row.querySelector('[data-f="preco_especial"]')?.value) || 0;
         const pDoce = parseFloat(row.querySelector('[data-f="preco_doce"]')?.value) || 0;
         tamanhos.push({
-          nome:               row.querySelector('[data-f="nome"]').value,
-          fatias:             parseInt(row.querySelector('[data-f="fatias"]').value) || 0,
-          cm:                 parseInt(row.querySelector('[data-f="cm"]').value) || 0,
-          preco_tradicional:  pTrad,
-          preco_especial:     pEsp,
-          preco_doce:         pDoce,
-          borda_preco:        parseFloat(row.querySelector('[data-f="borda_preco"]')?.value) || 0,
+          nome: row.querySelector('[data-f="nome"]').value,
+          fatias: parseInt(row.querySelector('[data-f="fatias"]').value) || 0,
+          cm: parseInt(row.querySelector('[data-f="cm"]').value) || 0,
+          preco_tradicional: pTrad,
+          preco_especial: pEsp,
+          preco_doce: pDoce,
+          borda_preco: parseFloat(row.querySelector('[data-f="borda_preco"]')?.value) || 0,
           // compatibilidade: preco = menor valor entre as categorias usadas
-          preco: Math.min(...[pTrad, pEsp, pDoce].filter(v => v > 0)) || pTrad,
+          preco: Math.min(...[pTrad, pEsp, pDoce].filter((v) => v > 0)) || pTrad,
         });
       });
       const sabores = [];
@@ -1610,14 +1633,14 @@ async function salvarProduto() {
         sabores.push({
           nome: row.querySelector('[data-f="snome"]').value,
           tipo: row.querySelector('[data-f="stipo"]').value,
-          img:  row.querySelector('[data-f="simg"]')?.value || '',
+          img: row.querySelector('[data-f="simg"]')?.value || '',
           preco: 0, // preço agora é definido por categoria no tamanho
         });
       });
       // Coleta lista de bordas
       const bordas = [];
       document.querySelectorAll('.pizza-borda-row').forEach((row) => {
-        const nome  = row.querySelector('[data-f="bnome"]').value.trim();
+        const nome = row.querySelector('[data-f="bnome"]').value.trim();
         const preco = parseFloat(row.querySelector('[data-f="bpreco"]').value) || 0;
         if (nome) bordas.push({ nome, preco });
       });
@@ -1629,8 +1652,8 @@ async function salvarProduto() {
           document.getElementById('pizza-tipo-doce').checked ? 'Doce' : null,
         ].filter(Boolean),
         tem_borda: bordas.length > 0,
-        bordas,                      // lista completa de bordas com nome+preco
-        borda_preco: bordas[0]?.preco || 0,  // compatibilidade retroativa
+        bordas, // lista completa de bordas com nome+preco
+        borda_preco: bordas[0]?.preco || 0, // compatibilidade retroativa
         tamanhos,
         sabores,
       };
@@ -1652,9 +1675,9 @@ async function salvarProduto() {
     if (tipo === 'variacoes') {
       const variacoes = [];
       document.querySelectorAll('.variacao-row').forEach((row) => {
-        const nome  = row.querySelector('[data-f="vnome"]').value.trim();
+        const nome = row.querySelector('[data-f="vnome"]').value.trim();
         const preco = parseFloat(row.querySelector('[data-f="vpreco"]').value) || 0;
-        const img   = row.querySelector('[data-f="vimg"]').value.trim() || '';
+        const img = row.querySelector('[data-f="vimg"]').value.trim() || '';
         const ativoEl = row.querySelector('[data-f="vativo"]');
         const ativo = ativoEl ? ativoEl.checked : true;
         if (nome) variacoes.push({ nome, preco, img, ativo });
@@ -1664,12 +1687,12 @@ async function salvarProduto() {
 
     // Compatibilidade retroativa: mantém montagem_config array para tipo montavel
     const isM = usaMontavel.includes(tipo);
-    const montagemCompat = isM ? (configFinal.etapas || []) : [];
+    const montagemCompat = isM ? configFinal.etapas || [] : [];
 
     // Para variações: preco = menor valor entre as variações (usado no "A partir de")
     let precoBase = parseFloat(document.getElementById('prod-preco').value) || 0;
     if (tipo === 'variacoes' && configFinal.variacoes && configFinal.variacoes.length > 0) {
-      const precos = configFinal.variacoes.map(v => v.preco).filter(p => p > 0);
+      const precos = configFinal.variacoes.map((v) => v.preco).filter((p) => p > 0);
       if (precos.length > 0) precoBase = Math.min(...precos);
     }
 
@@ -1681,7 +1704,7 @@ async function salvarProduto() {
       subcategoria_slug: document.getElementById('prod-subcat')?.value || null,
       imagem_url: urlFinal,
       e_montavel: isM,
-      montagem_config: isM ? montagemCompat : configFinal,  // novo: armazena config completo
+      montagem_config: isM ? montagemCompat : configFinal, // novo: armazena config completo
       ativo: true,
       somente_balcao: document.getElementById('prod-somente-balcao')?.checked || false,
     };
@@ -1718,7 +1741,8 @@ async function abrirModalProduto(produto = null, tipoInicial = null) {
   document.getElementById('pizza-bordas-lista').innerHTML = '';
   document.getElementById('pizza-borda-preco-box').style.display = 'none';
   document.getElementById('pizza-tem-borda').checked = false;
-  document.getElementById('pizza-sabores-lista').innerHTML = '<p style="color:#aaa;font-size:0.82rem;text-align:center;margin:10px 0">Clique em "+ Sabor" para adicionar</p>';
+  document.getElementById('pizza-sabores-lista').innerHTML =
+    '<p style="color:#aaa;font-size:0.82rem;text-align:center;margin:10px 0">Clique em "+ Sabor" para adicionar</p>';
   const variacoesLista = document.getElementById('variacoes-lista');
   if (variacoesLista) variacoesLista.innerHTML = '';
   // CORREÇÃO: Limpa o file input para não reutilizar imagem anterior
@@ -1755,11 +1779,12 @@ async function abrirModalProduto(produto = null, tipoInicial = null) {
         document.getElementById('pizza-tipo-salgada').checked = (p.tipos || []).includes('Salgada');
         document.getElementById('pizza-tipo-doce').checked = (p.tipos || []).includes('Doce');
         // Carrega bordas (novo formato: lista; retrocompat: borda_preco único)
-        const bordas = p.bordas && p.bordas.length > 0
-          ? p.bordas
-          : p.tem_borda && p.borda_preco
-            ? [{ nome: 'Borda Recheada', preco: p.borda_preco }]
-            : [];
+        const bordas =
+          p.bordas && p.bordas.length > 0
+            ? p.bordas
+            : p.tem_borda && p.borda_preco
+              ? [{ nome: 'Borda Recheada', preco: p.borda_preco }]
+              : [];
         document.getElementById('pizza-tem-borda').checked = bordas.length > 0;
         document.getElementById('pizza-bordas-lista').innerHTML = '';
         toggleBordaPreco();
@@ -1809,8 +1834,8 @@ async function abrirModalProduto(produto = null, tipoInicial = null) {
   selecionarTipoBuilder(tipo);
 
   // CORREÇÃO: Carrega categorias com a categoria atual do produto já selecionada
-  const catAtual = produto ? (produto.categoria_slug || '') : '';
-  const subcatAtual = produto ? (produto.subcategoria_slug || '') : '';
+  const catAtual = produto ? produto.categoria_slug || '' : '';
+  const subcatAtual = produto ? produto.subcategoria_slug || '' : '';
   await carregarSelectCategorias(catAtual);
   await carregarSelectSubcategorias(catAtual, subcatAtual);
 
@@ -1819,22 +1844,37 @@ async function abrirModalProduto(produto = null, tipoInicial = null) {
 
 // Mapa: tipo semântico → qual builder exibir
 const BUILDER_MAP = {
-  padrao:'', bebida:'', lanche:'', combo:'', sorvete:'',
-  pizza:'builder-pizza',
-  montavel:'builder-montavel', acai:'builder-montavel',
-  shake:'builder-montavel', suco:'builder-montavel',
-  variacoes:'builder-variacoes',
+  padrao: '',
+  bebida: '',
+  lanche: '',
+  combo: '',
+  sorvete: '',
+  pizza: 'builder-pizza',
+  montavel: 'builder-montavel',
+  acai: 'builder-montavel',
+  shake: 'builder-montavel',
+  suco: 'builder-montavel',
+  variacoes: 'builder-variacoes',
 };
 const BUILDER_HINTS = {
-  acai:  '🍇 Crie etapas: "Tamanho", "Complementos", "Frutas", "Coberturas".',
+  acai: '🍇 Crie etapas: "Tamanho", "Complementos", "Frutas", "Coberturas".',
   shake: '🥤 Crie etapas: "Tamanho" e "Sabor base".',
-  suco:  '🍊 Crie etapas: "Fruta", "Tamanho" e "Adicionais".',
+  suco: '🍊 Crie etapas: "Fruta", "Tamanho" e "Adicionais".',
 };
 
 const _TIPO_BADGE_LABELS = {
-  padrao:'📦 Simples', bebida:'🥤 Bebida', lanche:'🍔 Lanche', pizza:'🍕 Pizza',
-  acai:'🍇 Açaí', shake:'🥤 Shake', suco:'🍊 Suco', sorvete:'🍦 Sorvete',
-  montavel:'🥗 Montável', almoco:'🍽️ Prato', combo:'⭐ Combo', variacoes:'🎨 Variações',
+  padrao: '📦 Simples',
+  bebida: '🥤 Bebida',
+  lanche: '🍔 Lanche',
+  pizza: '🍕 Pizza',
+  acai: '🍇 Açaí',
+  shake: '🥤 Shake',
+  suco: '🍊 Suco',
+  sorvete: '🍦 Sorvete',
+  montavel: '🥗 Montável',
+  almoco: '🍽️ Prato',
+  combo: '⭐ Combo',
+  variacoes: '🎨 Variações',
 };
 
 function selecionarTipoBuilder(tipo) {
@@ -1844,7 +1884,7 @@ function selecionarTipoBuilder(tipo) {
     btn.classList.toggle('active', btn.dataset.tipo === tipo);
   });
 
-  document.querySelectorAll('.builder-section').forEach((s) => s.style.display = 'none');
+  document.querySelectorAll('.builder-section').forEach((s) => (s.style.display = 'none'));
 
   const builderId = BUILDER_MAP[tipo];
   if (builderId) {
@@ -1862,13 +1902,14 @@ function selecionarTipoBuilder(tipo) {
     hintEl.textContent = msg;
     hintEl.style.display = msg ? 'block' : 'none';
     if (msg) {
-      hintEl.style.cssText = 'background:#fff8e1;border-left:4px solid #f59e0b;border-radius:6px;padding:10px 14px;font-size:0.82rem;color:#78350f;margin-top:8px;';
+      hintEl.style.cssText =
+        'background:#fff8e1;border-left:4px solid #f59e0b;border-radius:6px;padding:10px 14px;font-size:0.82rem;color:#78350f;margin-top:8px;';
     }
   }
 
   const lancheHint = document.getElementById('builder-lanche-hint');
   if (lancheHint) {
-    lancheHint.style.display = (tipo === 'lanche' || tipo === 'combo') ? 'block' : 'none';
+    lancheHint.style.display = tipo === 'lanche' || tipo === 'combo' ? 'block' : 'none';
   }
 }
 
@@ -1965,7 +2006,7 @@ function addPizzaTamanho(dados = {}) {
   row.className = 'pizza-tamanho-row';
   // Retrocompatibilidade: se veio só `preco` (formato antigo), usa como preco_tradicional
   const pTrad = dados.preco_tradicional ?? dados.preco ?? '';
-  const pEsp  = dados.preco_especial ?? '';
+  const pEsp = dados.preco_especial ?? '';
   const pDoce = dados.preco_doce ?? '';
   const pBorda = dados.borda_preco ?? '';
   row.innerHTML = `
@@ -2001,7 +2042,7 @@ async function uploadSaborImagem(fileInput, row) {
     const prev = row.querySelector('.pizza-sabor-img-preview');
     prev.src = data.publicUrl;
     prev.style.display = 'block';
-  } catch(e) {
+  } catch (e) {
     alert('Erro ao enviar imagem: ' + e.message);
   } finally {
     fileInput.disabled = false;
@@ -2020,7 +2061,7 @@ function addPizzaSabor(dados = {}) {
     <div class="pizza-sabor-main">
       <input data-f="snome" class="form-control" value="${dados.nome || ''}" placeholder="Nome do sabor (ex: Frango Catupiry)">
       <select data-f="stipo" class="form-control pizza-sabor-tipo">
-        <option value="Tradicional" ${(!dados.tipo || dados.tipo === 'Tradicional' || dados.tipo === 'Salgada') ? 'selected' : ''}>🍕 Tradicional</option>
+        <option value="Tradicional" ${!dados.tipo || dados.tipo === 'Tradicional' || dados.tipo === 'Salgada' ? 'selected' : ''}>🍕 Tradicional</option>
         <option value="Especial" ${dados.tipo === 'Especial' ? 'selected' : ''}>⭐ Especial</option>
         <option value="Doce" ${dados.tipo === 'Doce' ? 'selected' : ''}>🍫 Doce</option>
       </select>
@@ -2083,15 +2124,27 @@ async function carregarCategorias() {
     return;
   }
 
-  const paleta = ['#FF441F','#3498db','#2ecc71','#9b59b6','#e67e22','#1abc9c','#e74c3c','#f39c12','#34495e','#00b894'];
+  const paleta = [
+    '#FF441F',
+    '#3498db',
+    '#2ecc71',
+    '#9b59b6',
+    '#e67e22',
+    '#1abc9c',
+    '#e74c3c',
+    '#f39c12',
+    '#34495e',
+    '#00b894',
+  ];
 
   grid.innerHTML = '';
   data.forEach((c, idx) => {
     const cor = paleta[idx % paleta.length];
     const cJson = JSON.stringify(c).replace(/'/g, '&apos;').replace(/"/g, '&quot;');
-    const horarioBadge = c.hora_inicio && c.hora_fim
-      ? `<span class="cat-badge cat-badge-horario">🕐 ${c.hora_inicio} – ${c.hora_fim}</span>`
-      : `<span class="cat-badge cat-badge-sempre">✅ Sempre visível</span>`;
+    const horarioBadge =
+      c.hora_inicio && c.hora_fim
+        ? `<span class="cat-badge cat-badge-horario">🕐 ${c.hora_inicio} – ${c.hora_fim}</span>`
+        : `<span class="cat-badge cat-badge-sempre">✅ Sempre visível</span>`;
 
     const card = document.createElement('div');
     card.className = 'cat-card';
@@ -2157,7 +2210,7 @@ function iniciarDragDropCategorias(grid) {
     return ph;
   }
 
-  grid.querySelectorAll('.cat-card').forEach(card => {
+  grid.querySelectorAll('.cat-card').forEach((card) => {
     card.addEventListener('dragstart', (e) => {
       draggingEl = card;
       placeholder = criarPlaceholder();
@@ -2237,11 +2290,14 @@ async function salvarOrdemCategorias(grid) {
 
   try {
     // Atualiza todos em paralelo
-    await Promise.all(updates.map(({ slug, ordem }) =>
-      supa.from('categorias').update({ ordem }).eq('slug', slug)
-    ));
-    console.log('✅ Ordem das categorias salva:', updates.map(u => `${u.slug}=${u.ordem}`).join(', '));
-    
+    await Promise.all(
+      updates.map(({ slug, ordem }) => supa.from('categorias').update({ ordem }).eq('slug', slug)),
+    );
+    console.log(
+      '✅ Ordem das categorias salva:',
+      updates.map((u) => `${u.slug}=${u.ordem}`).join(', '),
+    );
+
     // Feedback visual sutil
     const toastId = 'toast-ordem';
     let toast = document.getElementById(toastId);
@@ -2260,7 +2316,9 @@ async function salvarOrdemCategorias(grid) {
     toast.textContent = '✅ Ordem salva com sucesso!';
     toast.style.display = 'block';
     clearTimeout(toast._timer);
-    toast._timer = setTimeout(() => { toast.style.display = 'none'; }, 2500);
+    toast._timer = setTimeout(() => {
+      toast.style.display = 'none';
+    }, 2500);
   } catch (err) {
     console.error('Erro ao salvar ordem:', err);
     alert('Erro ao salvar nova ordem. Tente novamente.');
@@ -2320,7 +2378,9 @@ async function carregarSelectSubcategorias(categoriaSlag = '', valorAtual = '') 
     if (box) box.style.display = 'block';
 
     if (data && data.length > 0) {
-      data.forEach((s) => (sel.innerHTML += `<option value="${s.slug}">${s.nome_exibicao}</option>`));
+      data.forEach(
+        (s) => (sel.innerHTML += `<option value="${s.slug}">${s.nome_exibicao}</option>`),
+      );
       if (valorAtual) sel.value = valorAtual;
     }
   } catch (e) {
@@ -2362,7 +2422,8 @@ async function carregarSubcategorias(categoriaSlag) {
     if (!data || data.length === 0) {
       html += '<p style="color:#aaa;padding:10px 0">Nenhuma subcategoria criada ainda.</p>';
     } else {
-      html += '<table class="table"><thead><tr><th>Slug</th><th>Nome</th><th>Ordem</th><th></th></tr></thead><tbody>';
+      html +=
+        '<table class="table"><thead><tr><th>Slug</th><th>Nome</th><th>Ordem</th><th></th></tr></thead><tbody>';
       data.forEach((s) => {
         const sJson = JSON.stringify(s).replace(/'/g, '&apos;').replace(/"/g, '&quot;');
         html += `<tr>
@@ -2478,7 +2539,12 @@ async function salvarSubcat() {
 }
 
 async function deletarSubcat(slug) {
-  if (!confirm(`Deletar a subcategoria "${slug}"?\n\nOs produtos vinculados ficarão sem subcategoria.`)) return;
+  if (
+    !confirm(
+      `Deletar a subcategoria "${slug}"?\n\nOs produtos vinculados ficarão sem subcategoria.`,
+    )
+  )
+    return;
 
   // Desvincula produtos
   await supa.from('produtos').update({ subcategoria_slug: null }).eq('subcategoria_slug', slug);
@@ -2518,8 +2584,11 @@ function editarCategoria(c) {
 
 async function salvarCategoria() {
   const slugInput = document.getElementById('cat-slug');
-  const slug = slugInput.value.trim().toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove acentos
+  const slug = slugInput.value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // remove acentos
     .replace(/[^a-z0-9\s_]/g, '')
     .replace(/\s+/g, '_');
   const nome = document.getElementById('cat-nome').value.trim();
@@ -2546,19 +2615,30 @@ async function salvarCategoria() {
 
     if (slugMudou) {
       // 1. Insere novo registro com o novo slug
-      const { error: insErr } = await supa.from('categorias').insert([{
-        slug,
-        nome_exibicao: nome,
-        ordem: ordemVal
-      }]);
-      if (insErr) { alert('Erro ao salvar: ' + insErr.message); return; }
+      const { error: insErr } = await supa.from('categorias').insert([
+        {
+          slug,
+          nome_exibicao: nome,
+          ordem: ordemVal,
+        },
+      ]);
+      if (insErr) {
+        alert('Erro ao salvar: ' + insErr.message);
+        return;
+      }
 
       // 2. Migra todos os produtos do slug antigo para o novo
-      await supa.from('produtos').update({ categoria_slug: slug }).eq('categoria_slug', slugOriginal);
+      await supa
+        .from('produtos')
+        .update({ categoria_slug: slug })
+        .eq('categoria_slug', slugOriginal);
 
       // 3. Migra subcategorias (se existirem)
       try {
-        await supa.from('subcategorias').update({ categoria_slug: slug }).eq('categoria_slug', slugOriginal);
+        await supa
+          .from('subcategorias')
+          .update({ categoria_slug: slug })
+          .eq('categoria_slug', slugOriginal);
       } catch (_) {}
 
       // 4. Deleta o registro antigo
@@ -2572,7 +2652,9 @@ async function salvarCategoria() {
       erro = error;
     }
   } else {
-    const { error } = await supa.from('categorias').insert([{ slug, nome_exibicao: nome, ordem: ordemVal }]);
+    const { error } = await supa
+      .from('categorias')
+      .insert([{ slug, nome_exibicao: nome, ordem: ordemVal }]);
     erro = error;
   }
 
@@ -2668,7 +2750,9 @@ async function deletarCat(slug) {
     // Segundo: remove subcategorias vinculadas (se a tabela existir)
     try {
       await supa.from('subcategorias').delete().eq('categoria_slug', slug);
-    } catch (_) { /* tabela pode não existir ainda */ }
+    } catch (_) {
+      /* tabela pode não existir ainda */
+    }
 
     // Terceiro: deleta a categoria
     const { error } = await supa.from('categorias').delete().eq('slug', slug);
@@ -2912,7 +2996,15 @@ function _renderGradeSemanal(horariosSalvos = {}) {
   if (!container) return;
   container.innerHTML = '';
 
-  const ICONES_DIA = { seg: '☀️', ter: '☀️', qua: '☀️', qui: '☀️', sex: '🌟', sab: '🎉', dom: '🌙' };
+  const ICONES_DIA = {
+    seg: '☀️',
+    ter: '☀️',
+    qua: '☀️',
+    qui: '☀️',
+    sex: '🌟',
+    sab: '🎉',
+    dom: '🌙',
+  };
 
   DIAS_SEMANA.forEach(({ key, label }) => {
     const dia = horariosSalvos[key] || { fechado: false, turnos: [{ abre: '', fecha: '' }] };
@@ -2923,7 +3015,9 @@ function _renderGradeSemanal(horariosSalvos = {}) {
     row.className = `gs-dia-card ${fechado ? 'gs-fechado' : 'gs-aberto'}`;
     row.dataset.dia = key;
 
-    let turnosHtml = turnos.map((t, i) => `
+    let turnosHtml = turnos
+      .map(
+        (t, i) => `
       <div class="gs-turno-row" data-idx="${i}">
         <span class="gs-turno-label">${i === 0 ? '🕐 Abertura' : '🕑 2º Turno'}</span>
         <div class="gs-turno-inputs">
@@ -2938,7 +3032,9 @@ function _renderGradeSemanal(horariosSalvos = {}) {
           </div>
           ${i > 0 ? `<button class="gs-btn-rm" onclick="removerTurno(this)" title="Remover turno">✕</button>` : '<div style="width:28px"></div>'}
         </div>
-      </div>`).join('');
+      </div>`,
+      )
+      .join('');
 
     row.innerHTML = `
       <div class="gs-dia-header">
@@ -2973,19 +3069,30 @@ function toggleDiaFechado(checkbox) {
   const badge = row.querySelector('.gs-status-badge');
   if (checkbox.checked) {
     if (turnos) turnos.style.display = 'none';
-    row.classList.add('gs-fechado'); row.classList.remove('gs-aberto');
-    if (badge) { badge.textContent = '🔴 Fechado'; badge.className = 'gs-status-badge gs-badge-fechado'; }
+    row.classList.add('gs-fechado');
+    row.classList.remove('gs-aberto');
+    if (badge) {
+      badge.textContent = '🔴 Fechado';
+      badge.className = 'gs-status-badge gs-badge-fechado';
+    }
   } else {
     if (turnos) turnos.style.display = '';
-    row.classList.add('gs-aberto'); row.classList.remove('gs-fechado');
-    if (badge) { badge.textContent = '🟢 Aberto'; badge.className = 'gs-status-badge gs-badge-aberto'; }
+    row.classList.add('gs-aberto');
+    row.classList.remove('gs-fechado');
+    if (badge) {
+      badge.textContent = '🟢 Aberto';
+      badge.className = 'gs-status-badge gs-badge-aberto';
+    }
   }
 }
 
 function adicionarTurno(btn) {
   const lista = btn.previousElementSibling;
   const idx = lista.querySelectorAll('.gs-turno-row').length;
-  if (idx >= 2) { alert('Máximo de 2 turnos por dia.'); return; }
+  if (idx >= 2) {
+    alert('Máximo de 2 turnos por dia.');
+    return;
+  }
   const div = document.createElement('div');
   div.className = 'gs-turno-row';
   div.dataset.idx = idx;
@@ -3027,7 +3134,10 @@ function toggleDiaFechado(checkbox) {
 function adicionarTurno(btn) {
   const lista = btn.previousElementSibling;
   const idx = lista.querySelectorAll('.turno-row').length;
-  if (idx >= 2) { alert('Máximo de 2 turnos por dia.'); return; }
+  if (idx >= 2) {
+    alert('Máximo de 2 turnos por dia.');
+    return;
+  }
   const div = document.createElement('div');
   div.className = 'turno-row';
   div.dataset.idx = idx;
@@ -3056,7 +3166,10 @@ function _lerGradeSemanal() {
       const fecha = t.querySelector('.turno-fecha').value;
       if (abre || fecha) turnos.push({ abre, fecha });
     });
-    horarios[key] = { fechado, turnos: fechado ? [] : (turnos.length ? turnos : [{ abre: '', fecha: '' }]) };
+    horarios[key] = {
+      fechado,
+      turnos: fechado ? [] : turnos.length ? turnos : [{ abre: '', fecha: '' }],
+    };
   });
   return horarios;
 }
@@ -3103,9 +3216,12 @@ async function carregarConfiguracoes() {
   const corPicker = document.getElementById('cfg-cor-primaria');
   const corHex = document.getElementById('cfg-cor-primaria-hex');
   if (corPicker && corHex) {
-    corPicker.addEventListener('input', (e) => { corHex.value = e.target.value; });
+    corPicker.addEventListener('input', (e) => {
+      corHex.value = e.target.value;
+    });
     corHex.addEventListener('input', (e) => {
-      if (e.target.value.startsWith('#') && e.target.value.length === 7) corPicker.value = e.target.value;
+      if (e.target.value.startsWith('#') && e.target.value.length === 7)
+        corPicker.value = e.target.value;
     });
   }
 
@@ -3321,12 +3437,12 @@ async function carregarRankingProdutos() {
 
   let query = supa.from('pedidos').select('itens').eq('status', 'entregue');
   if (inicio) query = query.gte('created_at', inicio);
-  if (fim)    query = query.lte('created_at', fim);
+  if (fim) query = query.lte('created_at', fim);
   const { data } = await query;
 
   const cnt = {};
-  (data || []).forEach(ped => {
-    (Array.isArray(ped.itens) ? ped.itens : []).forEach(item => {
+  (data || []).forEach((ped) => {
+    (Array.isArray(ped.itens) ? ped.itens : []).forEach((item) => {
       const n = item.nome || item.n || 'Produto';
       const q = parseInt(item.qtd || item.q || 1);
       cnt[n] = (cnt[n] || 0) + q;
@@ -3334,17 +3450,21 @@ async function carregarRankingProdutos() {
   });
   const ranking = Object.entries(cnt)
     .map(([nome, v]) => ({ nome, v }))
-    .sort((a, b) => b.v - a.v).slice(0, 8);
+    .sort((a, b) => b.v - a.v)
+    .slice(0, 8);
 
   const el = document.getElementById('ranking-produtos-list');
   if (!el) return;
-  if (!ranking.length) { el.innerHTML = '<div class="rank-vazio">Nenhuma venda no período</div>'; return; }
+  if (!ranking.length) {
+    el.innerHTML = '<div class="rank-vazio">Nenhuma venda no período</div>';
+    return;
+  }
   el.innerHTML = '';
   const max = ranking[0].v;
   ranking.forEach((p, i) => {
     const pct = Math.round((p.v / max) * 100);
     el.innerHTML += `<div class="rank-item">
-      <div class="rank-pos rank-pos-${i+1}">${i+1}</div>
+      <div class="rank-pos rank-pos-${i + 1}">${i + 1}</div>
       <div class="rank-info">
         <div class="rank-name">${p.nome}</div>
         <div class="rank-bar-wrap"><div class="rank-bar" style="width:${pct}%"></div></div>
@@ -3364,15 +3484,18 @@ async function carregarRankingClientes() {
   if (customBox) customBox.style.display = periodo === 'custom' ? 'flex' : 'none';
   const { inicio, fim } = _calcularIntervalo(periodo, 'rank-cli-inicio', 'rank-cli-fim');
 
-  let query = supa.from('pedidos')
+  let query = supa
+    .from('pedidos')
     .select('cliente_nome, cliente_telefone, total_geral')
-    .eq('status', 'entregue').order('created_at', { ascending: false }).limit(1000);
+    .eq('status', 'entregue')
+    .order('created_at', { ascending: false })
+    .limit(1000);
   if (inicio) query = query.gte('created_at', inicio);
-  if (fim)    query = query.lte('created_at', fim);
+  if (fim) query = query.lte('created_at', fim);
   const { data } = await query;
 
   const map = {};
-  (data || []).forEach(p => {
+  (data || []).forEach((p) => {
     const nomeLimpo = (p.cliente_nome || '').replace(/^MESA\s+\d+\s*-\s*/i, '').trim() || 'Cliente';
     const tel = (p.cliente_telefone || '').trim();
     if (nomeLimpo === 'Cliente' && tel.length < 5) return;
@@ -3383,16 +3506,21 @@ async function carregarRankingClientes() {
     map[key].total += p.total_geral || 0;
   });
 
-  const top = Object.values(map).sort((a, b) => b.qtd - a.qtd).slice(0, 8);
+  const top = Object.values(map)
+    .sort((a, b) => b.qtd - a.qtd)
+    .slice(0, 8);
   const el = document.getElementById('ranking-clientes-list');
   if (!el) return;
-  if (!top.length) { el.innerHTML = '<div class="rank-vazio">Nenhum cliente no período</div>'; return; }
+  if (!top.length) {
+    el.innerHTML = '<div class="rank-vazio">Nenhum cliente no período</div>';
+    return;
+  }
   el.innerHTML = '';
   const max = top[0].qtd;
   top.forEach((c, i) => {
     const pct = Math.round((c.qtd / max) * 100);
     el.innerHTML += `<div class="rank-item">
-      <div class="rank-pos rank-pos-${i+1}">${i+1}</div>
+      <div class="rank-pos rank-pos-${i + 1}">${i + 1}</div>
       <div class="rank-info">
         <div class="rank-name">${c.nome}</div>
         ${c.tel ? `<div class="rank-sub"><i class="fas fa-phone"></i> ${c.tel}</div>` : ''}
@@ -3406,22 +3534,25 @@ async function carregarRankingClientes() {
 // Utilitário: datas para os rankings
 function _calcularIntervalo(periodo, idI, idF) {
   const now = new Date();
-  let inicio = null, fim = null;
+  let inicio = null,
+    fim = null;
   if (periodo === 'hoje') {
     inicio = now.toISOString().split('T')[0] + 'T00:00:00';
   } else if (periodo === '7') {
-    const d = new Date(now); d.setDate(d.getDate()-7);
+    const d = new Date(now);
+    d.setDate(d.getDate() - 7);
     inicio = d.toISOString().split('T')[0] + 'T00:00:00';
   } else if (periodo === '30') {
-    const d = new Date(now); d.setDate(d.getDate()-30);
+    const d = new Date(now);
+    d.setDate(d.getDate() - 30);
     inicio = d.toISOString().split('T')[0] + 'T00:00:00';
   } else if (periodo === 'mes') {
-    inicio = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01T00:00:00`;
+    inicio = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01T00:00:00`;
   } else if (periodo === 'custom') {
     const elI = document.getElementById(idI);
     const elF = document.getElementById(idF);
     if (elI?.value) inicio = elI.value + 'T00:00:00';
-    if (elF?.value) fim    = elF.value + 'T23:59:59';
+    if (elF?.value) fim = elF.value + 'T23:59:59';
   }
   return { inicio, fim };
 }
@@ -3430,17 +3561,17 @@ function _calcularIntervalo(periodo, idI, idF) {
 // PDV MOBILE — Tabs de navegação
 // ══════════════════════════════════════════════════════════
 function pdvMudarAba(aba, btn) {
-  document.querySelectorAll('.pdv-tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.pdv-tab-btn').forEach((b) => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
   // No mobile, os painéis são os próprios elements dentro do pdv-panel-venda
-  const map = { carrinho:'.pdv-carrinho', produtos:'.pdv-produtos', monitor:'.pdv-monitor' };
-  Object.values(map).forEach(sel => {
+  const map = { carrinho: '.pdv-carrinho', produtos: '.pdv-produtos', monitor: '.pdv-monitor' };
+  Object.values(map).forEach((sel) => {
     const el = document.querySelector(sel);
     if (el) el.classList.remove('pdv-tab-active');
   });
   const target = document.querySelector(map[aba]);
   if (target) target.classList.add('pdv-tab-active');
-  
+
   // Se clicou em monitor, mostra o panel de mesas no mobile
   if (aba === 'monitor') {
     const panelMesas = document.getElementById('pdv-panel-mesas');
@@ -3458,18 +3589,18 @@ function pdvMudarAba(aba, btn) {
 function pdvMudarView(view) {
   const panelVenda = document.getElementById('pdv-panel-venda');
   const panelMesas = document.getElementById('pdv-panel-mesas');
-  const btnVenda   = document.getElementById('pdv-view-btn-venda');
-  const btnMesas   = document.getElementById('pdv-view-btn-mesas');
+  const btnVenda = document.getElementById('pdv-view-btn-venda');
+  const btnMesas = document.getElementById('pdv-view-btn-mesas');
   if (view === 'venda') {
     if (panelVenda) panelVenda.style.display = 'block';
     if (panelMesas) panelMesas.style.display = 'none';
-    if (btnVenda)   btnVenda.classList.add('active');
-    if (btnMesas)   btnMesas.classList.remove('active');
+    if (btnVenda) btnVenda.classList.add('active');
+    if (btnMesas) btnMesas.classList.remove('active');
   } else {
     if (panelVenda) panelVenda.style.display = 'none';
     if (panelMesas) panelMesas.style.display = 'block';
-    if (btnVenda)   btnVenda.classList.remove('active');
-    if (btnMesas)   btnMesas.classList.add('active');
+    if (btnVenda) btnVenda.classList.remove('active');
+    if (btnMesas) btnMesas.classList.add('active');
     carregarMonitorMesas();
   }
 }
@@ -3485,16 +3616,18 @@ function pdvIniciarTabs() {
     if (footer) footer.style.display = 'flex';
     if (headerBar) headerBar.style.display = 'none';
     // Mobile começa mostrando o cardápio
-    document.querySelectorAll('.pdv-tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.pdv-tab-btn').forEach((b) => b.classList.remove('active'));
     const btnCardapio = tabsEl ? tabsEl.querySelector('.pdv-tab-btn:nth-child(1)') : null;
-    if (btnCardapio) { btnCardapio.classList.add('active'); }
+    if (btnCardapio) {
+      btnCardapio.classList.add('active');
+    }
     pdvMudarAba('produtos', null);
   } else {
     if (tabsEl) tabsEl.style.display = 'none';
     if (footer) footer.style.display = 'none';
     if (headerBar) headerBar.style.display = 'flex';
     // Desktop: mostra produtos e carrinho sempre
-    ['.pdv-carrinho', '.pdv-produtos'].forEach(sel => {
+    ['.pdv-carrinho', '.pdv-produtos'].forEach((sel) => {
       const el = document.querySelector(sel);
       if (el) el.classList.add('pdv-tab-active');
     });
@@ -3561,30 +3694,38 @@ function renderizarGridPDV(filtroNome = '') {
     const allChip = document.createElement('button');
     allChip.className = `pdv-cat-chip${_pdvCatFiltro === 'todos' ? ' active' : ''}`;
     allChip.textContent = 'TODOS';
-    allChip.onclick = () => { _pdvCatFiltro = 'todos'; renderizarGridPDV(document.getElementById('pdv-busca')?.value || ''); };
+    allChip.onclick = () => {
+      _pdvCatFiltro = 'todos';
+      renderizarGridPDV(document.getElementById('pdv-busca')?.value || '');
+    };
     filterBar.appendChild(allChip);
 
-    const slugsUsados = [...new Set(produtosCachePDV.map(p => p.categoria_slug).filter(Boolean))];
-    const ordemCats = produtosCatsPDV.map(c => c.slug);
-    slugsUsados.sort((a,b) => {
-      const ia = ordemCats.indexOf(a), ib = ordemCats.indexOf(b);
+    const slugsUsados = [...new Set(produtosCachePDV.map((p) => p.categoria_slug).filter(Boolean))];
+    const ordemCats = produtosCatsPDV.map((c) => c.slug);
+    slugsUsados.sort((a, b) => {
+      const ia = ordemCats.indexOf(a),
+        ib = ordemCats.indexOf(b);
       if (ia === -1 && ib === -1) return a.localeCompare(b);
-      if (ia === -1) return 1; if (ib === -1) return -1;
+      if (ia === -1) return 1;
+      if (ib === -1) return -1;
       return ia - ib;
     });
-    slugsUsados.forEach(slug => {
-      const catInfo = produtosCatsPDV.find(c => c.slug === slug);
+    slugsUsados.forEach((slug) => {
+      const catInfo = produtosCatsPDV.find((c) => c.slug === slug);
       const chip = document.createElement('button');
       chip.className = `pdv-cat-chip${_pdvCatFiltro === slug ? ' active' : ''}`;
       chip.textContent = (catInfo?.nome_exibicao || slug).toUpperCase();
-      chip.onclick = () => { _pdvCatFiltro = slug; renderizarGridPDV(document.getElementById('pdv-busca')?.value || ''); };
+      chip.onclick = () => {
+        _pdvCatFiltro = slug;
+        renderizarGridPDV(document.getElementById('pdv-busca')?.value || '');
+      };
       filterBar.appendChild(chip);
     });
   }
 
   // Filtra produtos
   const query = filtroNome.toLowerCase().trim();
-  let produtos = produtosCachePDV.filter(p => {
+  let produtos = produtosCachePDV.filter((p) => {
     if (_pdvCatFiltro !== 'todos' && p.categoria_slug !== _pdvCatFiltro) return false;
     if (query && !p.nome.toLowerCase().includes(query)) return false;
     return true;
@@ -3594,7 +3735,7 @@ function renderizarGridPDV(filtroNome = '') {
     // Flat grid sem cabeçalhos de categoria
     const row = document.createElement('div');
     row.className = 'pdv-cat-row';
-    produtos.forEach(p => {
+    produtos.forEach((p) => {
       row.appendChild(_criarCardPDV(p));
     });
     if (produtos.length === 0) {
@@ -3614,9 +3755,11 @@ function renderizarGridPDV(filtroNome = '') {
 
   const ordemCats = produtosCatsPDV.map((c) => c.slug);
   const slugsOrdenados = Object.keys(porCategoria).sort((a, b) => {
-    const ia = ordemCats.indexOf(a), ib = ordemCats.indexOf(b);
+    const ia = ordemCats.indexOf(a),
+      ib = ordemCats.indexOf(b);
     if (ia === -1 && ib === -1) return a.localeCompare(b);
-    if (ia === -1) return 1; if (ib === -1) return -1;
+    if (ia === -1) return 1;
+    if (ib === -1) return -1;
     return ia - ib;
   });
 
@@ -3663,17 +3806,21 @@ let _extrasGlobaisCache = null;
 async function _getExtrasGlobais() {
   if (_extrasGlobaisCache !== null) return _extrasGlobaisCache;
   // Tenta carregar das configurações (campo extras_globais no Supabase)
-  const { data } = await supa.from('configuracoes').select('extras_globais').single().catch(() => ({ data: null }));
+  const { data } = await supa
+    .from('configuracoes')
+    .select('extras_globais')
+    .single()
+    .catch(() => ({ data: null }));
   if (data && Array.isArray(data.extras_globais) && data.extras_globais.length > 0) {
     _extrasGlobaisCache = data.extras_globais;
   } else {
     // Fallback com os extras da foto
     _extrasGlobaisCache = [
-      { nome: 'Shoyu',          preco: 2000 },
-      { nome: 'Taré (Teriaki)',  preco: 3000 },
-      { nome: 'Sunomono',       preco: 2000 },
-      { nome: 'Jengibre',       preco: 2000 },
-      { nome: 'Wasabi',         preco: 2000 },
+      { nome: 'Shoyu', preco: 2000 },
+      { nome: 'Taré (Teriaki)', preco: 3000 },
+      { nome: 'Sunomono', preco: 2000 },
+      { nome: 'Jengibre', preco: 2000 },
+      { nome: 'Wasabi', preco: 2000 },
     ];
   }
   return _extrasGlobaisCache;
@@ -3681,7 +3828,7 @@ async function _getExtrasGlobais() {
 
 function _deveMostrarExtrasGlobais(produto) {
   const cat = (produto.categoria_slug || '').toLowerCase();
-  return !_CATS_SEM_EXTRAS_GLOBAIS.some(c => cat.includes(c));
+  return !_CATS_SEM_EXTRAS_GLOBAIS.some((c) => cat.includes(c));
 }
 
 function adicionarItemPDV(p) {
@@ -3689,7 +3836,7 @@ function adicionarItemPDV(p) {
   const cfg = p.montagem_config;
   const tipo = cfg && !Array.isArray(cfg) && cfg.__tipo ? cfg.__tipo : null;
   if (tipo === 'variacoes' && cfg.variacoes && cfg.variacoes.length > 0) {
-    const variacoesAtivas = cfg.variacoes.filter(v => v.ativo !== false);
+    const variacoesAtivas = cfg.variacoes.filter((v) => v.ativo !== false);
     if (variacoesAtivas.length === 0) {
       alert('⏸️ Todas as variações deste produto estão pausadas.');
       return;
@@ -3704,7 +3851,7 @@ function adicionarItemPDV(p) {
 
   // Upsell de extras globais (exceto bebidas e extras)
   if (_deveMostrarExtrasGlobais(p)) {
-    _getExtrasGlobais().then(extras => {
+    _getExtrasGlobais().then((extras) => {
       if (extras && extras.length > 0) _mostrarUpsellExtrasPDV(p, extras);
     });
   }
@@ -3715,11 +3862,15 @@ function _mostrarModalVariacaoPDV(produto, variacoes) {
   document.getElementById('pdv-var-modal')?.remove();
   const overlay = document.createElement('div');
   overlay.id = 'pdv-var-modal';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
-  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
-  
+  overlay.style.cssText =
+    'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+  overlay.onclick = (e) => {
+    if (e.target === overlay) overlay.remove();
+  };
+
   const modal = document.createElement('div');
-  modal.style.cssText = 'background:#fff;border-radius:16px;padding:20px;max-width:420px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)';
+  modal.style.cssText =
+    'background:#fff;border-radius:16px;padding:20px;max-width:420px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)';
   modal.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
       <h4 style="margin:0;font-size:1rem;color:#333">🎨 Escolha a variação</h4>
@@ -3727,7 +3878,9 @@ function _mostrarModalVariacaoPDV(produto, variacoes) {
     </div>
     <p style="font-size:0.88rem;color:#666;margin-bottom:14px">${produto.nome}</p>
     <div style="display:flex;flex-direction:column;gap:10px">
-      ${variacoes.map((v, idx) => `
+      ${variacoes
+        .map(
+          (v, idx) => `
         <button onclick="
           const p = ${JSON.stringify(produto).replace(/'/g, '&apos;')};
           const existe = carrinhoPDV.find(i => i.id === p.id && i.variacao === '${v.nome.replace(/'/g, "\\'")}');
@@ -3736,13 +3889,15 @@ function _mostrarModalVariacaoPDV(produto, variacoes) {
           atualizarCarrinhoPDV();
           document.getElementById('pdv-var-modal').remove();
         " style="display:flex;align-items:center;gap:12px;background:#f9f9f9;border:2px solid #e5e7eb;border-radius:10px;padding:10px 14px;cursor:pointer;text-align:left;transition:border-color 0.15s" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='#e5e7eb'">
-          ${v.img ? `<img src="${v.img}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;flex-shrink:0" onerror="this.style.display='none'">` : (produto.imagem_url ? `<img src="${produto.imagem_url}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;flex-shrink:0">` : '')}
+          ${v.img ? `<img src="${v.img}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;flex-shrink:0" onerror="this.style.display='none'">` : produto.imagem_url ? `<img src="${produto.imagem_url}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;flex-shrink:0">` : ''}
           <div style="flex:1">
             <div style="font-weight:700;font-size:0.9rem;color:#333">${v.nome}</div>
             <div style="font-size:0.82rem;color:var(--primary);font-weight:600">Gs ${(v.preco || produto.preco).toLocaleString('es-PY')}</div>
           </div>
         </button>
-      `).join('')}
+      `,
+        )
+        .join('')}
     </div>
   `;
   overlay.appendChild(modal);
@@ -3763,7 +3918,7 @@ function _mostrarUpsellExtrasPDV(produto, extras) {
     'padding:0;max-width:300px;width:calc(100vw - 32px)',
     'border:1px solid #f0f0f0',
     'animation:_upsellIn 0.25s cubic-bezier(.4,0,.2,1)',
-    'overflow:hidden'
+    'overflow:hidden',
   ].join(';');
 
   if (!document.getElementById('_upsell-style')) {
@@ -3778,7 +3933,8 @@ function _mostrarUpsellExtrasPDV(produto, extras) {
 
   // Header
   const hdr = document.createElement('div');
-  hdr.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:12px 14px 10px;border-bottom:1px solid #f5f5f5;background:linear-gradient(135deg,#fff8f5,#fff)';
+  hdr.style.cssText =
+    'display:flex;justify-content:space-between;align-items:center;padding:12px 14px 10px;border-bottom:1px solid #f5f5f5;background:linear-gradient(135deg,#fff8f5,#fff)';
   hdr.innerHTML = `
     <div>
       <div style="font-weight:700;font-size:0.85rem;color:#333">🍣 Adicionar ao pedido?</div>
@@ -3786,7 +3942,8 @@ function _mostrarUpsellExtrasPDV(produto, extras) {
     </div>`;
   const btnX = document.createElement('button');
   btnX.textContent = '✕';
-  btnX.style.cssText = 'background:none;border:none;font-size:1rem;cursor:pointer;color:#bbb;padding:4px 6px;border-radius:6px;flex-shrink:0';
+  btnX.style.cssText =
+    'background:none;border:none;font-size:1rem;cursor:pointer;color:#bbb;padding:4px 6px;border-radius:6px;flex-shrink:0';
   btnX.addEventListener('click', () => toast.remove());
   hdr.appendChild(btnX);
   toast.appendChild(hdr);
@@ -3794,27 +3951,30 @@ function _mostrarUpsellExtrasPDV(produto, extras) {
   // Lista de extras
   const lista = document.createElement('div');
   lista.style.cssText = 'padding:6px 0';
-  extras.forEach(extra => {
+  extras.forEach((extra) => {
     if (!extra.nome) return;
     const row = document.createElement('div');
-    row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:7px 14px;transition:background .1s';
-    row.onmouseenter = () => row.style.background = '#fafafa';
-    row.onmouseleave = () => row.style.background = '';
+    row.style.cssText =
+      'display:flex;justify-content:space-between;align-items:center;padding:7px 14px;transition:background .1s';
+    row.onmouseenter = () => (row.style.background = '#fafafa');
+    row.onmouseleave = () => (row.style.background = '');
 
     const info = document.createElement('div');
     info.innerHTML = `
       <div style="font-size:0.83rem;font-weight:600;color:#333">${extra.nome}</div>
-      <div style="font-size:0.73rem;color:var(--primary,#FF441F);font-weight:700">+ Gs ${(extra.preco||0).toLocaleString('es-PY')}</div>`;
+      <div style="font-size:0.73rem;color:var(--primary,#FF441F);font-weight:700">+ Gs ${(extra.preco || 0).toLocaleString('es-PY')}</div>`;
 
     const btn = document.createElement('button');
     btn.className = 'ue-btn';
-    btn.style.cssText = 'background:var(--primary,#FF441F);color:#fff;border:none;border-radius:8px;padding:5px 13px;font-size:0.78rem;cursor:pointer;font-weight:700;transition:all .15s;white-space:nowrap;flex-shrink:0';
+    btn.style.cssText =
+      'background:var(--primary,#FF441F);color:#fff;border:none;border-radius:8px;padding:5px 13px;font-size:0.78rem;cursor:pointer;font-weight:700;transition:all .15s;white-space:nowrap;flex-shrink:0';
     btn.textContent = '+ Add';
     btn.addEventListener('click', () => {
       const nomeExtra = extra.nome;
-      const existe = carrinhoPDV.find(i => i._isExtra && i.nome === nomeExtra);
-      if (existe) { existe.qtd++; }
-      else {
+      const existe = carrinhoPDV.find((i) => i._isExtra && i.nome === nomeExtra);
+      if (existe) {
+        existe.qtd++;
+      } else {
         carrinhoPDV.push({
           id: 'ext_' + Date.now(),
           nome: nomeExtra,
@@ -3838,7 +3998,9 @@ function _mostrarUpsellExtrasPDV(produto, extras) {
 
   document.body.appendChild(toast);
   // Auto-fecha em 10 s
-  setTimeout(() => { if (document.getElementById('pdv-upsell-toast') === toast) toast.remove(); }, 10000);
+  setTimeout(() => {
+    if (document.getElementById('pdv-upsell-toast') === toast) toast.remove();
+  }, 10000);
 }
 
 function removerItemPDV(idx) {
@@ -3847,8 +4009,8 @@ function removerItemPDV(idx) {
 }
 
 function atualizarCarrinhoPDV() {
-  const lista    = document.getElementById('pdv-lista');
-  const totalEl  = document.getElementById('balcao-total');
+  const lista = document.getElementById('pdv-lista');
+  const totalEl = document.getElementById('balcao-total');
   if (!lista) return;
 
   lista.innerHTML = '';
@@ -3856,7 +4018,9 @@ function atualizarCarrinhoPDV() {
 
   // ── Itens existentes da mesa (snapshot do DB) ──────────────────
   const itensExistentes = window._mesaAbertaPedido
-    ? (Array.isArray(window._mesaAbertaPedido.itens) ? window._mesaAbertaPedido.itens : [])
+    ? Array.isArray(window._mesaAbertaPedido.itens)
+      ? window._mesaAbertaPedido.itens
+      : []
     : [];
 
   if (itensExistentes.length > 0) {
@@ -3866,10 +4030,10 @@ function atualizarCarrinhoPDV() {
     lista.appendChild(secTitle);
 
     itensExistentes.forEach((item, idx) => {
-      const entregue  = item.status_item === 'entregue';
-      const qtd       = item.qtd || item.q || 1;
-      const nome      = item.nome || item.n || 'Item';
-      const preco     = item.preco || item.p || 0;
+      const entregue = item.status_item === 'entregue';
+      const qtd = item.qtd || item.q || 1;
+      const nome = item.nome || item.n || 'Item';
+      const preco = item.preco || item.p || 0;
       total += preco * qtd;
 
       const row = document.createElement('div');
@@ -3881,12 +4045,16 @@ function atualizarCarrinhoPDV() {
         </div>
         <div class="pdv-item-acoes">
           <span>Gs ${(preco * qtd).toLocaleString('es-PY')}</span>
-          ${!entregue ? `
+          ${
+            !entregue
+              ? `
             <button class="btn btn-sm btn-success pdv-btn-baixar"
               title="Marcar como entregue"
               onclick="baixarItemMesa(${window._mesaAbertaId}, ${idx})">
               <i class="fas fa-check"></i>
-            </button>` : ''}
+            </button>`
+              : ''
+          }
         </div>`;
       lista.appendChild(row);
     });
@@ -3918,14 +4086,14 @@ function atualizarCarrinhoPDV() {
   }
 
   if (totalEl) totalEl.innerText = total.toLocaleString('es-PY');
-  
+
   // Atualiza barra inferior mobile
   const mobileQtd = document.getElementById('pdv-mobile-qtd');
   const mobileTot = document.getElementById('pdv-mobile-total-val');
   const qtdTotal = carrinhoPDV.reduce((a, i) => a + i.qtd, 0);
   if (mobileQtd) mobileQtd.textContent = qtdTotal + (qtdTotal === 1 ? ' item' : ' itens');
   if (mobileTot) mobileTot.textContent = total.toLocaleString('es-PY');
-  
+
   atualizarInfoPagPDV(total);
 }
 
@@ -3945,7 +4113,8 @@ function atualizarInfoPagPDV(total) {
 
 async function salvarPedidoBalcao() {
   if (carrinhoPDV.length === 0 && !window._mesaAbertaId) return alert('Carrinho vazio!');
-  if (carrinhoPDV.length === 0 && window._mesaAbertaId) return alert('Adicione ao menos 1 novo item antes de lançar.');
+  if (carrinhoPDV.length === 0 && window._mesaAbertaId)
+    return alert('Adicione ao menos 1 novo item antes de lançar.');
 
   const mesa = document.getElementById('balcao-mesa').value.trim();
   if (!mesa) {
@@ -3954,21 +4123,21 @@ async function salvarPedidoBalcao() {
     return;
   }
 
-  const cli      = document.getElementById('balcao-cliente').value || 'Cliente';
-  const tel      = document.getElementById('balcao-telefone').value || '';
-  const pag      = document.getElementById('balcao-pag').value;
+  const cli = document.getElementById('balcao-cliente').value || 'Cliente';
+  const tel = document.getElementById('balcao-telefone').value || '';
+  const pag = document.getElementById('balcao-pag').value;
   const nomeFinal = `MESA ${mesa} - ${cli}`;
 
   // ── Novos itens ganham status_item: 'pendente' ─────────────────
   const novosItens = carrinhoPDV.map((i) => ({
-    id:           i.id || Date.now() + Math.random(),
-    nome:         i.nome,
-    preco:        i.preco,
-    qtd:          i.qtd,
-    montagem:     i.montagem || [],
-    obs:          i.obs     || '',
-    status_item:  'pendente',   // ← campo de status por item
-    lancado_em:   new Date().toISOString(),
+    id: i.id || Date.now() + Math.random(),
+    nome: i.nome,
+    preco: i.preco,
+    qtd: i.qtd,
+    montagem: i.montagem || [],
+    obs: i.obs || '',
+    status_item: 'pendente', // ← campo de status por item
+    lancado_em: new Date().toISOString(),
   }));
 
   if (window._mesaAbertaId) {
@@ -3979,17 +4148,20 @@ async function salvarPedidoBalcao() {
       : [];
 
     const itensMerged = [...itensExistentes, ...novosItens];
-    const novoTotal   = itensMerged.reduce((acc, i) => acc + ((i.preco || 0) * (i.qtd || 1)), 0);
+    const novoTotal = itensMerged.reduce((acc, i) => acc + (i.preco || 0) * (i.qtd || 1), 0);
 
-    const { error } = await supa.from('pedidos').update({
-      itens:           itensMerged,
-      total_geral:     novoTotal,
-      subtotal:        novoTotal,
-      forma_pagamento: pag,
-      cliente_nome:    nomeFinal,
-      cliente_telefone: tel,
-      status:          'em_preparo',
-    }).eq('id', window._mesaAbertaId);
+    const { error } = await supa
+      .from('pedidos')
+      .update({
+        itens: itensMerged,
+        total_geral: novoTotal,
+        subtotal: novoTotal,
+        forma_pagamento: pag,
+        cliente_nome: nomeFinal,
+        cliente_telefone: tel,
+        status: 'em_preparo',
+      })
+      .eq('id', window._mesaAbertaId);
 
     if (error) {
       alert('Erro ao atualizar mesa: ' + error.message);
@@ -3997,13 +4169,13 @@ async function salvarPedidoBalcao() {
     }
 
     // Reset
-    window._mesaAbertaId     = null;
-    window._mesaAbertaTotal  = 0;
+    window._mesaAbertaId = null;
+    window._mesaAbertaTotal = 0;
     window._mesaAbertaPedido = null;
     carrinhoPDV = [];
-    document.getElementById('balcao-cliente').value   = '';
-    document.getElementById('balcao-mesa').value      = '';
-    document.getElementById('balcao-telefone').value  = '';
+    document.getElementById('balcao-cliente').value = '';
+    document.getElementById('balcao-mesa').value = '';
+    document.getElementById('balcao-telefone').value = '';
     document.querySelector('.pdv-mesa-aviso')?.remove();
     atualizarCarrinhoPDV();
     atualizarBarraMesasAtivas();
@@ -4015,18 +4187,18 @@ async function salvarPedidoBalcao() {
   // ── INSERT: novo pedido de balcão ─────────────────────────────
   const totalNovo = novosItens.reduce((acc, i) => acc + i.preco * i.qtd, 0);
   const pedido = {
-    uid_temporal:         `BALC-${Math.floor(Math.random() * 1000)}`,
-    status:               'em_preparo',
-    tipo_entrega:         'balcao',
-    total_geral:          totalNovo,
-    subtotal:             totalNovo,
+    uid_temporal: `BALC-${Math.floor(Math.random() * 1000)}`,
+    status: 'em_preparo',
+    tipo_entrega: 'balcao',
+    total_geral: totalNovo,
+    subtotal: totalNovo,
     frete_cobrado_cliente: 0,
-    forma_pagamento:      pag,
-    itens:                novosItens,
-    endereco_entrega:     `Mesa ${mesa}`,
-    cliente_nome:         nomeFinal,
-    cliente_telefone:     tel,
-    obs_pagamento:        'Pagamento no Balcão',
+    forma_pagamento: pag,
+    itens: novosItens,
+    endereco_entrega: `Mesa ${mesa}`,
+    cliente_nome: nomeFinal,
+    cliente_telefone: tel,
+    obs_pagamento: 'Pagamento no Balcão',
   };
 
   const { error } = await supa.from('pedidos').insert([pedido]);
@@ -4036,15 +4208,14 @@ async function salvarPedidoBalcao() {
   }
 
   carrinhoPDV = [];
-  document.getElementById('balcao-cliente').value  = '';
-  document.getElementById('balcao-mesa').value     = '';
+  document.getElementById('balcao-cliente').value = '';
+  document.getElementById('balcao-mesa').value = '';
   document.getElementById('balcao-telefone').value = '';
   atualizarCarrinhoPDV();
   atualizarBarraMesasAtivas();
   carregarMonitorMesas();
   alert('Pedido enviado para a Cozinha! 👨‍🍳');
 }
-
 
 // ── Barra de Mesas Ativas no PDV ─────────────────────────────
 async function atualizarBarraMesasAtivas() {
@@ -4069,13 +4240,16 @@ async function atualizarBarraMesasAtivas() {
   data.forEach((p) => {
     const nrMesa = (p.endereco_entrega || '').replace('Mesa ', '') || p.id;
     const chip = document.createElement('button');
-    chip.className = 'mesa-chip' +
-      (p.status === 'pronto_entrega' ? ' mesa-pronto' :
-       p.status === 'em_preparo' ? ' mesa-em-preparo' : '');
+    chip.className =
+      'mesa-chip' +
+      (p.status === 'pronto_entrega'
+        ? ' mesa-pronto'
+        : p.status === 'em_preparo'
+          ? ' mesa-em-preparo'
+          : '');
     chip.title = `${p.cliente_nome || 'Mesa ' + nrMesa} — Gs ${(p.total_geral || 0).toLocaleString('es-PY')} — Clique para adicionar itens`;
     chip.innerHTML = `<span class="mesa-chip-num">${nrMesa}</span><span class="mesa-chip-status">${
-      p.status === 'pronto_entrega' ? '✓ Pronto' :
-      p.status === 'em_preparo' ? '🔥' : '●'
+      p.status === 'pronto_entrega' ? '✓ Pronto' : p.status === 'em_preparo' ? '🔥' : '●'
     }</span>`;
     chip.onclick = () => abrirMesaExistente(p);
     bar.appendChild(chip);
@@ -4089,9 +4263,9 @@ function abrirMesaExistente(pedido) {
 
   // Preenche os campos
   const elMesa = document.getElementById('balcao-mesa');
-  const elCli  = document.getElementById('balcao-cliente');
+  const elCli = document.getElementById('balcao-cliente');
   if (elMesa) elMesa.value = nrMesa;
-  if (elCli)  elCli.value  = nomeCli === 'Cliente' ? '' : nomeCli;
+  if (elCli) elCli.value = nomeCli === 'Cliente' ? '' : nomeCli;
 
   // ──────────────────────────────────────────────────────────────────
   // MUDANÇA: carrinhoPDV fica VAZIO — só recebe os NOVOS itens.
@@ -4099,8 +4273,8 @@ function abrirMesaExistente(pedido) {
   // Na hora do save, fazemos merge: existentes (intactos) + novos (pendente).
   // ──────────────────────────────────────────────────────────────────
   carrinhoPDV = [];
-  window._mesaAbertaId     = pedido.id;
-  window._mesaAbertaTotal  = pedido.total_geral || 0;
+  window._mesaAbertaId = pedido.id;
+  window._mesaAbertaTotal = pedido.total_geral || 0;
   window._mesaAbertaPedido = pedido; // guarda snapshot completo
 
   atualizarCarrinhoPDV();
@@ -4149,44 +4323,51 @@ async function carregarMonitorMesas() {
     // Lógica Visual do Status — usa classes CSS
     if (p.status === 'em_preparo') {
       cardClass += ' mesa-preparo';
-      statusHtml = '<span class="mesa-monitor-status-cozinha"><i class="fas fa-fire"></i> Na Cozinha</span>';
+      statusHtml =
+        '<span class="mesa-monitor-status-cozinha"><i class="fas fa-fire"></i> Na Cozinha</span>';
       acaoHtml = '<small class="mesa-monitor-status-cozinha">Aguardando cozinha...</small>';
     } else if (p.status === 'pronto_entrega') {
       cardClass += ' mesa-pronta';
-      statusHtml = '<span class="mesa-monitor-status-pronto"><i class="fas fa-check-circle"></i> PRONTO!</span>';
+      statusHtml =
+        '<span class="mesa-monitor-status-pronto"><i class="fas fa-check-circle"></i> PRONTO!</span>';
       acaoHtml = `<button class="btn btn-sm btn-success btn-block-pdv" onclick="finalizarMesa(${p.id})">Entregar / Baixar</button>`;
     } else {
       statusHtml = `<span class="mesa-monitor-valor">${p.status}</span>`;
     }
 
-    const nrMesa = (p.endereco_entrega || '').replace('Mesa ', '') || (p.uid_temporal || p.id);
+    const nrMesa = (p.endereco_entrega || '').replace('Mesa ', '') || p.uid_temporal || p.id;
 
     // Lista de itens com status visual por item
     const itens = Array.isArray(p.itens) ? p.itens : [];
     const pendentes = itens.filter((i) => !i.status_item || i.status_item === 'pendente');
     const entregues = itens.filter((i) => i.status_item === 'entregue');
 
-    let itensListHtml = itens.map((item, idx) => {
-      const isEntregue = item.status_item === 'entregue';
-      const nome = item.nome || item.n || 'Item';
-      const qtd  = item.qtd  || item.q  || 1;
-      return `
+    let itensListHtml = itens
+      .map((item, idx) => {
+        const isEntregue = item.status_item === 'entregue';
+        const nome = item.nome || item.n || 'Item';
+        const qtd = item.qtd || item.q || 1;
+        return `
         <div class="monitor-item-row ${isEntregue ? 'monitor-item-entregue' : ''}">
           <span class="monitor-item-nome">${qtd}x ${nome}</span>
-          ${isEntregue
-            ? '<span class="monitor-item-badge-entregue">✓ Entregue</span>'
-            : `<button class="btn btn-xs btn-outline-success monitor-btn-baixar"
+          ${
+            isEntregue
+              ? '<span class="monitor-item-badge-entregue">✓ Entregue</span>'
+              : `<button class="btn btn-xs btn-outline-success monitor-btn-baixar"
                 title="Marcar como entregue"
                 onclick="baixarItemMesa(${p.id}, ${idx})">
                 <i class="fas fa-check"></i>
-               </button>`}
+               </button>`
+          }
         </div>`;
-    }).join('');
+      })
+      .join('');
 
     // Contador de pendentes no cabeçalho
-    const cntPendente = pendentes.length > 0
-      ? `<span class="mesa-monitor-cnt-pendente">${pendentes.length} pendente${pendentes.length > 1 ? 's' : ''}</span>`
-      : '';
+    const cntPendente =
+      pendentes.length > 0
+        ? `<span class="mesa-monitor-cnt-pendente">${pendentes.length} pendente${pendentes.length > 1 ? 's' : ''}</span>`
+        : '';
 
     const card = document.createElement('div');
     card.className = cardClass;
@@ -4209,8 +4390,14 @@ async function carregarMonitorMesas() {
 async function baixarItemMesa(pedidoId, itemIdx) {
   // Busca snapshot mais recente do banco (evita conflito de estado stale)
   const { data: p, error: errFetch } = await supa
-    .from('pedidos').select('itens, total_geral').eq('id', pedidoId).single();
-  if (errFetch || !p) { alert('Erro ao buscar comanda.'); return; }
+    .from('pedidos')
+    .select('itens, total_geral')
+    .eq('id', pedidoId)
+    .single();
+  if (errFetch || !p) {
+    alert('Erro ao buscar comanda.');
+    return;
+  }
 
   const itens = Array.isArray(p.itens) ? [...p.itens] : [];
   if (!itens[itemIdx]) return;
@@ -4218,10 +4405,12 @@ async function baixarItemMesa(pedidoId, itemIdx) {
   // Muda status do item específico
   itens[itemIdx] = { ...itens[itemIdx], status_item: 'entregue' };
 
-  const { error } = await supa
-    .from('pedidos').update({ itens }).eq('id', pedidoId);
+  const { error } = await supa.from('pedidos').update({ itens }).eq('id', pedidoId);
 
-  if (error) { alert('Erro ao baixar item: ' + error.message); return; }
+  if (error) {
+    alert('Erro ao baixar item: ' + error.message);
+    return;
+  }
 
   // Atualiza o snapshot local e re-renderiza o carrinho PDV
   if (window._mesaAbertaPedido && window._mesaAbertaId === pedidoId) {
@@ -4498,7 +4687,7 @@ async function carregarCupons() {
     let usoHtml;
     if (c.limite_uso && c.limite_uso > 0) {
       const restante = c.limite_uso - usosRealizados;
-      const esgotado  = restante <= 0;
+      const esgotado = restante <= 0;
       usoHtml = `
         <div style="font-size:0.82rem">
           <span style="font-weight:700;color:${esgotado ? '#e74c3c' : '#27ae60'}">${usosRealizados}/${c.limite_uso}</span>
@@ -4511,11 +4700,11 @@ async function carregarCupons() {
     // Validade
     let validadeHtml = '<span style="color:#ccc;font-size:0.8rem">—</span>';
     if (c.validade) {
-      const vDate    = new Date(c.validade + 'T00:00:00');
-      const hoje     = new Date();
-      hoje.setHours(0,0,0,0);
+      const vDate = new Date(c.validade + 'T00:00:00');
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
       const expirado = vDate < hoje;
-      validadeHtml   = `<span style="font-size:0.8rem;color:${expirado ? '#e74c3c' : '#555'}">${vDate.toLocaleDateString('pt-BR')}${expirado ? ' <em style=\'font-size:0.7rem\'>(Expirado)</em>' : ''}</span>`;
+      validadeHtml = `<span style="font-size:0.8rem;color:${expirado ? '#e74c3c' : '#555'}">${vDate.toLocaleDateString('pt-BR')}${expirado ? " <em style='font-size:0.7rem'>(Expirado)</em>" : ''}</span>`;
     }
 
     tbody.innerHTML += `
@@ -4549,8 +4738,10 @@ function abrirModalCupom(cupom = null) {
   document.getElementById('cupom-minimo').value = cupom ? cupom.minimo : '';
   document.getElementById('cupom-ativo').checked = cupom ? cupom.ativo : true;
   // Limite de usos e validade
-  document.getElementById('cupom-limite').value   = cupom?.limite_uso  ?? '';
-  document.getElementById('cupom-validade').value = cupom?.validade    ? cupom.validade.split('T')[0] : '';
+  document.getElementById('cupom-limite').value = cupom?.limite_uso ?? '';
+  document.getElementById('cupom-validade').value = cupom?.validade
+    ? cupom.validade.split('T')[0]
+    : '';
 
   alterarTipoCupom();
 
@@ -4576,13 +4767,13 @@ async function salvarCupom() {
   const validadeRaw = document.getElementById('cupom-validade').value;
 
   const dados = {
-    codigo:     document.getElementById('cupom-codigo').value.toUpperCase(),
-    tipo:       document.getElementById('cupom-tipo').value,
-    valor:      parseFloat(document.getElementById('cupom-valor').value) || 0,
-    minimo:     parseFloat(document.getElementById('cupom-minimo').value) || 0,
-    ativo:      document.getElementById('cupom-ativo').checked,
-    limite_uso: (!isNaN(limiteRaw) && limiteRaw > 0) ? limiteRaw : null,
-    validade:   validadeRaw || null,
+    codigo: document.getElementById('cupom-codigo').value.toUpperCase(),
+    tipo: document.getElementById('cupom-tipo').value,
+    valor: parseFloat(document.getElementById('cupom-valor').value) || 0,
+    minimo: parseFloat(document.getElementById('cupom-minimo').value) || 0,
+    ativo: document.getElementById('cupom-ativo').checked,
+    limite_uso: !isNaN(limiteRaw) && limiteRaw > 0 ? limiteRaw : null,
+    validade: validadeRaw || null,
   };
 
   if (!dados.codigo) {
