@@ -322,7 +322,7 @@ textarea.form-control {
 }
 
 .modal-actions .btn-primary {
-    background: linear-gradient(135deg, var(--primary) 0%, #157a27 100%);
+    background: linear-gradient(135deg, var(--primary) 0%, #e63b1f 100%);
     box-shadow: 0 4px 15px rgba(255, 68, 31, 0.3);
 }
 
@@ -397,7 +397,7 @@ textarea.form-control {
 }
 
 .btn-modern-primary {
-    background: linear-gradient(135deg, var(--primary) 0%, #157a27 100%);
+    background: linear-gradient(135deg, var(--primary) 0%, #e63b1f 100%);
     color: white;
     box-shadow: 0 4px 15px rgba(255, 68, 31, 0.3);
 }
@@ -475,13 +475,7 @@ select.form-control, select.input-modern {
 .etapa-header { display: flex; gap: 10px; margin-bottom: 5px; }
 .etapa-ingredientes { width: 100%; font-size: 0.85rem; height: 60px; border: 1px solid #ddd; padding: 5px; }
 
-.pdv-container {
-    display: grid;
-    grid-template-columns: 300px 1fr 220px;
-    gap: 16px;
-    height: calc(100vh - 160px);
-    align-items: start;
-}
+/* old removed */
 
 .modal-overlay {
     z-index: 10000 !important; /* Garante que fique acima de tudo */
@@ -528,76 +522,222 @@ select.form-control, select.input-modern {
     z-index: 10001;
 }
 
-/* --- ESTILO PDV (Venda Balcão Visual) --- */
-.pdv-container {
-    display: block !important;
-    gap: 15px;
-    height: 65vh; /* Altura fixa para caber na tela */
+/* ===================================================================
+   PDV — NOVO LAYOUT (inspirado Datacaixa)
+   Desktop: grid 2 colunas (produtos | carrinho)
+   Mobile:  chips + grid 3 col + barra inferior fixa
+   =================================================================== */
+
+/* Header bar com botões de view */
+.pdv-header-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.pdv-view-btns {
+    display: flex;
+    gap: 6px;
+}
+.pdv-view-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 16px;
+    border-radius: 8px;
+    border: 2px solid #e5e7eb;
+    background: #fff;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #777;
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+}
+.pdv-view-btn.active {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: rgba(var(--primary-rgb, 46,125,50), 0.06);
+}
+.pdv-badge-mesas {
+    background: #e53e3e;
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 800;
+    border-radius: 999px;
+    padding: 1px 6px;
+    min-width: 18px;
+    text-align: center;
 }
 
+/* View panels */
+.pdv-view-panel { width: 100%; }
+
+/* CONTAINER PRINCIPAL — Desktop: 2 colunas */
+.pdv-container {
+    display: grid !important;
+    grid-template-columns: 1fr 310px !important;
+    gap: 14px !important;
+    height: calc(100vh - 170px) !important;
+    align-items: start !important;
+}
+
+/* COLUNA ESQUERDA — Produtos */
 .pdv-produtos {
-    grid-column: 2;
+    grid-column: 1;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 170px);
+    overflow: hidden;
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid #eee;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+/* Barra de filtros de categoria */
+.pdv-cat-filterbar {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px 8px;
+    border-bottom: 1px solid #f0f0f0;
+    flex-shrink: 0;
+}
+.pdv-cat-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.pdv-cat-chip {
+    padding: 5px 12px;
+    border-radius: 6px;
+    border: 1px solid #e0e0e0;
+    background: #f5f5f5;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #555;
+    cursor: pointer;
+    letter-spacing: 0.4px;
+    white-space: nowrap;
+    transition: all 0.12s;
+}
+.pdv-cat-chip:hover { border-color: var(--primary); color: var(--primary); }
+.pdv-cat-chip.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+}
+.pdv-busca-input {
+    width: 100%;
+    padding: 7px 12px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 0.88rem;
+    outline: none;
+    transition: border-color 0.15s;
+    box-sizing: border-box;
+}
+.pdv-busca-input:focus { border-color: var(--primary); }
+
+/* Grid de produtos — ocupa todo o espaço restante com scroll */
+#pdv-grid {
+    flex: 1;
     overflow-y: auto;
-    height: calc(100vh - 165px);
-    padding-right: 4px;
+    padding: 10px 12px 16px;
     scrollbar-width: thin;
     scrollbar-color: #ddd transparent;
 }
-.pdv-produtos::-webkit-scrollbar { width: 4px; }
-.pdv-produtos::-webkit-scrollbar-thumb { background: #ddd; border-radius: 4px; }
+#pdv-grid::-webkit-scrollbar { width: 4px; }
+#pdv-grid::-webkit-scrollbar-thumb { background: #ddd; border-radius: 4px; }
 
 .pdv-card {
     position: relative;
     aspect-ratio: 1 / 1;
-    border-radius: 12px;
+    border-radius: 10px;
     cursor: pointer;
     background-size: cover;
     background-position: center;
     background-color: #f0f0f0;
     border: 2px solid transparent;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.12);
-    transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s;
     overflow: hidden;
     -webkit-tap-highlight-color: transparent;
 }
-
+.pdv-card-noimg {
+    background: linear-gradient(135deg, #f0f0f0 0%, #e0e0e0 100%);
+    display: flex;
+    align-items: flex-end;
+}
 .pdv-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.18);
     border-color: var(--primary);
 }
-
-.pdv-card:active { transform: scale(0.95); border-color: var(--primary); }
+.pdv-card:active { transform: scale(0.95); }
 .pdv-card-price {
-    position: absolute; top: 5px; right: 5px;
-    background: var(--success); color: white;
-    font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; font-weight: bold;
+    position: absolute;
+    top: 4px; right: 4px;
+    background: var(--success, #2e7d32);
+    color: white;
+    font-size: 0.7rem;
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-weight: bold;
 }
 .pdv-card-overlay {
     position: absolute;
-    bottom: 0;
-    left: 0;
+    bottom: 0; left: 0;
     width: 100%;
-    background: linear-gradient(transparent, rgba(0,0,0,0.82));
+    background: linear-gradient(transparent, rgba(0,0,0,0.78));
     color: white;
     padding: 5px 4px 6px;
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     text-align: center;
     font-weight: 600;
     line-height: 1.2;
     word-break: break-word;
 }
 
+.pdv-cat-header {
+    padding: 4px 0 6px;
+    font-weight: 700;
+    font-size: 0.73rem;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.pdv-cat-header::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #eee;
+}
+.pdv-cat-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+/* COLUNA DIREITA — Carrinho */
 .pdv-carrinho {
-    grid-column: 1;
+    grid-column: 2;
     background: #fff;
-    border-radius: 14px;
+    border-radius: 12px;
     display: flex;
     flex-direction: column;
     padding: 14px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-    border: 1px solid #f0f0f0;
-    height: calc(100vh - 165px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    border: 1px solid #eee;
+    height: calc(100vh - 170px);
     overflow-y: auto;
     position: sticky;
     top: 16px;
@@ -607,30 +747,69 @@ select.form-control, select.input-modern {
     flex: 1;
     overflow-y: auto;
     border: 1px dashed #eee;
+    border-radius: 8px;
     margin-bottom: 10px;
     padding: 5px;
+    min-height: 80px;
 }
 
+/* Monitor (na view de mesas, não dentro do container 2 cols) */
 .pdv-monitor {
-    grid-column: 3;
     background: linear-gradient(160deg, #2c3e50 0%, #1a252f 100%);
     color: white;
-    padding: 12px;
+    padding: 14px;
     border-radius: 14px;
-    height: calc(100vh - 165px);
     overflow-y: auto;
-    position: sticky;
-    top: 16px;
 }
 
-.pdv-item-row {
-    display: flex;
-    justify-content: space-between;
+/* MOBILE BOTTOM BAR */
+.pdv-mobile-footer {
+    display: none;
+    position: fixed;
+    bottom: 60px; /* acima das tabs do menu principal */
+    left: 0; right: 0;
+    background: #fff;
+    border-top: 1px solid #eee;
+    padding: 8px 12px;
+    gap: 10px;
     align-items: center;
-    padding: 8px 0;
-    border-bottom: 1px dashed #eee;
-    font-size: 0.9rem;
+    z-index: 200;
+    box-shadow: 0 -4px 12px rgba(0,0,0,0.1);
 }
+.pdv-mobile-total {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+}
+.pdv-mobile-total span:first-child { font-size: 0.75rem; color: #888; }
+.pdv-mobile-valor { font-size: 0.95rem; font-weight: 700; color: #333; }
+.pdv-mobile-checkout-btn {
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Btn lançar */
+.btn-lancar-cozinha {
+    width: 100%;
+    padding: 12px;
+    font-size: 0.95rem;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    border-radius: 10px;
+}
+
+
 
 /* --- FILTROS FINANCEIROS --- */
 .filtro-bar {
@@ -922,15 +1101,22 @@ select.form-control, select.input-modern {
         padding: 8px !important;
     }
 
-    /* --- 6. PDV Mobile — Tab layout --- */
+    /* --- 6. PDV Mobile — layout compacto com chips e barra inferior --- */
+    .pdv-header-bar { flex-direction: column; align-items: flex-start; }
+    .pdv-view-btns  { display: none !important; }
+    
     .pdv-container {
         display: block !important;
         height: auto !important;
+        gap: 0 !important;
     }
     .pdv-tabs {
         display: flex !important;
         border-bottom: 2px solid #f0f0f0;
-        margin-bottom: 12px;
+        margin-bottom: 8px;
+        background: #fff;
+        border-radius: 10px 10px 0 0;
+        overflow: hidden;
     }
     .pdv-tab-btn {
         flex: 1;
@@ -945,34 +1131,51 @@ select.form-control, select.input-modern {
         margin-bottom: -2px;
     }
     .pdv-tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+    
     .pdv-carrinho, .pdv-produtos, .pdv-monitor {
         display: none !important;
         height: auto !important;
         max-height: none !important;
         position: static !important;
         width: 100% !important;
-        border-radius: 12px !important;
+        border-radius: 0 0 12px 12px !important;
     }
     .pdv-carrinho.pdv-tab-active {
         display: flex !important;
         flex-direction: column !important;
-        max-height: 72vh !important;
+        max-height: calc(100vh - 190px) !important;
         overflow-y: auto !important;
     }
     .pdv-produtos.pdv-tab-active {
-        display: block !important;
-        max-height: 70vh !important;
-        overflow-y: auto !important;
+        display: flex !important;
+        flex-direction: column !important;
+        max-height: calc(100vh - 190px) !important;
+        overflow-y: hidden !important;
     }
     .pdv-monitor.pdv-tab-active {
         display: block !important;
-        max-height: 65vh !important;
+        max-height: calc(100vh - 190px) !important;
         overflow-y: auto !important;
     }
+    /* Mobile: chips scrolláveis horizontalmente */
+    .pdv-cat-chips {
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        padding-bottom: 4px;
+        -webkit-overflow-scrolling: touch;
+    }
+    .pdv-cat-chip { flex-shrink: 0; }
+    /* Mobile: grid 3 colunas */
     .pdv-cat-row {
         grid-template-columns: repeat(3, 1fr) !important;
-        gap: 8px !important;
+        gap: 7px !important;
     }
+    /* Mobile: barra inferior visível */
+    .pdv-mobile-footer {
+        display: flex !important;
+    }
+    /* Espaço extra no fundo para não cobrir conteúdo */
+    #pdv-grid { padding-bottom: 80px !important; }
 
     /* --- 7. MODAIS --- */
     .modal-content {
@@ -1346,7 +1549,7 @@ select.form-control, select.input-modern {
 }
 
 .modal-header-modern {
-    background: linear-gradient(135deg, var(--primary) 0%, #157a27 100%);
+    background: linear-gradient(135deg, var(--primary) 0%, #e63b1f 100%);
     color: white;
     padding: 20px 25px;
     display: flex;
@@ -1432,7 +1635,7 @@ select.form-control, select.input-modern {
 }
 
 .btn-modern-primary {
-    background: linear-gradient(135deg, var(--primary) 0%, #157a27 100%);
+    background: linear-gradient(135deg, var(--primary) 0%, #e63b1f 100%);
     color: white;
     box-shadow: 0 4px 15px rgba(255, 68, 31, 0.3);
 }
@@ -2169,11 +2372,12 @@ select.form-control, select.input-modern {
     margin-bottom: 15px;
 }
 
-/* ── Desktop guard: tabs ocultas, painéis sempre visíveis ─── */
+/* ── Desktop guard: tabs ocultas, layout 2 colunas ─── */
 @media (min-width: 769px) {
     .pdv-tabs { display: none !important; }
-    .pdv-carrinho, .pdv-produtos, .pdv-monitor { display: flex !important; }
-    .pdv-produtos, .pdv-monitor { display: block !important; }
+    .pdv-mobile-footer { display: none !important; }
+    .pdv-carrinho, .pdv-produtos { display: flex !important; }
+    .pdv-produtos { display: flex !important; flex-direction: column !important; }
 }
 
 /* ── Ranking filtros de período ──────────────────────────── */
@@ -2997,708 +3201,180 @@ hr.modal-divisor {
     grid-template-columns: 1fr;
   }
 }
-
-/* ═══════════════════════════════════════════════════════════════
-   PDV REDESIGN — Layout estilo caixa profissional
-   ═══════════════════════════════════════════════════════════════ */
-
-/* Container principal */
-.pdv-container {
-    display: grid !important;
-    grid-template-columns: 320px 1fr 230px;
-    gap: 0;
-    height: calc(100vh - 130px);
-    background: #f0f2f5;
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+/* ══════════════════════════════════════════════
+   GRADE SEMANAL — Novo Design
+═══════════════════════════════════════════════ */
+#grade-semanal {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-/* ── COLUNA ESQUERDA: Carrinho ─────────────────────────────── */
-.pdv-carrinho {
-    display: flex;
-    flex-direction: column;
-    background: #fff;
-    border-right: 1px solid #e8e8e8;
-    height: 100%;
-    overflow: hidden;
+.gs-dia-card {
+  background: #fff;
+  border-radius: 14px;
+  border: 2px solid #f0f0f0;
+  overflow: hidden;
+  transition: border-color .2s, box-shadow .2s;
+}
+.gs-dia-card.gs-aberto  { border-color: #d1fae5; }
+.gs-dia-card.gs-fechado { border-color: #fee2e2; background: #fffafa; }
+
+.gs-dia-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #fafafa;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: default;
+}
+.gs-dia-card.gs-aberto  .gs-dia-header { background: #f0fdf4; }
+.gs-dia-card.gs-fechado .gs-dia-header { background: #fff5f5; }
+
+.gs-dia-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.gs-dia-icone { font-size: 1.1rem; }
+.gs-dia-nome  { font-weight: 700; font-size: 0.92rem; color: #2c3e50; }
+
+.gs-dia-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-.pdv-cart-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 14px 16px;
-    background: #1a7a2e;
-    color: white;
+.gs-status-badge {
+  font-size: 0.73rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+  letter-spacing: .3px;
+  white-space: nowrap;
 }
-.pdv-cart-header-icon {
-    width: 38px; height: 38px;
-    background: rgba(255,255,255,0.2);
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 1.1rem;
-    flex-shrink: 0;
-}
-.pdv-cart-title {
-    font-size: 1rem; font-weight: 700;
-}
-.pdv-cart-sub {
-    font-size: 0.75rem; opacity: 0.85;
-}
-.pdv-btn-limpar {
-    margin-left: auto;
-    background: rgba(255,255,255,0.2);
-    border: none; color: white;
-    width: 32px; height: 32px;
-    border-radius: 50%;
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    transition: background 0.2s;
-}
-.pdv-btn-limpar:hover { background: rgba(255,255,255,0.35); }
+.gs-badge-aberto  { background: #d1fae5; color: #065f46; }
+.gs-badge-fechado { background: #fee2e2; color: #991b1b; }
 
-.pdv-quick-form {
-    padding: 10px 12px;
-    border-bottom: 1px solid #f0f0f0;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+/* Toggle switch */
+.gs-toggle-wrap { position: relative; display: inline-block; width: 42px; height: 24px; cursor: pointer; }
+.gs-toggle-wrap input { opacity: 0; width: 0; height: 0; }
+.gs-toggle-slider {
+  position: absolute; inset: 0;
+  background: #ccc;
+  border-radius: 24px;
+  transition: .25s;
 }
-.pdv-quick-field {
-    display: flex;
-    align-items: center;
-    background: #f8f9fa;
-    border: 1px solid #e8e8e8;
-    border-radius: 8px;
-    padding: 0 10px;
-    height: 38px;
+.gs-toggle-slider::before {
+  content: '';
+  position: absolute;
+  width: 18px; height: 18px;
+  left: 3px; top: 3px;
+  background: #fff;
+  border-radius: 50%;
+  transition: .25s;
+  box-shadow: 0 1px 3px rgba(0,0,0,.2);
 }
-.pdv-field-icon {
-    color: #999;
-    font-size: 0.8rem;
-    margin-right: 8px;
-    flex-shrink: 0;
-}
-.pdv-quick-input {
-    border: none;
-    background: transparent;
-    outline: none;
-    width: 100%;
-    font-size: 0.85rem;
-    color: #333;
-}
-.pdv-quick-input::placeholder { color: #aaa; }
+.gs-toggle-wrap input:checked + .gs-toggle-slider { background: #e74c3c; }
+.gs-toggle-wrap input:checked + .gs-toggle-slider::before { transform: translateX(18px); }
 
-/* Lista de itens */
-.pdv-lista-itens {
-    flex: 1;
-    overflow-y: auto;
-    padding: 8px 12px;
-    scrollbar-width: thin;
+/* Turnos */
+.gs-dia-turnos {
+  padding: 12px 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
-.pdv-lista-vazio {
-    text-align: center;
-    color: #ccc;
-    font-size: 0.85rem;
-    padding: 30px 10px;
-    line-height: 2;
-}
+.gs-turnos-lista { display: flex; flex-direction: column; gap: 8px; }
 
-.pdv-item-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 0;
-    border-bottom: 1px solid #f5f5f5;
-    font-size: 0.85rem;
+.gs-turno-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
-.pdv-item-info {
-    flex: 1;
-    line-height: 1.3;
+.gs-turno-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #666;
+  width: 90px;
+  flex-shrink: 0;
 }
-.pdv-item-info small {
-    display: block;
-    color: #999;
-    font-size: 0.75rem;
+.gs-turno-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
 }
-.pdv-item-acoes {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.82rem;
-    color: #555;
-    flex-shrink: 0;
+.gs-time-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #f8f9fa;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 5px 10px;
 }
+.gs-time-label {
+  font-size: 0.72rem;
+  color: #888;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.gs-time-input {
+  border: none;
+  background: transparent;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #2c3e50;
+  outline: none;
+  width: 100px;
+  padding: 0;
+}
+.gs-time-sep {
+  font-size: 1rem;
+  color: #aaa;
+  font-weight: 700;
+}
+.gs-btn-rm {
+  background: #fee2e2;
+  color: #dc2626;
+  border: none;
+  border-radius: 7px;
+  width: 28px; height: 28px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 700;
+  transition: background .15s;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.gs-btn-rm:hover { background: #fca5a5; }
 
-/* Total box */
-.pdv-total-box {
-    padding: 12px 14px;
-    background: #fafafa;
-    border-top: 2px solid #e8e8e8;
+.gs-btn-add-turno {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 2px dashed #d1d5db;
+  color: #6b7280;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+  align-self: flex-start;
 }
-.pdv-total-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    margin-bottom: 10px;
-    font-weight: 700;
-    font-size: 0.9rem;
-    color: #555;
-}
-.pdv-total-valor {
-    font-size: 1.4rem;
-    color: #1a7a2e;
-    font-weight: 800;
-}
-.pdv-pag-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 8px;
-    color: #777;
-    font-size: 0.9rem;
-}
-.pdv-select-pag {
-    flex: 1;
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    padding: 8px 10px;
-    font-size: 0.85rem;
-    background: white;
-    outline: none;
-    cursor: pointer;
-}
-.pdv-btn-lancar {
-    width: 100%;
-    padding: 14px;
-    background: linear-gradient(135deg, #1a7a2e, #27ae60);
-    color: white;
-    border: none;
-    border-radius: 10px;
-    font-size: 1rem;
-    font-weight: 800;
-    cursor: pointer;
-    letter-spacing: 0.5px;
-    transition: transform 0.1s, box-shadow 0.2s;
-    box-shadow: 0 4px 12px rgba(26,122,46,0.35);
-}
-.pdv-btn-lancar:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 18px rgba(26,122,46,0.45);
-}
-.pdv-btn-lancar:active { transform: scale(0.98); }
-
-/* ── COLUNA CENTRAL: Produtos ──────────────────────────────── */
-.pdv-produtos {
-    display: flex;
-    flex-direction: column;
-    background: #f0f2f5;
-    height: 100%;
-    overflow: hidden;
+.gs-btn-add-turno:hover {
+  border-color: var(--primary, #FF441F);
+  color: var(--primary, #FF441F);
+  background: #fff5f5;
 }
 
-.pdv-toolbar {
-    padding: 10px 12px 6px;
-    background: #fff;
-    border-bottom: 1px solid #e8e8e8;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+@media (max-width: 480px) {
+  .gs-turno-label { width: 100%; }
+  .gs-turno-row   { flex-direction: column; align-items: flex-start; }
 }
-.pdv-search-box {
-    display: flex;
-    align-items: center;
-    background: #f4f6f8;
-    border: 1px solid #e0e0e0;
-    border-radius: 20px;
-    padding: 6px 14px;
-    gap: 8px;
-}
-.pdv-search-box i { color: #aaa; font-size: 0.85rem; }
-.pdv-search-box input {
-    border: none; background: transparent; outline: none;
-    font-size: 0.85rem; width: 100%;
-}
-.pdv-cat-filter {
-    display: flex;
-    gap: 6px;
-    overflow-x: auto;
-    scrollbar-width: none;
-    padding-bottom: 2px;
-}
-.pdv-cat-filter::-webkit-scrollbar { display: none; }
-.pdv-cat-pill {
-    flex-shrink: 0;
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    cursor: pointer;
-    border: 1px solid #e0e0e0;
-    background: white;
-    color: #777;
-    transition: all 0.2s;
-}
-.pdv-cat-pill.active, .pdv-cat-pill:hover {
-    background: #1a7a2e;
-    color: white;
-    border-color: #1a7a2e;
-}
-
-.pdv-mesas-bar {
-    padding: 5px 12px;
-    background: #fff8e1;
-    border-bottom: 1px solid #ffe082;
-    font-size: 0.78rem;
-    display: flex;
-    gap: 6px;
-    align-items: center;
-    flex-wrap: wrap;
-}
-.pdv-mesas-label {
-    color: #f57f17;
-    font-weight: 600;
-}
-
-.pdv-grid-wrap {
-    flex: 1;
-    overflow-y: auto;
-    padding: 10px 12px;
-    scrollbar-width: thin;
-    scrollbar-color: #ddd transparent;
-}
-
-/* Categoria header no grid */
-.pdv-cat-header {
-    padding: 6px 2px 4px;
-    font-weight: 700;
-    font-size: 0.72rem;
-    color: #999;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    margin-top: 10px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-.pdv-cat-header:first-child { margin-top: 0; }
-.pdv-cat-header::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: #e8e8e8;
-}
-
-.pdv-cat-row {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    gap: 10px;
-    margin-bottom: 6px;
-}
-
-/* Card de produto — estilo moderno */
-.pdv-card {
-    position: relative;
-    background: white;
-    border-radius: 10px;
-    cursor: pointer;
-    overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    border: 2px solid transparent;
-    transition: all 0.15s ease;
-}
-.pdv-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(0,0,0,0.14);
-    border-color: #1a7a2e;
-}
-.pdv-card:active { transform: scale(0.96); }
-
-.pdv-card-img {
-    width: 100%;
-    aspect-ratio: 1 / 1;
-    object-fit: cover;
-    background: #f0f0f0;
-    background-size: cover;
-    background-position: center;
-    display: block;
-}
-.pdv-card-body {
-    padding: 6px 8px 8px;
-}
-.pdv-card-nome {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: #333;
-    line-height: 1.3;
-    margin-bottom: 2px;
-}
-.pdv-card-price {
-    font-size: 0.8rem;
-    font-weight: 800;
-    color: #1a7a2e;
-}
-.pdv-card-badge {
-    position: absolute;
-    top: 5px;
-    right: 5px;
-    background: #1a7a2e;
-    color: white;
-    font-size: 0.65rem;
-    font-weight: 700;
-    padding: 2px 6px;
-    border-radius: 4px;
-}
-.pdv-card-var-icon {
-    position: absolute;
-    bottom: 40px;
-    right: 5px;
-    background: rgba(0,0,0,0.55);
-    color: white;
-    font-size: 0.65rem;
-    padding: 2px 5px;
-    border-radius: 4px;
-}
-.pdv-card-add-btn {
-    position: absolute;
-    bottom: 6px;
-    right: 6px;
-    width: 26px; height: 26px;
-    background: #1a7a2e;
-    color: white;
-    border: none;
-    border-radius: 50%;
-    font-size: 1.1rem;
-    font-weight: 700;
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    transition: background 0.2s;
-}
-.pdv-card-add-btn:hover { background: #27ae60; }
-
-/* ── COLUNA DIREITA: Monitor ───────────────────────────────── */
-.pdv-monitor {
-    background: linear-gradient(160deg, #1e272e 0%, #0d1b2a 100%);
-    color: white;
-    padding: 14px 12px;
-    height: 100%;
-    overflow-y: auto;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255,255,255,0.15) transparent;
-}
-.pdv-monitor-titulo {
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: #ecf0f1;
-    margin-bottom: 12px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-/* ── Seções no carrinho (já lançados / novos) ──────────────── */
-.pdv-sec-title {
-    font-size: 0.7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: #aaa;
-    padding: 6px 0 3px;
-    border-top: 1px dashed #eee;
-    margin-top: 4px;
-}
-.pdv-sec-title:first-child { border-top: none; margin-top: 0; }
-.pdv-sec-novo { color: #1a7a2e; }
-
-.pdv-item-existente { opacity: 0.75; }
-.pdv-item-entregue { opacity: 0.5; }
-.pdv-item-entregue .pdv-item-info { text-decoration: line-through; }
-.badge-entregue {
-    font-size: 0.68rem;
-    color: #27ae60;
-    font-weight: 700;
-}
-.pdv-btn-baixar {
-    font-size: 0.72rem;
-    padding: 2px 6px;
-}
-.pdv-label { font-size: 0.75rem; color: #666; margin-bottom: 3px; display: block; font-weight: 600; }
-
-/* ── Modal de Variações do PDV ─────────────────────────────── */
-.pdv-var-modal-overlay {
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,0.55);
-    z-index: 9999;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-}
-.pdv-var-modal-box {
-    background: white;
-    border-radius: 16px;
-    width: 100%;
-    max-width: 460px;
-    max-height: 80vh;
-    overflow-y: auto;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.35);
-    animation: pdvModalIn 0.2s ease;
-}
-@keyframes pdvModalIn {
-    from { opacity: 0; transform: scale(0.93); }
-    to   { opacity: 1; transform: scale(1); }
-}
-.pdv-var-modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 16px 20px;
-    font-weight: 700;
-    font-size: 1rem;
-    color: #333;
-    border-bottom: 1px solid #f0f0f0;
-    position: sticky; top: 0; background: white; z-index: 1;
-}
-.pdv-var-close {
-    background: #f0f0f0; border: none; width: 30px; height: 30px;
-    border-radius: 50%; cursor: pointer; font-size: 0.9rem; color: #555;
-    display: flex; align-items: center; justify-content: center;
-}
-.pdv-var-opcoes {
-    padding: 12px 16px;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 10px;
-}
-.pdv-var-card {
-    border: 2px solid #eee;
-    border-radius: 10px;
-    padding: 10px;
-    cursor: pointer;
-    transition: all 0.15s;
-    display: flex;
-    gap: 10px;
-    align-items: center;
-}
-.pdv-var-card:hover { border-color: #1a7a2e; background: #f0faf3; }
-.pdv-var-card.selected { border-color: #1a7a2e; background: #e8f5e9; }
-.pdv-var-card img {
-    width: 48px; height: 48px; object-fit: cover; border-radius: 6px;
-    flex-shrink: 0;
-}
-.pdv-var-card-info { flex: 1; }
-.pdv-var-card-nome { font-size: 0.85rem; font-weight: 600; color: #333; }
-.pdv-var-card-preco { font-size: 0.85rem; color: #1a7a2e; font-weight: 700; }
-.pdv-var-card-check {
-    width: 20px; height: 20px; border-radius: 50%;
-    background: #1a7a2e; color: white;
-    display: none; align-items: center; justify-content: center;
-    font-size: 0.75rem; font-weight: 700; flex-shrink: 0;
-}
-.pdv-var-card.selected .pdv-var-card-check { display: flex; }
-
-/* Ingredientes / etapas montavel */
-.pdv-var-etapa { padding: 0 16px 10px; }
-.pdv-var-etapa-titulo { font-size: 0.82rem; font-weight: 700; color: #555; margin-bottom: 8px; }
-.pdv-var-ingr-grid { display: flex; flex-wrap: wrap; gap: 6px; }
-.pdv-var-ingr-btn {
-    padding: 6px 12px; border-radius: 20px;
-    border: 1px solid #ddd; background: white;
-    font-size: 0.8rem; cursor: pointer; transition: all 0.15s;
-    color: #555;
-}
-.pdv-var-ingr-btn.selected {
-    background: #1a7a2e; color: white; border-color: #1a7a2e;
-}
-
-.pdv-var-obs-row { padding: 0 16px 16px; }
-.pdv-var-obs-input {
-    width: 100%; border: 1px solid #e0e0e0; border-radius: 8px;
-    padding: 10px 14px; font-size: 0.85rem; outline: none;
-    box-sizing: border-box;
-}
-
-/* PDV item qty controls */
-.pdv-qty-ctrl { display: flex; align-items: center; gap: 4px; }
-.pdv-qty-ctrl button {
-    width: 22px; height: 22px; border-radius: 50%;
-    border: 1px solid #ddd; background: white; cursor: pointer;
-    font-size: 0.9rem; font-weight: 700;
-    display: flex; align-items: center; justify-content: center;
-    transition: background 0.15s;
-}
-.pdv-qty-ctrl button:hover { background: #f0faf3; border-color: #1a7a2e; color: #1a7a2e; }
-.pdv-qty-val { font-weight: 700; min-width: 22px; text-align: center; font-size: 0.85rem; }
-
-/* Responsivo mobile */
-@media (max-width: 768px) {
-    .pdv-container {
-        grid-template-columns: 1fr !important;
-        height: auto !important;
-    }
-    .pdv-carrinho, .pdv-produtos, .pdv-monitor {
-        height: auto !important;
-        min-height: 300px;
-    }
-}
-
-@keyframes pdvFb {
-    0% { opacity: 0; transform: translateY(10px); }
-    20% { opacity: 1; transform: translateY(0); }
-    80% { opacity: 1; }
-    100% { opacity: 0; transform: translateY(-5px); }
-}
-
-
-/* ── Dividir Pagamento ────────────────────────────────────── */
-.pdv-btn-dividir {
-    width: 100%;
-    padding: 9px 14px;
-    background: transparent;
-    color: #1a7a2e;
-    border: 1.5px dashed #1a7a2e;
-    border-radius: 8px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    cursor: pointer;
-    margin-bottom: 8px;
-    transition: background 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 7px;
-}
-.pdv-btn-dividir:hover {
-    background: #f0faf3;
-}
-.pdv-dividir-header {
-    font-size: 0.72rem;
-    font-weight: 700;
-    color: #999;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 8px;
-}
-.pdv-divisao-row {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-    margin-bottom: 6px;
-}
-.pdv-divisao-select {
-    flex: 1;
-    border: 1px solid #e0e0e0;
-    border-radius: 6px;
-    padding: 6px 8px;
-    font-size: 0.8rem;
-    background: white;
-    outline: none;
-}
-.pdv-divisao-valor {
-    width: 100px;
-    border: 1px solid #e0e0e0;
-    border-radius: 6px;
-    padding: 6px 8px;
-    font-size: 0.8rem;
-    outline: none;
-}
-.pdv-divisao-del {
-    background: #fee;
-    border: 1px solid #fcc;
-    color: #e74c3c;
-    border-radius: 6px;
-    padding: 6px 8px;
-    cursor: pointer;
-    font-size: 0.8rem;
-}
-.pdv-btn-add-divisao {
-    width: 100%;
-    padding: 6px;
-    background: #f8f9fa;
-    border: 1px solid #e0e0e0;
-    border-radius: 6px;
-    font-size: 0.78rem;
-    color: #555;
-    cursor: pointer;
-    margin-top: 2px;
-}
-.pdv-divisao-restante {
-    font-size: 0.82rem;
-    font-weight: 700;
-    text-align: center;
-    padding: 6px;
-    border-radius: 6px;
-    margin-top: 6px;
-}
-
-/* ── PDV Card — imagem via background ────────────────────── */
-.pdv-card {
-    position: relative !important;
-    background: #f0f0f0 !important;
-    background-size: cover !important;
-    background-position: center !important;
-    border-radius: 10px !important;
-    cursor: pointer !important;
-    overflow: hidden !important;
-    aspect-ratio: unset !important;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
-    border: 2px solid transparent !important;
-    transition: all 0.15s ease !important;
-    min-height: 140px !important;
-    display: flex !important;
-    flex-direction: column !important;
-    justify-content: flex-end !important;
-}
-.pdv-card:hover {
-    transform: translateY(-2px) !important;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.18) !important;
-    border-color: #1a7a2e !important;
-}
-.pdv-card:active { transform: scale(0.96) !important; }
-
-/* Badge de preço (topo direito) */
-.pdv-card-price-badge {
-    position: absolute;
-    top: 5px; right: 5px;
-    background: #1a7a2e;
-    color: white;
-    font-size: 0.7rem;
-    font-weight: 800;
-    padding: 3px 7px;
-    border-radius: 5px;
-    z-index: 2;
-}
-/* Badge de variações (topo esquerdo) */
-.pdv-card-var-badge {
-    position: absolute;
-    top: 5px; left: 5px;
-    background: #e67e22;
-    color: white;
-    font-size: 0.65rem;
-    font-weight: 700;
-    width: 18px; height: 18px;
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    z-index: 2;
-}
-/* Footer escuro com nome */
-.pdv-card-footer {
-    background: linear-gradient(transparent, rgba(0,0,0,0.80));
-    padding: 18px 6px 6px;
-    z-index: 2;
-}
-.pdv-card-footer-nome {
-    color: white;
-    font-size: 0.72rem;
-    font-weight: 700;
-    text-align: center;
-    line-height: 1.2;
-    word-break: break-word;
-}
-/* Remove estilos antigos que conflitam */
-.pdv-card-overlay { display: none !important; }
-.pdv-card-body { display: none !important; }
-.pdv-card-nome { display: none !important; }

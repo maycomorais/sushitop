@@ -116,6 +116,14 @@ function showTab(tabId, event) {
   // 4. Ativa o botão no menu lateral
   if (event && event.currentTarget) {
     event.currentTarget.classList.add('active');
+  } else {
+    // Restaura highlight ao carregar página (sem evento de clique)
+    document.querySelectorAll('.menu-item').forEach(m => {
+      const oc = m.getAttribute('onclick') || '';
+      if (oc.includes(`'${realTabId}'`) || oc.includes(`'${tabId}'`)) {
+        m.classList.add('active');
+      }
+    });
   }
 
   // 5. PULO DO GATO: Se a aba for produtos, categorias ou motoboys,
@@ -1647,7 +1655,9 @@ async function salvarProduto() {
         const nome  = row.querySelector('[data-f="vnome"]').value.trim();
         const preco = parseFloat(row.querySelector('[data-f="vpreco"]').value) || 0;
         const img   = row.querySelector('[data-f="vimg"]').value.trim() || '';
-        if (nome) variacoes.push({ nome, preco, img });
+        const ativoEl = row.querySelector('[data-f="vativo"]');
+        const ativo = ativoEl ? ativoEl.checked : true;
+        if (nome) variacoes.push({ nome, preco, img, ativo });
       });
       configFinal.variacoes = variacoes;
     }
@@ -1905,7 +1915,8 @@ function addVariacao(dados = {}) {
   const lista = document.getElementById('variacoes-lista');
   const row = document.createElement('div');
   row.className = 'variacao-row';
-  row.style.cssText = 'background:#fff;border:1px solid #e9d5ff;border-radius:10px;padding:12px;display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center';
+  const pausado = dados.ativo === false;
+  row.style.cssText = `background:${pausado ? '#fff5f5' : '#fff'};border:1px solid ${pausado ? '#fca5a5' : '#e9d5ff'};border-radius:10px;padding:12px;display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;opacity:${pausado ? '0.7' : '1'}`;
   row.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:6px">
       <input data-f="vnome" class="form-control" value="${dados.nome || ''}" placeholder="Nome da variação (ex: Salmon y Cream Cheese)" style="font-weight:600">
@@ -1914,6 +1925,10 @@ function addVariacao(dados = {}) {
         <input data-f="vpreco" type="number" class="form-control" value="${dados.preco || ''}" placeholder="Preço" style="max-width:140px">
       </div>
       <input data-f="vimg" class="form-control" value="${dados.img || ''}" placeholder="URL da foto (opcional — usa foto do produto por padrão)" style="font-size:0.8rem;color:#888">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.82rem;color:${pausado ? '#c0392b' : '#16a34a'}">
+        <input data-f="vativo" type="checkbox" ${!pausado ? 'checked' : ''} onchange="this.closest('.variacao-row').style.background=this.checked?'#fff':'#fff5f5';this.closest('.variacao-row').style.opacity=this.checked?'1':'0.7';this.closest('.variacao-row').style.borderColor=this.checked?'#e9d5ff':'#fca5a5';this.parentElement.style.color=this.checked?'#16a34a':'#c0392b';this.parentElement.lastChild.textContent=this.checked?' Disponível':' Pausado'">
+        <span>${pausado ? ' Pausado' : ' Disponível'}</span>
+      </label>
     </div>
     <div style="width:60px;height:60px;border-radius:8px;overflow:hidden;background:#f3f4f6;flex-shrink:0">
       ${dados.img ? `<img src="${dados.img}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">` : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:1.5rem">🖼</div>'}
@@ -2068,7 +2083,7 @@ async function carregarCategorias() {
     return;
   }
 
-  const paleta = ['#1a7a2e','#3498db','#2ecc71','#9b59b6','#e67e22','#1abc9c','#e74c3c','#f39c12','#34495e','#00b894'];
+  const paleta = ['#FF441F','#3498db','#2ecc71','#9b59b6','#e67e22','#1abc9c','#e74c3c','#f39c12','#34495e','#00b894'];
 
   grid.innerHTML = '';
   data.forEach((c, idx) => {
@@ -2081,8 +2096,14 @@ async function carregarCategorias() {
     const card = document.createElement('div');
     card.className = 'cat-card';
     card.style.borderTopColor = cor;
+    card.setAttribute('draggable', 'true');
+    card.setAttribute('data-cat-slug', c.slug);
+    card.setAttribute('data-cat-ordem', c.ordem);
     card.innerHTML = `
       <div class="cat-card-top">
+        <div class="cat-drag-handle" title="Arraste para reordenar" style="cursor:grab; padding:0 8px 0 2px; color:#bbb; font-size:1.2rem; display:flex; align-items:center; user-select:none;">
+          ⠿
+        </div>
         <div class="cat-card-icon" style="background:${cor}20;color:${cor}">
           <i class="fas fa-tag"></i>
         </div>
@@ -2108,7 +2129,142 @@ async function carregarCategorias() {
     grid.appendChild(card);
   });
 
+  // Inicializa drag & drop após renderizar
+  iniciarDragDropCategorias(grid);
+
   carregarSelectCategorias();
+}
+
+// =========================================
+// DRAG & DROP — REORDENAR CATEGORIAS
+// =========================================
+function iniciarDragDropCategorias(grid) {
+  let draggingEl = null;
+  let placeholder = null;
+
+  // Cria o placeholder visual
+  function criarPlaceholder() {
+    const ph = document.createElement('div');
+    ph.id = 'cat-drag-placeholder';
+    ph.style.cssText = `
+      border: 2px dashed #FF441F;
+      border-radius: 12px;
+      background: rgba(255,68,31,0.05);
+      min-height: 80px;
+      transition: all 0.15s ease;
+      opacity: 0.7;
+    `;
+    return ph;
+  }
+
+  grid.querySelectorAll('.cat-card').forEach(card => {
+    card.addEventListener('dragstart', (e) => {
+      draggingEl = card;
+      placeholder = criarPlaceholder();
+      // Visual do card sendo arrastado
+      setTimeout(() => {
+        card.style.opacity = '0.4';
+        card.style.transform = 'scale(0.97)';
+      }, 0);
+      e.dataTransfer.effectAllowed = 'move';
+    });
+
+    card.addEventListener('dragend', async () => {
+      if (draggingEl) {
+        draggingEl.style.opacity = '1';
+        draggingEl.style.transform = '';
+      }
+      if (placeholder && placeholder.parentNode) placeholder.remove();
+      draggingEl = null;
+      placeholder = null;
+
+      // Salva nova ordem no banco
+      await salvarOrdemCategorias(grid);
+    });
+
+    card.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      if (!draggingEl || draggingEl === card) return;
+
+      const rect = card.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+
+      if (placeholder.parentNode) placeholder.remove();
+
+      if (e.clientY < midY) {
+        grid.insertBefore(placeholder, card);
+      } else {
+        grid.insertBefore(placeholder, card.nextSibling);
+      }
+    });
+
+    card.addEventListener('drop', (e) => {
+      e.preventDefault();
+      if (!draggingEl || draggingEl === card) return;
+      if (placeholder && placeholder.parentNode) {
+        grid.insertBefore(draggingEl, placeholder);
+        placeholder.remove();
+      }
+    });
+  });
+
+  // Permite soltar no próprio grid (área vazia)
+  grid.addEventListener('dragover', (e) => {
+    e.preventDefault();
+  });
+  grid.addEventListener('drop', (e) => {
+    e.preventDefault();
+    if (draggingEl && placeholder?.parentNode) {
+      grid.insertBefore(draggingEl, placeholder);
+      placeholder.remove();
+    }
+  });
+}
+
+async function salvarOrdemCategorias(grid) {
+  const cards = grid.querySelectorAll('.cat-card[data-cat-slug]');
+  const updates = [];
+  cards.forEach((card, idx) => {
+    const slug = card.getAttribute('data-cat-slug');
+    if (slug) updates.push({ slug, ordem: idx + 1 });
+    // Atualiza badge visual imediatamente
+    const badge = card.querySelector('.cat-card-ordem');
+    if (badge) badge.textContent = `#${idx + 1}`;
+  });
+
+  if (updates.length === 0) return;
+
+  try {
+    // Atualiza todos em paralelo
+    await Promise.all(updates.map(({ slug, ordem }) =>
+      supa.from('categorias').update({ ordem }).eq('slug', slug)
+    ));
+    console.log('✅ Ordem das categorias salva:', updates.map(u => `${u.slug}=${u.ordem}`).join(', '));
+    
+    // Feedback visual sutil
+    const toastId = 'toast-ordem';
+    let toast = document.getElementById(toastId);
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = toastId;
+      toast.style.cssText = `
+        position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+        background:#27ae60; color:white; padding:10px 22px; border-radius:24px;
+        font-size:0.9rem; font-weight:600; z-index:9999;
+        box-shadow:0 4px 16px rgba(0,0,0,0.2);
+        animation: fadeInUp 0.3s ease;
+      `;
+      document.body.appendChild(toast);
+    }
+    toast.textContent = '✅ Ordem salva com sucesso!';
+    toast.style.display = 'block';
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => { toast.style.display = 'none'; }, 2500);
+  } catch (err) {
+    console.error('Erro ao salvar ordem:', err);
+    alert('Erro ao salvar nova ordem. Tente novamente.');
+  }
 }
 
 // Carrega o Select no Modal de Produto
@@ -2755,40 +2911,104 @@ function _renderGradeSemanal(horariosSalvos = {}) {
   const container = document.getElementById('grade-semanal');
   if (!container) return;
   container.innerHTML = '';
+
+  const ICONES_DIA = { seg: '☀️', ter: '☀️', qua: '☀️', qui: '☀️', sex: '🌟', sab: '🎉', dom: '🌙' };
+
   DIAS_SEMANA.forEach(({ key, label }) => {
     const dia = horariosSalvos[key] || { fechado: false, turnos: [{ abre: '', fecha: '' }] };
     const fechado = dia.fechado === true;
     const turnos = dia.turnos && dia.turnos.length > 0 ? dia.turnos : [{ abre: '', fecha: '' }];
 
     const row = document.createElement('div');
-    row.className = 'dia-row';
+    row.className = `gs-dia-card ${fechado ? 'gs-fechado' : 'gs-aberto'}`;
     row.dataset.dia = key;
 
     let turnosHtml = turnos.map((t, i) => `
-      <div class="turno-row" data-idx="${i}">
-        <span class="turno-sep">${i > 0 ? 'e das' : 'das'}</span>
-        <input type="time" class="form-control turno-abre" value="${t.abre || ''}" style="width:110px">
-        <span class="turno-sep">às</span>
-        <input type="time" class="form-control turno-fecha" value="${t.fecha || ''}" style="width:110px">
-        ${i > 0 ? `<button class="btn-rm-turno" onclick="removerTurno(this)" title="Remover turno">✕</button>` : ''}
+      <div class="gs-turno-row" data-idx="${i}">
+        <span class="gs-turno-label">${i === 0 ? '🕐 Abertura' : '🕑 2º Turno'}</span>
+        <div class="gs-turno-inputs">
+          <div class="gs-time-group">
+            <span class="gs-time-label">Das</span>
+            <input type="time" class="gs-time-input turno-abre" value="${t.abre || ''}">
+          </div>
+          <span class="gs-time-sep">→</span>
+          <div class="gs-time-group">
+            <span class="gs-time-label">Até</span>
+            <input type="time" class="gs-time-input turno-fecha" value="${t.fecha || ''}">
+          </div>
+          ${i > 0 ? `<button class="gs-btn-rm" onclick="removerTurno(this)" title="Remover turno">✕</button>` : '<div style="width:28px"></div>'}
+        </div>
       </div>`).join('');
 
     row.innerHTML = `
-      <div class="dia-row-header">
-        <label class="dia-toggle">
-          <input type="checkbox" class="dia-fechado-check" ${fechado ? 'checked' : ''} onchange="toggleDiaFechado(this)">
-          <span class="dia-toggle-slider"></span>
-        </label>
-        <span class="dia-nome">${label}</span>
-        <span class="dia-status-text">${fechado ? '<span style="color:#e74c3c">Fechado</span>' : '<span style="color:#27ae60">Aberto</span>'}</span>
+      <div class="gs-dia-header">
+        <div class="gs-dia-info">
+          <span class="gs-dia-icone">${ICONES_DIA[key] || '📅'}</span>
+          <span class="gs-dia-nome">${label}</span>
+        </div>
+        <div class="gs-dia-controls">
+          <span class="gs-status-badge ${fechado ? 'gs-badge-fechado' : 'gs-badge-aberto'}">
+            ${fechado ? '🔴 Fechado' : '🟢 Aberto'}
+          </span>
+          <label class="gs-toggle-wrap">
+            <input type="checkbox" class="dia-fechado-check" ${fechado ? 'checked' : ''} onchange="toggleDiaFechado(this)">
+            <span class="gs-toggle-slider"></span>
+          </label>
+        </div>
       </div>
-      <div class="dia-turnos" style="${fechado ? 'display:none' : ''}">
-        <div class="turnos-lista">${turnosHtml}</div>
-        <button class="btn-add-turno" onclick="adicionarTurno(this)">+ 2º turno</button>
+      <div class="gs-dia-turnos" style="${fechado ? 'display:none' : ''}">
+        <div class="gs-turnos-lista">${turnosHtml}</div>
+        <button class="gs-btn-add-turno btn-add-turno" onclick="adicionarTurno(this)">
+          <i class="fas fa-plus"></i> Adicionar 2º turno
+        </button>
       </div>
     `;
     container.appendChild(row);
   });
+}
+
+function toggleDiaFechado(checkbox) {
+  const row = checkbox.closest('.gs-dia-card');
+  const turnos = row.querySelector('.gs-dia-turnos');
+  const badge = row.querySelector('.gs-status-badge');
+  if (checkbox.checked) {
+    if (turnos) turnos.style.display = 'none';
+    row.classList.add('gs-fechado'); row.classList.remove('gs-aberto');
+    if (badge) { badge.textContent = '🔴 Fechado'; badge.className = 'gs-status-badge gs-badge-fechado'; }
+  } else {
+    if (turnos) turnos.style.display = '';
+    row.classList.add('gs-aberto'); row.classList.remove('gs-fechado');
+    if (badge) { badge.textContent = '🟢 Aberto'; badge.className = 'gs-status-badge gs-badge-aberto'; }
+  }
+}
+
+function adicionarTurno(btn) {
+  const lista = btn.previousElementSibling;
+  const idx = lista.querySelectorAll('.gs-turno-row').length;
+  if (idx >= 2) { alert('Máximo de 2 turnos por dia.'); return; }
+  const div = document.createElement('div');
+  div.className = 'gs-turno-row';
+  div.dataset.idx = idx;
+  div.innerHTML = `
+    <span class="gs-turno-label">🕑 2º Turno</span>
+    <div class="gs-turno-inputs">
+      <div class="gs-time-group">
+        <span class="gs-time-label">Das</span>
+        <input type="time" class="gs-time-input turno-abre">
+      </div>
+      <span class="gs-time-sep">→</span>
+      <div class="gs-time-group">
+        <span class="gs-time-label">Até</span>
+        <input type="time" class="gs-time-input turno-fecha">
+      </div>
+      <button class="gs-btn-rm btn-rm-turno" onclick="removerTurno(this)" title="Remover turno">✕</button>
+    </div>
+  `;
+  lista.appendChild(div);
+}
+
+function removerTurno(btn) {
+  btn.closest('.gs-turno-row').remove();
 }
 
 function toggleDiaFechado(checkbox) {
@@ -2827,11 +3047,11 @@ function removerTurno(btn) {
 
 function _lerGradeSemanal() {
   const horarios = {};
-  document.querySelectorAll('.dia-row').forEach((row) => {
+  document.querySelectorAll('.gs-dia-card').forEach((row) => {
     const key = row.dataset.dia;
     const fechado = row.querySelector('.dia-fechado-check').checked;
     const turnos = [];
-    row.querySelectorAll('.turno-row').forEach((t) => {
+    row.querySelectorAll('.gs-turno-row').forEach((t) => {
       const abre = t.querySelector('.turno-abre').value;
       const fecha = t.querySelector('.turno-fecha').value;
       if (abre || fecha) turnos.push({ abre, fecha });
@@ -3212,6 +3432,7 @@ function _calcularIntervalo(periodo, idI, idF) {
 function pdvMudarAba(aba, btn) {
   document.querySelectorAll('.pdv-tab-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
+  // No mobile, os painéis são os próprios elements dentro do pdv-panel-venda
   const map = { carrinho:'.pdv-carrinho', produtos:'.pdv-produtos', monitor:'.pdv-monitor' };
   Object.values(map).forEach(sel => {
     const el = document.querySelector(sel);
@@ -3219,23 +3440,66 @@ function pdvMudarAba(aba, btn) {
   });
   const target = document.querySelector(map[aba]);
   if (target) target.classList.add('pdv-tab-active');
+  
+  // Se clicou em monitor, mostra o panel de mesas no mobile
+  if (aba === 'monitor') {
+    const panelMesas = document.getElementById('pdv-panel-mesas');
+    const panelVenda = document.getElementById('pdv-panel-venda');
+    if (panelMesas) panelMesas.style.display = 'block';
+    if (panelVenda) panelVenda.style.display = 'none';
+  } else {
+    const panelMesas = document.getElementById('pdv-panel-mesas');
+    const panelVenda = document.getElementById('pdv-panel-venda');
+    if (panelMesas) panelMesas.style.display = 'none';
+    if (panelVenda) panelVenda.style.display = 'block';
+  }
+}
+
+function pdvMudarView(view) {
+  const panelVenda = document.getElementById('pdv-panel-venda');
+  const panelMesas = document.getElementById('pdv-panel-mesas');
+  const btnVenda   = document.getElementById('pdv-view-btn-venda');
+  const btnMesas   = document.getElementById('pdv-view-btn-mesas');
+  if (view === 'venda') {
+    if (panelVenda) panelVenda.style.display = 'block';
+    if (panelMesas) panelMesas.style.display = 'none';
+    if (btnVenda)   btnVenda.classList.add('active');
+    if (btnMesas)   btnMesas.classList.remove('active');
+  } else {
+    if (panelVenda) panelVenda.style.display = 'none';
+    if (panelMesas) panelMesas.style.display = 'block';
+    if (btnVenda)   btnVenda.classList.remove('active');
+    if (btnMesas)   btnMesas.classList.add('active');
+    carregarMonitorMesas();
+  }
 }
 
 function pdvIniciarTabs() {
   const isMobile = window.innerWidth <= 768;
   const tabsEl = document.getElementById('pdv-tabs');
-  if (!tabsEl) return;
+  const footer = document.getElementById('pdv-mobile-footer');
+  const headerBar = document.querySelector('.pdv-header-bar .pdv-view-btns');
+
   if (isMobile) {
-    tabsEl.style.display = 'flex';
+    if (tabsEl) tabsEl.style.display = 'flex';
+    if (footer) footer.style.display = 'flex';
+    if (headerBar) headerBar.style.display = 'none';
+    // Mobile começa mostrando o cardápio
     document.querySelectorAll('.pdv-tab-btn').forEach(b => b.classList.remove('active'));
-    const btnCardapio = tabsEl.querySelector('.pdv-tab-btn:nth-child(2)');
-    if (btnCardapio) { btnCardapio.classList.add('active'); pdvMudarAba('produtos', null); }
+    const btnCardapio = tabsEl ? tabsEl.querySelector('.pdv-tab-btn:nth-child(1)') : null;
+    if (btnCardapio) { btnCardapio.classList.add('active'); }
+    pdvMudarAba('produtos', null);
   } else {
-    tabsEl.style.display = 'none';
-    ['.pdv-carrinho','.pdv-produtos','.pdv-monitor'].forEach(sel => {
+    if (tabsEl) tabsEl.style.display = 'none';
+    if (footer) footer.style.display = 'none';
+    if (headerBar) headerBar.style.display = 'flex';
+    // Desktop: mostra produtos e carrinho sempre
+    ['.pdv-carrinho', '.pdv-produtos'].forEach(sel => {
       const el = document.querySelector(sel);
       if (el) el.classList.add('pdv-tab-active');
     });
+    const panelVenda = document.getElementById('pdv-panel-venda');
+    if (panelVenda) panelVenda.style.display = 'block';
   }
 }
 
@@ -3283,12 +3547,64 @@ async function carregarPDV() {
 
 let produtosCatsPDV = [];
 
-function renderizarGridPDV() {
+let _pdvCatFiltro = 'todos';
+
+function renderizarGridPDV(filtroNome = '') {
   const grid = document.getElementById('pdv-grid');
   if (!grid) return;
   grid.innerHTML = '';
 
-  // Agrupa produtos por categoria
+  // Gera chips de categoria
+  const filterBar = document.getElementById('pdv-cat-filter');
+  if (filterBar) {
+    filterBar.innerHTML = '';
+    const allChip = document.createElement('button');
+    allChip.className = `pdv-cat-chip${_pdvCatFiltro === 'todos' ? ' active' : ''}`;
+    allChip.textContent = 'TODOS';
+    allChip.onclick = () => { _pdvCatFiltro = 'todos'; renderizarGridPDV(document.getElementById('pdv-busca')?.value || ''); };
+    filterBar.appendChild(allChip);
+
+    const slugsUsados = [...new Set(produtosCachePDV.map(p => p.categoria_slug).filter(Boolean))];
+    const ordemCats = produtosCatsPDV.map(c => c.slug);
+    slugsUsados.sort((a,b) => {
+      const ia = ordemCats.indexOf(a), ib = ordemCats.indexOf(b);
+      if (ia === -1 && ib === -1) return a.localeCompare(b);
+      if (ia === -1) return 1; if (ib === -1) return -1;
+      return ia - ib;
+    });
+    slugsUsados.forEach(slug => {
+      const catInfo = produtosCatsPDV.find(c => c.slug === slug);
+      const chip = document.createElement('button');
+      chip.className = `pdv-cat-chip${_pdvCatFiltro === slug ? ' active' : ''}`;
+      chip.textContent = (catInfo?.nome_exibicao || slug).toUpperCase();
+      chip.onclick = () => { _pdvCatFiltro = slug; renderizarGridPDV(document.getElementById('pdv-busca')?.value || ''); };
+      filterBar.appendChild(chip);
+    });
+  }
+
+  // Filtra produtos
+  const query = filtroNome.toLowerCase().trim();
+  let produtos = produtosCachePDV.filter(p => {
+    if (_pdvCatFiltro !== 'todos' && p.categoria_slug !== _pdvCatFiltro) return false;
+    if (query && !p.nome.toLowerCase().includes(query)) return false;
+    return true;
+  });
+
+  if (_pdvCatFiltro !== 'todos' || query) {
+    // Flat grid sem cabeçalhos de categoria
+    const row = document.createElement('div');
+    row.className = 'pdv-cat-row';
+    produtos.forEach(p => {
+      row.appendChild(_criarCardPDV(p));
+    });
+    if (produtos.length === 0) {
+      row.innerHTML = `<p style="color:#aaa;grid-column:1/-1;text-align:center;padding:20px">Nenhum produto encontrado</p>`;
+    }
+    grid.appendChild(row);
+    return;
+  }
+
+  // Agrupa por categoria
   const porCategoria = {};
   produtosCachePDV.forEach((p) => {
     const cat = p.categoria_slug || 'outros';
@@ -3296,14 +3612,11 @@ function renderizarGridPDV() {
     porCategoria[cat].push(p);
   });
 
-  // Ordena categorias pela ordem definida
   const ordemCats = produtosCatsPDV.map((c) => c.slug);
   const slugsOrdenados = Object.keys(porCategoria).sort((a, b) => {
-    const ia = ordemCats.indexOf(a);
-    const ib = ordemCats.indexOf(b);
+    const ia = ordemCats.indexOf(a), ib = ordemCats.indexOf(b);
     if (ia === -1 && ib === -1) return a.localeCompare(b);
-    if (ia === -1) return 1;
-    if (ib === -1) return -1;
+    if (ia === -1) return 1; if (ib === -1) return -1;
     return ia - ib;
   });
 
@@ -3311,223 +3624,225 @@ function renderizarGridPDV() {
     const catInfo = produtosCatsPDV.find((c) => c.slug === slug);
     const catNome = catInfo ? catInfo.nome_exibicao : slug;
 
-    // Título da categoria — usa classe CSS
     const h = document.createElement('div');
     h.className = 'pdv-cat-header';
     h.textContent = catNome;
     grid.appendChild(h);
 
-    // Row de cards — usa classe CSS
     const row = document.createElement('div');
     row.className = 'pdv-cat-row';
-
-    porCategoria[slug].forEach((p) => {
-      const img = p.imagem_url || 'https://via.placeholder.com/110?text=🍣';
-      const card = document.createElement('div');
-      card.className = 'pdv-card';
-      card.style.backgroundImage = `url('${img}')`;  // backgroundImage é propriedade de dados, não estilo visual
-      card.title = p.nome;
-      card.onclick = () => adicionarItemPDV(p);
-      card.innerHTML = `
-        <div class="pdv-card-price">Gs ${p.preco.toLocaleString('es-PY')}</div>
-        <div class="pdv-card-overlay">${p.nome}</div>
-      `;
-      row.appendChild(card);
-    });
-
+    porCategoria[slug].forEach((p) => row.appendChild(_criarCardPDV(p)));
     grid.appendChild(row);
   });
 }
 
-function adicionarItemPDV(p) {
-  // Verifica se produto tem variações, montagem ou pizza
-  const cfg = p.montagem_config;
-  const tipo = (cfg && !Array.isArray(cfg) && cfg.__tipo) ? cfg.__tipo
-             : (p.e_montavel || (cfg && Array.isArray(cfg) && cfg.length > 0)) ? 'montavel'
-             : 'padrao';
-
-  if (tipo === 'variacoes' && cfg && cfg.variacoes && cfg.variacoes.length > 0) {
-    abrirModalVariacaoPDV(p, cfg, 'variacoes');
-    return;
-  }
-  if (tipo === 'montavel') {
-    abrirModalVariacaoPDV(p, cfg, 'montavel');
-    return;
-  }
-  if (tipo === 'pizza') {
-    abrirModalVariacaoPDV(p, cfg, 'pizza');
-    return;
-  }
-  if (tipo === 'almoco') {
-    abrirModalVariacaoPDV(p, cfg, 'almoco');
-    return;
-  }
-
-  // Produto simples: adiciona diretamente
-  const existe = carrinhoPDV.find((i) => i.id === p.id && !i.variacao && !i.montagem?.length);
-  if (existe) { existe.qtd++; }
-  else { carrinhoPDV.push({ ...p, qtd: 1 }); }
-  atualizarCarrinhoPDV();
-  mostrarFeedbackPDV(p.nome);
+function _criarCardPDV(p) {
+  const img = p.imagem_url || '';
+  const card = document.createElement('div');
+  card.className = 'pdv-card';
+  if (img) card.style.backgroundImage = `url('${img}')`;
+  else card.classList.add('pdv-card-noimg');
+  card.title = p.nome;
+  card.onclick = () => adicionarItemPDV(p);
+  card.innerHTML = `
+    <div class="pdv-card-price">Gs ${p.preco.toLocaleString('es-PY')}</div>
+    <div class="pdv-card-overlay">${p.nome}</div>
+  `;
+  return card;
 }
 
-function mostrarFeedbackPDV(nome) {
-  // Flash visual rápido de confirmação
-  const fb = document.createElement('div');
-  fb.textContent = '✓ ' + nome;
-  fb.style.cssText = `position:fixed;bottom:80px;right:20px;background:#1a7a2e;color:white;
-    padding:8px 16px;border-radius:20px;font-size:0.85rem;font-weight:700;
-    z-index:9998;animation:pdvFb 1.5s forwards;pointer-events:none;`;
-  document.body.appendChild(fb);
-  setTimeout(() => fb.remove(), 1500);
+function filtrarPDV(valor) {
+  renderizarGridPDV(valor);
 }
 
-let _pdvProdutoAtual = null;
-let _pdvVarSelecionada = null;
-let _pdvMontagem = {};
+// Categorias que NÃO recebem o upsell de extras globais
+const _CATS_SEM_EXTRAS_GLOBAIS = ['bebidas', 'bebida', 'extras', 'extra', 'molhos', 'adicionais'];
 
-function abrirModalVariacaoPDV(produto, cfg, tipo) {
-  _pdvProdutoAtual = produto;
-  _pdvVarSelecionada = null;
-  _pdvMontagem = {};
-
-  const modal = document.getElementById('pdv-var-modal');
-  const titulo = document.getElementById('pdv-var-titulo');
-  const opcoes = document.getElementById('pdv-var-opcoes');
-  const obsInput = document.getElementById('pdv-var-obs');
-
-  titulo.textContent = produto.nome;
-  opcoes.innerHTML = '';
-  obsInput.value = '';
-  opcoes.className = 'pdv-var-opcoes';
-
-  if (tipo === 'variacoes') {
-    const variacoes = cfg.variacoes || [];
-    variacoes.forEach((v) => {
-      const card = document.createElement('div');
-      card.className = 'pdv-var-card';
-      const imgSrc = v.img || produto.imagem_url || 'https://cdn-icons-png.flaticon.com/512/2252/2252075.png';
-      card.innerHTML = `
-        <img src="${imgSrc}" onerror="this.src='https://cdn-icons-png.flaticon.com/512/2252/2252075.png'">
-        <div class="pdv-var-card-info">
-          <div class="pdv-var-card-nome">${v.nome}</div>
-          <div class="pdv-var-card-preco">Gs ${(v.preco || 0).toLocaleString('es-PY')}</div>
-        </div>
-        <div class="pdv-var-card-check">✓</div>`;
-      card.onclick = () => {
-        opcoes.querySelectorAll('.pdv-var-card').forEach(c => c.classList.remove('selected'));
-        card.classList.add('selected');
-        _pdvVarSelecionada = v;
-      };
-      opcoes.appendChild(card);
-    });
-
-    // Botão confirmar
-    _adicionarBotaoConfirmarPDV(opcoes, () => {
-      if (!_pdvVarSelecionada) { alert('Escolha uma opção!'); return; }
-      const obs = document.getElementById('pdv-var-obs').value.trim();
-      carrinhoPDV.push({
-        ..._pdvProdutoAtual,
-        qtd: 1,
-        nome: `${_pdvProdutoAtual.nome} (${_pdvVarSelecionada.nome})`,
-        preco: _pdvVarSelecionada.preco || _pdvProdutoAtual.preco,
-        variacao: _pdvVarSelecionada.nome,
-        obs: obs,
-        montagem: [],
-      });
-      fecharModalVariacaoPDV();
-      atualizarCarrinhoPDV();
-    });
-
-  } else if (tipo === 'montavel') {
-    const etapas = Array.isArray(cfg) ? cfg : (cfg && cfg.etapas ? cfg.etapas : []);
-    opcoes.style.display = 'block';
-    opcoes.style.gridTemplateColumns = '1fr';
-    etapas.forEach((etapa, idx) => {
-      const sec = document.createElement('div');
-      sec.className = 'pdv-var-etapa';
-      const itens = Array.isArray(etapa.itens) ? etapa.itens : (typeof etapa.itens === 'string' ? etapa.itens.split(',').map(s => s.trim()) : []);
-      sec.innerHTML = `<div class="pdv-var-etapa-titulo">${etapa.titulo} (Máx: ${etapa.max})</div>
-        <div class="pdv-var-ingr-grid" id="pdv-ingr-${idx}"></div>`;
-      opcoes.appendChild(sec);
-
-      const grid = sec.querySelector(`#pdv-ingr-${idx}`);
-      itens.forEach(ing => {
-        const btn = document.createElement('button');
-        btn.className = 'pdv-var-ingr-btn';
-        btn.textContent = ing;
-        btn.onclick = () => {
-          if (!_pdvMontagem[idx]) _pdvMontagem[idx] = [];
-          if (btn.classList.contains('selected')) {
-            btn.classList.remove('selected');
-            _pdvMontagem[idx] = _pdvMontagem[idx].filter(i => i !== ing);
-          } else {
-            if (_pdvMontagem[idx].length >= etapa.max) {
-              alert(`Máximo ${etapa.max} para "${etapa.titulo}"`);
-              return;
-            }
-            btn.classList.add('selected');
-            _pdvMontagem[idx].push(ing);
-          }
-        };
-        grid.appendChild(btn);
-      });
-    });
-
-    _adicionarBotaoConfirmarPDV(opcoes, () => {
-      const obs = document.getElementById('pdv-var-obs').value.trim();
-      const montagemFlat = Object.values(_pdvMontagem).flat();
-      carrinhoPDV.push({
-        ..._pdvProdutoAtual, qtd: 1,
-        montagem: montagemFlat,
-        obs: obs,
-      });
-      fecharModalVariacaoPDV();
-      atualizarCarrinhoPDV();
-    });
-
+// Extras globais padrão do sushi (carregados das configurações ou hardcoded como fallback)
+let _extrasGlobaisCache = null;
+async function _getExtrasGlobais() {
+  if (_extrasGlobaisCache !== null) return _extrasGlobaisCache;
+  // Tenta carregar das configurações (campo extras_globais no Supabase)
+  const { data } = await supa.from('configuracoes').select('extras_globais').single().catch(() => ({ data: null }));
+  if (data && Array.isArray(data.extras_globais) && data.extras_globais.length > 0) {
+    _extrasGlobaisCache = data.extras_globais;
   } else {
-    // pizza / almoco / outros — sem personalização especial no PDV, só adiciona direto
-    fecharModalVariacaoPDV();
-    const existe = carrinhoPDV.find(i => i.id === produto.id);
-    if (existe) existe.qtd++;
-    else carrinhoPDV.push({ ...produto, qtd: 1 });
-    atualizarCarrinhoPDV();
-    mostrarFeedbackPDV(produto.nome);
+    // Fallback com os extras da foto
+    _extrasGlobaisCache = [
+      { nome: 'Shoyu',          preco: 2000 },
+      { nome: 'Taré (Teriaki)',  preco: 3000 },
+      { nome: 'Sunomono',       preco: 2000 },
+      { nome: 'Jengibre',       preco: 2000 },
+      { nome: 'Wasabi',         preco: 2000 },
+    ];
+  }
+  return _extrasGlobaisCache;
+}
+
+function _deveMostrarExtrasGlobais(produto) {
+  const cat = (produto.categoria_slug || '').toLowerCase();
+  return !_CATS_SEM_EXTRAS_GLOBAIS.some(c => cat.includes(c));
+}
+
+function adicionarItemPDV(p) {
+  // Verifica se produto tem variações
+  const cfg = p.montagem_config;
+  const tipo = cfg && !Array.isArray(cfg) && cfg.__tipo ? cfg.__tipo : null;
+  if (tipo === 'variacoes' && cfg.variacoes && cfg.variacoes.length > 0) {
+    const variacoesAtivas = cfg.variacoes.filter(v => v.ativo !== false);
+    if (variacoesAtivas.length === 0) {
+      alert('⏸️ Todas as variações deste produto estão pausadas.');
+      return;
+    }
+    _mostrarModalVariacaoPDV(p, variacoesAtivas);
     return;
   }
+  const existe = carrinhoPDV.find((i) => i.id === p.id && !i.variacao);
+  if (existe) existe.qtd++;
+  else carrinhoPDV.push({ ...p, qtd: 1 });
+  atualizarCarrinhoPDV();
 
-  modal.style.display = 'flex';
+  // Upsell de extras globais (exceto bebidas e extras)
+  if (_deveMostrarExtrasGlobais(p)) {
+    _getExtrasGlobais().then(extras => {
+      if (extras && extras.length > 0) _mostrarUpsellExtrasPDV(p, extras);
+    });
+  }
 }
 
-function _adicionarBotaoConfirmarPDV(container, onConfirm) {
-  const wrapper = document.createElement('div');
-  wrapper.style.cssText = 'padding: 0 16px 16px; grid-column: 1 / -1;';
-  const btn = document.createElement('button');
-  btn.className = 'pdv-btn-lancar';
-  btn.style.cssText = 'margin-top: 10px;';
-  btn.innerHTML = '<i class="fas fa-plus-circle"></i> Adicionar ao Pedido';
-  btn.onclick = onConfirm;
-  wrapper.appendChild(btn);
-  container.parentElement.appendChild(wrapper);
+function _mostrarModalVariacaoPDV(produto, variacoes) {
+  // Remove modal anterior se existir
+  document.getElementById('pdv-var-modal')?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'pdv-var-modal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+  
+  const modal = document.createElement('div');
+  modal.style.cssText = 'background:#fff;border-radius:16px;padding:20px;max-width:420px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)';
+  modal.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h4 style="margin:0;font-size:1rem;color:#333">🎨 Escolha a variação</h4>
+      <button onclick="document.getElementById('pdv-var-modal').remove()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#999">✕</button>
+    </div>
+    <p style="font-size:0.88rem;color:#666;margin-bottom:14px">${produto.nome}</p>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      ${variacoes.map((v, idx) => `
+        <button onclick="
+          const p = ${JSON.stringify(produto).replace(/'/g, '&apos;')};
+          const existe = carrinhoPDV.find(i => i.id === p.id && i.variacao === '${v.nome.replace(/'/g, "\\'")}');
+          if (existe) existe.qtd++;
+          else carrinhoPDV.push({...p, preco:${v.preco || produto.preco}, qtd:1, variacao:'${v.nome.replace(/'/g, "\\'")}' });
+          atualizarCarrinhoPDV();
+          document.getElementById('pdv-var-modal').remove();
+        " style="display:flex;align-items:center;gap:12px;background:#f9f9f9;border:2px solid #e5e7eb;border-radius:10px;padding:10px 14px;cursor:pointer;text-align:left;transition:border-color 0.15s" onmouseover="this.style.borderColor='var(--primary)'" onmouseout="this.style.borderColor='#e5e7eb'">
+          ${v.img ? `<img src="${v.img}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;flex-shrink:0" onerror="this.style.display='none'">` : (produto.imagem_url ? `<img src="${produto.imagem_url}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;flex-shrink:0">` : '')}
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:0.9rem;color:#333">${v.nome}</div>
+            <div style="font-size:0.82rem;color:var(--primary);font-weight:600">Gs ${(v.preco || produto.preco).toLocaleString('es-PY')}</div>
+          </div>
+        </button>
+      `).join('')}
+    </div>
+  `;
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
 }
 
-function fecharModalVariacaoPDV() {
-  document.getElementById('pdv-var-modal').style.display = 'none';
-  _pdvProdutoAtual = null;
-  _pdvVarSelecionada = null;
-  _pdvMontagem = {};
+// ── Toast de upsell de extras globais ─────────────────────────────
+function _mostrarUpsellExtrasPDV(produto, extras) {
+  // Remove toast anterior se ainda estiver aberto
+  document.getElementById('pdv-upsell-toast')?.remove();
+
+  const toast = document.createElement('div');
+  toast.id = 'pdv-upsell-toast';
+  toast.style.cssText = [
+    'position:fixed;bottom:20px;right:16px;z-index:99998',
+    'background:#fff;border-radius:14px',
+    'box-shadow:0 8px 32px rgba(0,0,0,0.18)',
+    'padding:0;max-width:300px;width:calc(100vw - 32px)',
+    'border:1px solid #f0f0f0',
+    'animation:_upsellIn 0.25s cubic-bezier(.4,0,.2,1)',
+    'overflow:hidden'
+  ].join(';');
+
+  if (!document.getElementById('_upsell-style')) {
+    const s = document.createElement('style');
+    s.id = '_upsell-style';
+    s.textContent = `
+      @keyframes _upsellIn{from{transform:translateY(20px) scale(.96);opacity:0}to{transform:none;opacity:1}}
+      #pdv-upsell-toast .ue-btn:hover{filter:brightness(0.92)}
+    `;
+    document.head.appendChild(s);
+  }
+
+  // Header
+  const hdr = document.createElement('div');
+  hdr.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:12px 14px 10px;border-bottom:1px solid #f5f5f5;background:linear-gradient(135deg,#fff8f5,#fff)';
+  hdr.innerHTML = `
+    <div>
+      <div style="font-weight:700;font-size:0.85rem;color:#333">🍣 Adicionar ao pedido?</div>
+      <div style="font-size:0.73rem;color:#999;margin-top:1px">${produto.nome}</div>
+    </div>`;
+  const btnX = document.createElement('button');
+  btnX.textContent = '✕';
+  btnX.style.cssText = 'background:none;border:none;font-size:1rem;cursor:pointer;color:#bbb;padding:4px 6px;border-radius:6px;flex-shrink:0';
+  btnX.addEventListener('click', () => toast.remove());
+  hdr.appendChild(btnX);
+  toast.appendChild(hdr);
+
+  // Lista de extras
+  const lista = document.createElement('div');
+  lista.style.cssText = 'padding:6px 0';
+  extras.forEach(extra => {
+    if (!extra.nome) return;
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:7px 14px;transition:background .1s';
+    row.onmouseenter = () => row.style.background = '#fafafa';
+    row.onmouseleave = () => row.style.background = '';
+
+    const info = document.createElement('div');
+    info.innerHTML = `
+      <div style="font-size:0.83rem;font-weight:600;color:#333">${extra.nome}</div>
+      <div style="font-size:0.73rem;color:var(--primary,#FF441F);font-weight:700">+ Gs ${(extra.preco||0).toLocaleString('es-PY')}</div>`;
+
+    const btn = document.createElement('button');
+    btn.className = 'ue-btn';
+    btn.style.cssText = 'background:var(--primary,#FF441F);color:#fff;border:none;border-radius:8px;padding:5px 13px;font-size:0.78rem;cursor:pointer;font-weight:700;transition:all .15s;white-space:nowrap;flex-shrink:0';
+    btn.textContent = '+ Add';
+    btn.addEventListener('click', () => {
+      const nomeExtra = extra.nome;
+      const existe = carrinhoPDV.find(i => i._isExtra && i.nome === nomeExtra);
+      if (existe) { existe.qtd++; }
+      else {
+        carrinhoPDV.push({
+          id: 'ext_' + Date.now(),
+          nome: nomeExtra,
+          preco: extra.preco || 0,
+          qtd: 1,
+          _isExtra: true,
+        });
+      }
+      atualizarCarrinhoPDV();
+      btn.textContent = '✓';
+      btn.style.background = '#27ae60';
+      btn.disabled = true;
+      row.style.opacity = '0.6';
+    });
+
+    row.appendChild(info);
+    row.appendChild(btn);
+    lista.appendChild(row);
+  });
+  toast.appendChild(lista);
+
+  document.body.appendChild(toast);
+  // Auto-fecha em 10 s
+  setTimeout(() => { if (document.getElementById('pdv-upsell-toast') === toast) toast.remove(); }, 10000);
 }
 
 function removerItemPDV(idx) {
   carrinhoPDV.splice(idx, 1);
-  atualizarCarrinhoPDV();
-}
-
-function alterarQtdPDV(idx, delta) {
-  if (!carrinhoPDV[idx]) return;
-  carrinhoPDV[idx].qtd += delta;
-  if (carrinhoPDV[idx].qtd <= 0) carrinhoPDV.splice(idx, 1);
   atualizarCarrinhoPDV();
 }
 
@@ -3557,16 +3872,15 @@ function atualizarCarrinhoPDV() {
       const preco     = item.preco || item.p || 0;
       total += preco * qtd;
 
-      const variacaoStr = item.variacao ? `<small style="color:#aaa">${item.variacao}</small>` : '';
       const row = document.createElement('div');
       row.className = 'pdv-item-row pdv-item-existente' + (entregue ? ' pdv-item-entregue' : '');
       row.innerHTML = `
         <div class="pdv-item-info">
-          <strong>${qtd}x</strong> ${nome} ${entregue ? '<span class="badge-entregue">✓</span>' : ''}
-          ${variacaoStr}
+          <strong>${qtd}x</strong> ${nome}
+          ${entregue ? '<span class="badge-entregue">✓ Entregue</span>' : ''}
         </div>
         <div class="pdv-item-acoes">
-          <span style="font-size:0.82rem;color:#555">Gs ${(preco * qtd).toLocaleString('es-PY')}</span>
+          <span>Gs ${(preco * qtd).toLocaleString('es-PY')}</span>
           ${!entregue ? `
             <button class="btn btn-sm btn-success pdv-btn-baixar"
               title="Marcar como entregue"
@@ -3589,21 +3903,11 @@ function atualizarCarrinhoPDV() {
       total += item.preco * item.qtd;
       const row = document.createElement('div');
       row.className = 'pdv-item-row';
-      const subNome = item.variacao ? `<small style="color:#888;display:block">${item.variacao}${item.obs ? ' · ' + item.obs : ''}</small>` 
-                    : (item.obs ? `<small style="color:#888;display:block">${item.obs}</small>` : '');
-      const montagemStr = item.montagem && item.montagem.length ? `<small style="color:#999;display:block;font-size:0.72rem">+ ${item.montagem.join(', ')}</small>` : '';
       row.innerHTML = `
-        <div class="pdv-item-info">
-          <strong style="color:#1a7a2e">${item.nome}</strong>${subNome}${montagemStr}
-        </div>
+        <div class="pdv-item-info"><strong>${item.qtd}x</strong> ${item.nome}</div>
         <div class="pdv-item-acoes">
-          <div class="pdv-qty-ctrl">
-            <button onclick="alterarQtdPDV(${idx}, -1)">−</button>
-            <span class="pdv-qty-val">${item.qtd}</span>
-            <button onclick="alterarQtdPDV(${idx}, 1)">+</button>
-          </div>
-          <span style="font-weight:700;color:#333;min-width:72px;text-align:right">Gs ${(item.preco * item.qtd).toLocaleString('es-PY')}</span>
-          <button class="btn btn-sm btn-danger" onclick="removerItemPDV(${idx})" style="padding:2px 7px;font-size:0.75rem">✕</button>
+          <span>Gs ${(item.preco * item.qtd).toLocaleString('es-PY')}</span>
+          <button class="btn btn-sm btn-danger" onclick="removerItemPDV(${idx})">✕</button>
         </div>`;
       lista.appendChild(row);
     });
@@ -3614,6 +3918,14 @@ function atualizarCarrinhoPDV() {
   }
 
   if (totalEl) totalEl.innerText = total.toLocaleString('es-PY');
+  
+  // Atualiza barra inferior mobile
+  const mobileQtd = document.getElementById('pdv-mobile-qtd');
+  const mobileTot = document.getElementById('pdv-mobile-total-val');
+  const qtdTotal = carrinhoPDV.reduce((a, i) => a + i.qtd, 0);
+  if (mobileQtd) mobileQtd.textContent = qtdTotal + (qtdTotal === 1 ? ' item' : ' itens');
+  if (mobileTot) mobileTot.textContent = total.toLocaleString('es-PY');
+  
   atualizarInfoPagPDV(total);
 }
 
@@ -3644,7 +3956,7 @@ async function salvarPedidoBalcao() {
 
   const cli      = document.getElementById('balcao-cliente').value || 'Cliente';
   const tel      = document.getElementById('balcao-telefone').value || '';
-  const pag      = _obterPagamentoPDV();
+  const pag      = document.getElementById('balcao-pag').value;
   const nomeFinal = `MESA ${mesa} - ${cli}`;
 
   // ── Novos itens ganham status_item: 'pendente' ─────────────────
@@ -3654,9 +3966,8 @@ async function salvarPedidoBalcao() {
     preco:        i.preco,
     qtd:          i.qtd,
     montagem:     i.montagem || [],
-    obs:          i.obs      || '',
-    variacao:     i.variacao || '',
-    status_item:  'pendente',
+    obs:          i.obs     || '',
+    status_item:  'pendente',   // ← campo de status por item
     lancado_em:   new Date().toISOString(),
   }));
 
@@ -4508,257 +4819,4 @@ if (typeof fecharModal !== 'function') {
       modal.style.display = 'none';
     }
   }
-}
-
-// ══════════════════════════════════════════════════════
-// PDV EXTRAS — Filtro de categoria, busca, limpar pedido
-// ══════════════════════════════════════════════════════
-
-let _pdvCatAtiva = null;
-
-function filtrarCategoriaPDV(slug, btn) {
-  _pdvCatAtiva = slug;
-  document.querySelectorAll('.pdv-cat-pill').forEach(p => p.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  const txt = document.getElementById('pdv-search') ? document.getElementById('pdv-search').value : '';
-  _renderizarGridPDVFiltrado(slug, txt);
-}
-
-function filtrarGridPDV(texto) {
-  _renderizarGridPDVFiltrado(_pdvCatAtiva, texto);
-}
-
-function _renderizarGridPDVFiltrado(filtroCategoria, filtroTexto) {
-  const grid = document.getElementById('pdv-grid');
-  if (!grid) return;
-  grid.innerHTML = '';
-
-  // Monta filtros de categoria na toolbar (só na primeira vez)
-  const catFilter = document.getElementById('pdv-cat-filter');
-  if (catFilter && catFilter.children.length === 0) {
-    const allPill = document.createElement('button');
-    allPill.className = 'pdv-cat-pill active';
-    allPill.textContent = 'Todos';
-    allPill.onclick = () => { filtrarCategoriaPDV(null, allPill); };
-    catFilter.appendChild(allPill);
-    produtosCatsPDV.forEach(cat => {
-      const pill = document.createElement('button');
-      pill.className = 'pdv-cat-pill';
-      pill.textContent = cat.nome_exibicao;
-      pill.onclick = () => { filtrarCategoriaPDV(cat.slug, pill); };
-      catFilter.appendChild(pill);
-    });
-  }
-
-  let produtos = produtosCachePDV;
-  if (filtroCategoria) produtos = produtos.filter(p => p.categoria_slug === filtroCategoria);
-  if (filtroTexto) {
-    const txt = filtroTexto.toLowerCase();
-    produtos = produtos.filter(p => p.nome.toLowerCase().includes(txt));
-  }
-
-  if (produtos.length === 0) {
-    grid.innerHTML = '<p style="text-align:center;color:#aaa;padding:30px;font-size:0.9rem;">Nenhum produto encontrado.</p>';
-    return;
-  }
-
-  const porCategoria = {};
-  produtos.forEach((p) => {
-    const cat = p.categoria_slug || 'outros';
-    if (!porCategoria[cat]) porCategoria[cat] = [];
-    porCategoria[cat].push(p);
-  });
-
-  const ordemCats = produtosCatsPDV.map((c) => c.slug);
-  const slugsOrdenados = Object.keys(porCategoria).sort((a, b) => {
-    const ia = ordemCats.indexOf(a), ib = ordemCats.indexOf(b);
-    if (ia === -1 && ib === -1) return a.localeCompare(b);
-    if (ia === -1) return 1; if (ib === -1) return -1;
-    return ia - ib;
-  });
-
-  slugsOrdenados.forEach((slug) => {
-    const catInfo = produtosCatsPDV.find((c) => c.slug === slug);
-    const catNome = catInfo ? catInfo.nome_exibicao : slug;
-
-    const h = document.createElement('div');
-    h.className = 'pdv-cat-header';
-    h.textContent = catNome;
-    grid.appendChild(h);
-
-    const row = document.createElement('div');
-    row.className = 'pdv-cat-row';
-
-    porCategoria[slug].forEach((p) => {
-      const img = p.imagem_url || '';
-      const cfg = p.montagem_config;
-      const tipo = (cfg && !Array.isArray(cfg) && cfg.__tipo) ? cfg.__tipo
-                 : (p.e_montavel || (cfg && Array.isArray(cfg) && cfg.length > 0)) ? 'montavel'
-                 : 'padrao';
-      const temVariacoes = tipo !== 'padrao';
-
-      const card = document.createElement('div');
-      card.className = 'pdv-card';
-      card.title = p.nome;
-      // Imagem via background-image (mais confiável que <img>)
-      if (img) {
-        card.style.backgroundImage = `url('${img}')`;
-        card.style.backgroundSize = 'cover';
-        card.style.backgroundPosition = 'center';
-      }
-      card.innerHTML = `
-        <div class="pdv-card-price-badge">Gs ${p.preco.toLocaleString('es-PY')}</div>
-        ${temVariacoes ? '<div class="pdv-card-var-badge">⚙</div>' : ''}
-        <div class="pdv-card-footer">
-          <div class="pdv-card-footer-nome">${p.nome}</div>
-        </div>
-      `;
-      card.onclick = () => adicionarItemPDV(p);
-      row.appendChild(card);
-    });
-
-    grid.appendChild(row);
-  });
-}
-
-// Inicializar o grid PDV usando a nova versão com filtros
-function _initPDVGrid() {
-  // Popula categoria pills
-  const catFilter = document.getElementById('pdv-cat-filter');
-  if (catFilter) {
-    catFilter.innerHTML = '';
-    const allPill = document.createElement('button');
-    allPill.className = 'pdv-cat-pill active';
-    allPill.textContent = 'Todos';
-    allPill.onclick = () => filtrarCategoriaPDV(null, allPill);
-    catFilter.appendChild(allPill);
-    produtosCatsPDV.forEach(cat => {
-      const pill = document.createElement('button');
-      pill.className = 'pdv-cat-pill';
-      pill.textContent = cat.nome_exibicao;
-      pill.onclick = () => filtrarCategoriaPDV(cat.slug, pill);
-      catFilter.appendChild(pill);
-    });
-  }
-  _renderizarGridPDVFiltrado(null, '');
-}
-
-function pdvLimparPedido() {
-  if (carrinhoPDV.length === 0 && !window._mesaAbertaId) return;
-  if (!confirm('Limpar pedido atual?')) return;
-  carrinhoPDV = [];
-  window._mesaAbertaId = null;
-  window._mesaAbertaTotal = 0;
-  window._mesaAbertaPedido = null;
-  const mesaEl = document.getElementById('balcao-mesa');
-  const cliEl = document.getElementById('balcao-cliente');
-  const telEl = document.getElementById('balcao-telefone');
-  const labelEl = document.getElementById('pdv-mesa-label');
-  if (mesaEl) mesaEl.value = '';
-  if (cliEl) cliEl.value = '';
-  if (telEl) telEl.value = '';
-  if (labelEl) labelEl.textContent = 'Mesa não selecionada';
-  atualizarCarrinhoPDV();
-}
-
-
-// ══════════════════════════════════════════════════════
-// DIVIDIR PAGAMENTO — PDV Balcão
-// ══════════════════════════════════════════════════════
-
-let _divisoesPagamento = [];
-
-function toggleDividirPagamento() {
-  const box = document.getElementById('box-dividir-pag');
-  if (!box) return;
-  const aberto = box.style.display !== 'none';
-  box.style.display = aberto ? 'none' : 'block';
-  if (!aberto && _divisoesPagamento.length === 0) {
-    // Inicia com 2 divisões
-    _divisoesPagamento = [
-      { metodo: 'Efetivo', valor: '' },
-      { metodo: 'Pix',     valor: '' },
-    ];
-    renderizarDivisoes();
-  }
-}
-
-function adicionarDivisaoPagamento() {
-  _divisoesPagamento.push({ metodo: 'Efetivo', valor: '' });
-  renderizarDivisoes();
-}
-
-function removerDivisao(idx) {
-  _divisoesPagamento.splice(idx, 1);
-  renderizarDivisoes();
-}
-
-function renderizarDivisoes() {
-  const container = document.getElementById('pdv-divisoes');
-  if (!container) return;
-  const totalStr = document.getElementById('balcao-total')?.innerText || '0';
-  const total = parseInt(totalStr.replace(/\D/g, '')) || 0;
-
-  container.innerHTML = '';
-  let somaAtual = 0;
-
-  _divisoesPagamento.forEach((div, idx) => {
-    somaAtual += parseInt(div.valor) || 0;
-    const row = document.createElement('div');
-    row.className = 'pdv-divisao-row';
-    row.innerHTML = `
-      <select class="pdv-divisao-select" onchange="_divisoesPagamento[${idx}].metodo = this.value">
-        <option value="Efetivo"   ${div.metodo === 'Efetivo'      ? 'selected' : ''}>💵 Efetivo</option>
-        <option value="Cartao"    ${div.metodo === 'Cartao'       ? 'selected' : ''}>💳 Cartão</option>
-        <option value="Pix"       ${div.metodo === 'Pix'          ? 'selected' : ''}>📲 Pix</option>
-        <option value="Transferencia" ${div.metodo === 'Transferencia' ? 'selected' : ''}>🏦 Transferência</option>
-      </select>
-      <input type="number" class="pdv-divisao-valor"
-        placeholder="Gs 0"
-        value="${div.valor}"
-        oninput="_divisoesPagamento[${idx}].valor = this.value; atualizarRestanteDivisao()"
-      >
-      ${_divisoesPagamento.length > 1 ? `<button class="pdv-divisao-del" onclick="removerDivisao(${idx})">✕</button>` : ''}
-    `;
-    container.appendChild(row);
-  });
-
-  atualizarRestanteDivisao();
-}
-
-function atualizarRestanteDivisao() {
-  const totalStr = document.getElementById('balcao-total')?.innerText || '0';
-  const total = parseInt(totalStr.replace(/\D/g, '')) || 0;
-  const soma = _divisoesPagamento.reduce((acc, d) => acc + (parseInt(d.valor) || 0), 0);
-  const restante = total - soma;
-
-  // Atualiza ou cria indicador de restante
-  let restEl = document.getElementById('pdv-divisao-restante');
-  if (!restEl) {
-    restEl = document.createElement('div');
-    restEl.id = 'pdv-divisao-restante';
-    restEl.className = 'pdv-divisao-restante';
-    const box = document.getElementById('box-dividir-pag');
-    if (box) box.appendChild(restEl);
-  }
-  restEl.style.color = restante === 0 ? '#27ae60' : restante < 0 ? '#e74c3c' : '#f39c12';
-  restEl.innerHTML = restante === 0
-    ? '<i class="fas fa-check-circle"></i> Valores conferem!'
-    : restante > 0
-      ? `Faltam: Gs ${restante.toLocaleString('es-PY')}`
-      : `Excesso: Gs ${Math.abs(restante).toLocaleString('es-PY')}`;
-}
-
-// Sobrescreve forma_pagamento ao salvar se houver divisão ativa
-function _obterPagamentoPDV() {
-  const box = document.getElementById('box-dividir-pag');
-  const dividindo = box && box.style.display !== 'none' && _divisoesPagamento.length > 0;
-  if (!dividindo) {
-    return document.getElementById('balcao-pag').value;
-  }
-  // Retorna descrição das divisões
-  return _divisoesPagamento
-    .filter(d => d.valor)
-    .map(d => `${d.metodo}: Gs ${parseInt(d.valor).toLocaleString('es-PY')}`)
-    .join(' + ');
 }

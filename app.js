@@ -1375,15 +1375,16 @@ function verificarPagamento() {
   const pag = document.getElementById('forma-pag').value;
   const infoDiv = document.getElementById('info-pagamento-extra');
   const boxTroco = document.getElementById('box-troco');
+  const boxMulti = document.getElementById('box-multipagamento');
 
   infoDiv.style.display = 'none';
   boxTroco.classList.add('hidden');
+  if (boxMulti) boxMulti.style.display = 'none';
 
   if (pag === 'Efetivo') {
     boxTroco.classList.remove('hidden');
   } else if (pag === 'Pix') {
     infoDiv.style.display = 'block';
-    // Calcula valor em BRL baseado no total atual
     const totalItens = carrinho.reduce((a, i) => a + i.preco * i.qtd, 0);
     let freteAplicado = modoEntrega === 'delivery' ? freteCalculado : 0;
     let desconto = 0;
@@ -1397,7 +1398,113 @@ function verificarPagamento() {
   } else if (pag === 'Transferencia') {
     infoDiv.style.display = 'block';
     infoDiv.innerHTML = `<strong>🏦 Dados para Transferência:</strong><br>${DADOS_ALIAS}<br>${ALIAS_PY}`;
+  } else if (pag === 'Multipagamento') {
+    if (boxMulti) {
+      boxMulti.style.display = 'block';
+      // Inicializa com uma parte se ainda não há nenhuma
+      const partes = document.getElementById('multi-partes');
+      if (partes && partes.children.length === 0) {
+        adicionarPartePagamento();
+      }
+      atualizarRestanteMulti();
+    }
   }
+}
+
+// ==========================================
+// MULTIPAGAMENTO
+// ==========================================
+let _multiContador = 0;
+
+const METODOS_PAG = ['Efetivo', 'Cartao', 'Pix', 'Transferencia'];
+
+function _getTotalPedidoAtual() {
+  const totalItens = carrinho.reduce((a, i) => a + i.preco * i.qtd, 0);
+  let freteAplicado = modoEntrega === 'delivery' ? freteCalculado : 0;
+  let desconto = 0;
+  if (cupomAplicado) {
+    if (cupomAplicado.tipo === 'percentual') desconto = Math.round(totalItens * (cupomAplicado.valor / 100));
+    else if (cupomAplicado.tipo === 'frete') freteAplicado = 0;
+  }
+  return totalItens - desconto + freteAplicado;
+}
+
+function adicionarPartePagamento() {
+  const container = document.getElementById('multi-partes');
+  if (!container) return;
+  _multiContador++;
+  const id = _multiContador;
+
+  const metodoOptions = METODOS_PAG.map(m =>
+    `<option value="${m}">${m === 'Efetivo' ? 'Efectivo' : m === 'Cartao' ? 'Tarjeta' : m === 'Transferencia' ? 'Alias/Transfer.' : m}</option>`
+  ).join('');
+
+  const div = document.createElement('div');
+  div.id = `multi-parte-${id}`;
+  div.style.cssText = 'display:flex; gap:8px; align-items:center; margin-bottom:8px; background:white; border-radius:8px; padding:8px; border:1px solid #e0e0e0;';
+  div.innerHTML = `
+    <select id="multi-metodo-${id}" onchange="verificarPartePix(${id})"
+        style="flex:1.4; padding:9px 8px; border:1px solid #ddd; border-radius:8px; font-size:0.88rem; background:white;">
+      ${metodoOptions}
+    </select>
+    <input type="number" id="multi-valor-${id}" placeholder="Gs 0" min="0" step="1000"
+        oninput="atualizarRestanteMulti()"
+        style="flex:1.2; padding:9px 8px; border:1px solid #ddd; border-radius:8px; font-size:0.88rem;">
+    <div id="multi-troco-${id}" style="display:none; flex:1; font-size:0.8rem;">
+      <input type="number" id="multi-troco-val-${id}" placeholder="Troco p/ Gs" min="0" step="1000"
+          style="width:100%; padding:7px 6px; border:1px solid #ddd; border-radius:8px; font-size:0.82rem;">
+    </div>
+    <button type="button" onclick="removerPartePagamento(${id})"
+        style="background:#ffeaea; color:#e74c3c; border:1px solid #fbb; padding:8px 10px; border-radius:8px; cursor:pointer; font-size:0.9rem; flex-shrink:0;">
+      ✕
+    </button>
+  `;
+  container.appendChild(div);
+  atualizarRestanteMulti();
+}
+
+function verificarPartePix(id) {
+  const metodo = document.getElementById(`multi-metodo-${id}`)?.value;
+  const trocoBox = document.getElementById(`multi-troco-${id}`);
+  if (trocoBox) trocoBox.style.display = metodo === 'Efetivo' ? 'flex' : 'none';
+}
+
+function removerPartePagamento(id) {
+  const el = document.getElementById(`multi-parte-${id}`);
+  if (el) el.remove();
+  atualizarRestanteMulti();
+}
+
+function atualizarRestanteMulti() {
+  const total = _getTotalPedidoAtual();
+  const partes = document.querySelectorAll('[id^="multi-valor-"]');
+  let soma = 0;
+  partes.forEach(inp => {
+    const v = parseFloat(inp.value) || 0;
+    soma += v;
+  });
+  const restante = total - soma;
+  const el = document.getElementById('multi-restante');
+  if (!el) return;
+  if (Math.abs(restante) < 1) {
+    el.innerHTML = `<span style="color:#27ae60">✅ Total distribuído</span>`;
+  } else if (restante > 0) {
+    el.innerHTML = `<span style="color:#e67e22">Faltam: Gs ${restante.toLocaleString('es-PY')}</span>`;
+  } else {
+    el.innerHTML = `<span style="color:#e74c3c">⚠️ Excede: Gs ${Math.abs(restante).toLocaleString('es-PY')}</span>`;
+  }
+}
+
+function _coletarMultiPagamento() {
+  const partes = [];
+  document.querySelectorAll('[id^="multi-parte-"]').forEach(div => {
+    const idStr = div.id.replace('multi-parte-', '');
+    const metodo = document.getElementById(`multi-metodo-${idStr}`)?.value || '';
+    const valor = parseFloat(document.getElementById(`multi-valor-${idStr}`)?.value) || 0;
+    const troco = document.getElementById(`multi-troco-val-${idStr}`)?.value || '';
+    if (metodo && valor > 0) partes.push({ metodo, valor, troco: troco || null });
+  });
+  return partes;
 }
 
 async function calcularFrete() {
@@ -1465,173 +1572,28 @@ function calcularDistancia(lat1, lon1, lat2, lon2) {
 }
 
 // ==========================================
-// MULTIPAGAMENTO — estado e funções
-// ==========================================
-let _multiPagAtivo = false;
-let _linhasPag = [];
-
-function _totalCarrinhoAtual() {
-  const totalItens = carrinho.reduce((a, i) => a + i.preco * i.qtd, 0);
-  let freteAplicado = modoEntrega === 'delivery' ? freteCalculado : 0;
-  let desconto = 0;
-  if (cupomAplicado) {
-    if (cupomAplicado.tipo === 'percentual') desconto = Math.round(totalItens * (cupomAplicado.valor / 100));
-    else if (cupomAplicado.tipo === 'frete') freteAplicado = 0;
-  }
-  return totalItens - desconto + freteAplicado;
-}
-
-function toggleMultiPag() {
-  _multiPagAtivo = !_multiPagAtivo;
-  const modoSimples = document.getElementById('pag-modo-simples');
-  const modoMulti   = document.getElementById('pag-modo-multi');
-  const btnTxt      = document.getElementById('txt-dividir-pag');
-  const btn         = document.getElementById('btn-dividir-pag');
-
-  if (_multiPagAtivo) {
-    modoSimples.style.display = 'none';
-    modoMulti.style.display   = 'block';
-    btn.classList.add('ativo');
-    btnTxt.textContent = 'Usar pagamento único';
-    _linhasPag = [{ metodo: '', valor: '' }, { metodo: '', valor: '' }];
-    renderizarLinhasPag();
-  } else {
-    modoSimples.style.display = '';
-    modoMulti.style.display   = 'none';
-    btn.classList.remove('ativo');
-    btnTxt.textContent = 'Dividir pagamento';
-    _linhasPag = [];
-    document.getElementById('forma-pag').value = '';
-    document.getElementById('info-pagamento-extra').style.display = 'none';
-    document.getElementById('box-troco').classList.add('hidden');
-  }
-}
-
-function renderizarLinhasPag() {
-  const lista = document.getElementById('multi-pag-lista');
-  if (!lista) return;
-  const metodos = [
-    { v: 'Efetivo',       txt: '\u{1F4B5} Efetivo (Gs)' },
-    { v: 'Cartao',        txt: '\u{1F4B3} Cartão' },
-    { v: 'Pix',           txt: '\u{1F4F1} Pix (BR)' },
-    { v: 'Transferencia', txt: '\u{1F3E6} Transferência/Alias' },
-  ];
-  lista.innerHTML = _linhasPag.map((l, i) => {
-    const isLast = i === _linhasPag.length - 1;
-    const opts = metodos.map(m => `<option value="${m.v}" ${l.metodo === m.v ? 'selected' : ''}>${m.txt}</option>`).join('');
-    const infoBox = l.metodo === 'Efetivo' ? `
-      <div class="multi-pag-troco">
-        <label>Troco para:</label>
-        <input type="text" class="multi-pag-input-troco" placeholder="Ex: 100.000"
-          value="${l.troco || ''}" oninput="_linhasPag[${i}].troco = this.value">
-      </div>` : l.metodo === 'Pix' && parseFloat(l.valor) > 0 ? `
-      <div class="multi-pag-info-box">
-        Chave Pix: <strong>${'${CHAVE_PIX}'}</strong><br>
-        Valor: <strong>R$ ${'${(parseFloat(l.valor)/COTACAO_REAL).toFixed(2)}'}</strong>
-      </div>` : l.metodo === 'Transferencia' ? `
-      <div class="multi-pag-info-box">${'${DADOS_ALIAS}'}<br>${'${ALIAS_PY}'}</div>` : '';
-    return `
-      <div class="multi-pag-linha" data-idx="${i}">
-        <div class="multi-pag-linha-top">
-          <span class="multi-pag-num">${i + 1}\u00AA forma</span>
-          ${_linhasPag.length > 2 && i > 0 ? `<button type="button" class="btn-rm-pag" onclick="removerLinhaPag(${i})"><i class="fas fa-times"></i></button>` : ''}
-        </div>
-        <div class="multi-pag-linha-body">
-          <select class="multi-pag-select" onchange="multiPagTrocarMetodo(${i}, this.value)">
-            <option value="">Selecionar forma...</option>
-            ${opts}
-          </select>
-          <div class="multi-pag-valor-wrap">
-            <span class="multi-pag-gs">Gs</span>
-            <input type="number" id="mpag-val-${i}" class="multi-pag-input"
-              placeholder="0" value="${l.valor || ''}" min="0"
-              ${isLast ? 'readonly tabindex="-1"' : ''}
-              oninput="multiPagDigitar(${i}, this.value)">
-          </div>
-        </div>
-        ${infoBox}
-      </div>`;
-  }).join('');
-  _recalcUltimo();
-}
-
-function multiPagTrocarMetodo(idx, valor) {
-  _linhasPag[idx].metodo = valor;
-  renderizarLinhasPag();
-}
-
-function multiPagDigitar(idx, valor) {
-  _linhasPag[idx].valor = parseFloat(valor) || 0;
-  _recalcUltimo();
-}
-
-function _recalcUltimo() {
-  const total = _totalCarrinhoAtual();
-  const last  = _linhasPag.length - 1;
-  const soma  = _linhasPag.slice(0, last).reduce((s, l) => s + (parseFloat(l.valor) || 0), 0);
-  _linhasPag[last].valor = Math.max(0, total - soma);
-  const lastEl = document.getElementById(`mpag-val-${last}`);
-  if (lastEl) lastEl.value = _linhasPag[last].valor || '';
-  atualizarRestante();
-}
-
-function adicionarLinhaPag() {
-  if (_linhasPag.length >= 4) { alert('Máximo de 4 formas de pagamento.'); return; }
-  _linhasPag.push({ metodo: '', valor: '' });
-  renderizarLinhasPag();
-}
-
-function removerLinhaPag(idx) {
-  _linhasPag.splice(idx, 1);
-  renderizarLinhasPag();
-}
-
-function atualizarRestante() {
-  const total = _totalCarrinhoAtual();
-  const soma  = _linhasPag.reduce((s, l) => s + (parseFloat(l.valor) || 0), 0);
-  const restante = total - soma;
-  const el = document.getElementById('multi-pag-restante');
-  if (!el) return;
-  if (Math.abs(restante) < 1) {
-    el.innerHTML = `<i class="fas fa-check-circle"></i> Total coberto: Gs ${total.toLocaleString('es-PY')}`;
-    el.className = 'multi-pag-restante ok';
-  } else {
-    el.innerHTML = `<i class="fas fa-exclamation-circle"></i> Faltam: Gs ${Math.abs(restante).toLocaleString('es-PY')}`;
-    el.className = 'multi-pag-restante pendente';
-  }
-}
-
-function _validarMultiPag() {
-  const total = _totalCarrinhoAtual();
-  for (const l of _linhasPag) {
-    if (!l.metodo) { alert('Selecione a forma de pagamento em todas as linhas.'); return false; }
-    if (!l.valor || parseFloat(l.valor) <= 0) { alert('Informe o valor de cada forma de pagamento.'); return false; }
-  }
-  const soma = _linhasPag.reduce((s, l) => s + parseFloat(l.valor), 0);
-  if (Math.abs(soma - total) > 5) { alert(`Os valores não batem com o total.\nTotal: Gs ${total.toLocaleString('es-PY')}\nSoma: Gs ${soma.toLocaleString('es-PY')}`); return false; }
-  return true;
-}
-
-// ==========================================
 // 8. ENVIO DO PEDIDO
 // ==========================================
 async function enviarZap() {
   const nome = document.getElementById('cli-nome').value.trim();
   const ddi = document.getElementById('cli-ddi').value;
   const tel = document.getElementById('cli-tel').value.trim();
+  const pag = document.getElementById('forma-pag').value;
 
-  let pag, obsPag;
-  if (_multiPagAtivo) {
-    if (!_validarMultiPag()) return;
-    pag    = 'Multipagamento';
-    obsPag = JSON.stringify(_linhasPag.map(l => ({ metodo: l.metodo, valor: parseFloat(l.valor), troco: l.troco || '' })));
-  } else {
-    pag = document.getElementById('forma-pag').value;
-    obsPag = pag === 'Efetivo' ? document.getElementById('troco-valor').value : '';
-    if (!pag) return alert('Preencha todos os campos obrigatórios!');
+  if (!nome || !tel || !pag) return alert('Preencha todos os campos obrigatórios!');
+
+  // Valida multipagamento
+  if (pag === 'Multipagamento') {
+    const partes = _coletarMultiPagamento();
+    if (partes.length < 2) return alert('Adicione pelo menos 2 formas de pagamento para o multipagamento.');
+    const somaPartes = partes.reduce((s, p) => s + p.valor, 0);
+    const totalCheck = carrinho.reduce((a, i) => a + i.preco * i.qtd, 0)
+                       - (cupomAplicado?.tipo === 'percentual' ? Math.round(carrinho.reduce((a,i)=>a+i.preco*i.qtd,0) * (cupomAplicado.valor/100)) : 0)
+                       + (modoEntrega === 'delivery' ? (cupomAplicado?.tipo === 'frete' ? 0 : freteCalculado) : 0);
+    if (Math.abs(somaPartes - totalCheck) > 1) {
+      return alert(`A soma dos pagamentos (Gs ${somaPartes.toLocaleString('es-PY')}) não confere com o total do pedido (Gs ${totalCheck.toLocaleString('es-PY')}). Ajuste os valores.`);
+    }
   }
-
-  if (!nome || !tel) return alert('Preencha todos os campos obrigatórios!');
 
   if (modoEntrega === 'delivery' && !localCliente && !document.getElementById('check-sem-gps')?.checked) {
     alert('Por favor, calcule o frete ou marque a opção de enviar localização pelo WhatsApp');
@@ -1645,14 +1607,21 @@ async function enviarZap() {
   const totalItens = carrinho.reduce((a, i) => a + i.preco * i.qtd, 0);
   let desconto = 0;
   let freteAplicado = freteCalculado;
+  
   if (cupomAplicado) {
-    if (cupomAplicado.tipo === 'percentual') desconto = Math.round(totalItens * (cupomAplicado.valor / 100));
-    else if (cupomAplicado.tipo === 'frete') freteAplicado = 0;
+    if (cupomAplicado.tipo === 'percentual') {
+      desconto = Math.round(totalItens * (cupomAplicado.valor / 100));
+    } else if (cupomAplicado.tipo === 'frete') {
+      freteAplicado = 0;
+    }
   }
+  
   const totalGeral = totalItens - desconto + (modoEntrega === 'delivery' ? freteAplicado : 0);
 
+  // 1. Salva no Banco PRIMEIRO para pegar o ID real
   let pedidoDbId = null;
   let numeroPedido = null;
+  
   if (typeof supa !== 'undefined') {
     const pedidoDb = {
       status: 'pendente',
@@ -1662,7 +1631,9 @@ async function enviarZap() {
       desconto_cupom: desconto,
       total_geral: totalGeral,
       forma_pagamento: pag,
-      obs_pagamento: obsPag,
+      obs_pagamento: pag === 'Efetivo' ? document.getElementById('troco-valor').value
+                   : pag === 'Multipagamento' ? JSON.stringify(_coletarMultiPagamento())
+                   : '',
       itens: carrinho.map((i) => ({ n: i.nome, p: i.preco, q: i.qtd, t: i.variacao, m: i.montagem, o: i.obs })),
       endereco_entrega: ref,
       geo_lat: localCliente ? localCliente.lat.toString() : null,
@@ -1673,29 +1644,43 @@ async function enviarZap() {
         ? { ruc: document.getElementById('cli-ruc').value, razao: document.getElementById('cli-zao').value }
         : null,
     };
+
     const { data: pedidoSalvo, error } = await supa.from('pedidos').insert([pedidoDb]).select().single();
-    if (error) { console.error('Erro ao salvar pedido:', error); alert('⚠️ Erro ao salvar pedido no sistema. Tente novamente.'); return; }
+
+    if (error) {
+      console.error('Erro ao salvar pedido:', error);
+      alert('⚠️ Erro ao salvar pedido no sistema. Tente novamente.');
+      return;
+    }
+    
     if (pedidoSalvo) {
       pedidoDbId = pedidoSalvo.id;
-      numeroPedido = pedidoSalvo.id;
+      numeroPedido = pedidoSalvo.id; // USA O ID DO BANCO
       console.log('✅ Pedido salvo com ID:', pedidoDbId);
+
+      // Incrementa contador de usos do cupom
       if (cupomAplicado?.id) {
-        await supa.from('cupons').update({ usos_realizados: (cupomAplicado.usos_realizados || 0) + 1 }).eq('id', cupomAplicado.id);
+        const novosUsos = (cupomAplicado.usos_realizados || 0) + 1;
+        await supa.from('cupons')
+          .update({ usos_realizados: novosUsos })
+          .eq('id', cupomAplicado.id);
       }
     }
   }
 
+  // Salva localmente para "Repetir Pedido"
   localStorage.setItem('sushi_last', JSON.stringify(carrinho));
   localStorage.setItem('sushi_user', JSON.stringify({ nome, tel }));
 
+  // 2. Usa o número real do pedido na mensagem
   const idDisplay = numeroPedido || 'TEMP';
-  const tipoLabel = modoEntrega === 'delivery' ? 'DELIVERY' : modoEntrega === 'local' ? 'COMER NO LOCAL' : 'RETIRADA';
-
-  let msg = `🍣 PEDIDO #${idDisplay} - SUSHI TOP\n`;
+  
+  // 3. Monta Mensagem WhatsApp
+  let msg = `🍣 PEDIDO #${idDisplay} - SUSHITERIA\n`;
   msg += `--------------------------\n`;
   msg += `👤 Cliente: ${nome}\n`;
   msg += `📱 Tel: ${telCompleto}\n`;
-  msg += `🏷️ Tipo: ${tipoLabel}\n`;
+  msg += `🛵 Tipo: ${modoEntrega === 'delivery' ? 'DELIVERY' : modoEntrega === 'local' ? 'COMER NO LOCAL 🍽️' : 'RETIRADA'}\n`;
 
   if (modoEntrega === 'delivery') {
     if (localCliente && freteAplicado > 0) {
@@ -1719,58 +1704,86 @@ async function enviarZap() {
 
   msg += `--------------------------\n`;
   msg += `Subtotal: Gs ${totalItens.toLocaleString('es-PY')}\n`;
-  if (desconto > 0) msg += `Desconto (${cupomAplicado.codigo}): -Gs ${desconto.toLocaleString('es-PY')}\n`;
-  if (modoEntrega === 'delivery' && !usouPlanoB) msg += `Delivery: Gs ${freteAplicado.toLocaleString('es-PY')}\n`;
+  
+  if (desconto > 0) {
+    msg += `Desconto (${cupomAplicado.codigo}): -Gs ${desconto.toLocaleString('es-PY')}\n`;
+  }
+  
+  if (modoEntrega === 'delivery' && !usouPlanoB) {
+      msg += `Delivery: Gs ${freteAplicado.toLocaleString('es-PY')}\n`;
+  }
   msg += `TOTAL: Gs ${totalGeral.toLocaleString('es-PY')}\n`;
   msg += `--------------------------\n`;
 
-  if (_multiPagAtivo && _linhasPag.length > 0) {
-    msg += `💳 PAGAMENTO DIVIDIDO:\n`;
-    _linhasPag.forEach((l, i) => {
-      msg += `  ${i + 1}. ${l.metodo}: Gs ${parseFloat(l.valor).toLocaleString('es-PY')}`;
-      if (l.metodo === 'Efetivo' && l.troco) msg += ` (Troco p/ ${l.troco})`;
-      msg += `\n`;
-      if (l.metodo === 'Pix') {
-        msg += `     Chave Pix: ${CHAVE_PIX} — R$ ${(parseFloat(l.valor) / COTACAO_REAL).toFixed(2)}\n`;
-        msg += `     ⚠️ Envie o comprovante após o pagamento!\n`;
-      }
-      if (l.metodo === 'Transferencia') {
-        msg += `     Alias: ${ALIAS_PY}\n`;
-        msg += `     ⚠️ Envie o comprovante após o pagamento!\n`;
-      }
-    });
+  // Pagamento e Troco
+  if (pag === 'Efetivo') {
+     const trocoVal = document.getElementById('troco-valor').value;
+     msg += `💰 Pagamento: Efetivo (Troco p/: ${trocoVal})\n`;
+  } else if (pag === 'Multipagamento') {
+     const partes = _coletarMultiPagamento();
+     msg += `💰 Pagamento dividido (${partes.length} formas):\n`;
+     partes.forEach((p, i) => {
+       msg += `   ${i+1}. ${p.metodo}: Gs ${p.valor.toLocaleString('es-PY')}`;
+       if (p.troco) msg += ` (Troco p/ Gs ${parseFloat(p.troco).toLocaleString('es-PY')})`;
+       msg += '\n';
+     });
   } else {
-    if (pag === 'Efetivo') {
-      msg += `💰 Pagamento: Efetivo (Troco p/: ${document.getElementById('troco-valor').value})\n`;
-    } else {
-      msg += `💰 Pagamento: ${pag}\n`;
-    }
-    if (pag === 'Pix' || pag === 'Transferencia') {
-      if (pag === 'Pix') {
-        const totalBrl = COTACAO_REAL > 0 ? (totalGeral / COTACAO_REAL).toFixed(2) : '---';
-        msg += `\n💠 Chave Pix: ${CHAVE_PIX}\n`;
-        msg += `💰 Valor em Reais: R$ ${totalBrl} (Gs ${totalGeral.toLocaleString('es-PY')} ÷ ${COTACAO_REAL})\n`;
+     msg += `💰 Pagamento: ${pag}\n`;
+  }
+
+  // Avisos de Pix/Alias (Bilíngue)
+  if (pag === 'Pix' || pag === 'Transferencia') {
+      if(pag === 'Pix') {
+          const totalBrl = COTACAO_REAL > 0 ? (totalGeral / COTACAO_REAL).toFixed(2) : '---';
+          msg += `\n💠 Chave Pix: ${CHAVE_PIX}\n`;
+          msg += `💰 Valor em Reais: R$ ${totalBrl} (Gs ${totalGeral.toLocaleString('es-PY')} ÷ ${COTACAO_REAL})\n`;
       }
-      if (pag === 'Transferencia') msg += `\n📎 Alias: ${ALIAS_PY}\n`;
+      if(pag === 'Transferencia') msg += `\n📎 Alias: ${ALIAS_PY}\n`;
+      
       msg += `\n⚠️ ATENÇÃO: Envie o comprovante / Enviar comprobante.\n`;
+      
       msg += `\n⚠️ *ATENÇÃO: SEU PEDIDO SERÁ CONFIRMADO APENAS APÓS O ENVIO DE SEU COMPROVANTE*\n`;
+  }
+  
+  // Para multipagamento: avisar sobre Pix ou Transferencia se incluídos
+  if (pag === 'Multipagamento') {
+    const partes = _coletarMultiPagamento();
+    const temPix = partes.find(p => p.metodo === 'Pix');
+    const temTransfer = partes.find(p => p.metodo === 'Transferencia');
+    if (temPix) {
+      const valBrl = COTACAO_REAL > 0 ? (temPix.valor / COTACAO_REAL).toFixed(2) : '---';
+      msg += `\n💠 Chave Pix (parte ${partes.indexOf(temPix)+1}): ${CHAVE_PIX}\n`;
+      msg += `💰 Valor Pix em Reais: R$ ${valBrl}\n`;
+    }
+    if (temTransfer) {
+      msg += `\n📎 Alias para transferência: ${ALIAS_PY}\n`;
+    }
+    if (temPix || temTransfer) {
+      msg += `\n⚠️ *Envie o comprovante após o pagamento!*\n`;
     }
   }
 
+  // Factura
   if (document.getElementById('check-factura').checked) {
-    msg += `\n📄 RUC: ${document.getElementById('cli-ruc').value}\nRazão: ${document.getElementById('cli-zao').value}\n`;
+      msg += `\n📄 RUC: ${document.getElementById('cli-ruc').value}\nRazão: ${document.getElementById('cli-zao').value}\n`;
   }
 
+  // Envia
   window.open(`https://wa.me/${FONE_LOJA}?text=${encodeURIComponent(msg)}`, '_blank');
 
+  // Limpa carrinho e fecha checkout
   carrinho = [];
   cupomAplicado = null;
-  _multiPagAtivo = false;
-  _linhasPag = [];
   updateUI();
   fecharCheckout();
+  
+  // Mostra alerta e card de tracking
   alert('✅ Pedido Enviado! Agora você pode acompanhar seu pedido abaixo.');
-  if (numeroPedido) mostrarCardTracking(numeroPedido);
+  
+  // Mostra card de tracking
+  if (numeroPedido) {
+    mostrarCardTracking(numeroPedido);
+  }
 }
 
 // ==========================================
@@ -1899,9 +1912,9 @@ function _iniciarPollingTracking(pedidoId, uid) {
 
             // Notificação push
             if ('Notification' in window && Notification.permission === 'granted' && TRACKER_STEPS[data.status]) {
-                new Notification('Sushi Top Delivery 🍣', {
+                new Notification('Sushiteria Delivery 🍣', {
                     body: TRACKER_STEPS[data.status].msg,
-                    icon: 'https://media.bio.site/sites/79CC2018-24E6-48C4-A856-4C1E36908B60/AWwTtFWnmuqVysXARE2MRX.png'
+                    icon: 'https://img.freepik.com/vetores-gratis/desenho-de-modelo-de-logotipo-de-sushi_742173-17797.jpg'
                 });
             }
 
