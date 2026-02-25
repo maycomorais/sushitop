@@ -144,6 +144,7 @@
         }
     </style>
 <base target="_blank">
+<base target="_blank">
 </head>
 <body>
 
@@ -281,7 +282,16 @@
                           detalhes += '<br><small style="color:#555">▸ '+tipo+'</small>';
                         }
                         if (preparo) detalhes += '<br><small style="color:#2980b9">🍳 '+preparo+'</small>';
-                        if (Array.isArray(montagem) && montagem.length > 0) detalhes += '<br><small style="font-style:italic">Ing: '+montagem.join(', ')+'</small>';
+                        if (Array.isArray(montagem) && montagem.length > 0) {
+                          montagem.forEach(linha => {
+                            const idx = linha.indexOf(':');
+                            if (idx > 0) {
+                              detalhes += '<br><small style="font-size:10px"><strong>'+linha.slice(0,idx)+':</strong> '+linha.slice(idx+1).trim()+'</small>';
+                            } else {
+                              detalhes += '<br><small style="font-style:italic; font-size:10px">· '+linha+'</small>';
+                            }
+                          });
+                        }
                         if (observacao) detalhes += '<br><strong style="font-size:10px">OBS: '+observacao+'</strong>';
                         
                         const total = (preco * quantidade).toLocaleString('es-PY');

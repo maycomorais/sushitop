@@ -168,7 +168,35 @@
       <div id="pedidos" class="tab-content">
         <div class="section-topbar">
           <h2 class="section-title">Pedidos</h2>
-          <div style="display:flex; gap:8px; align-items:center;">
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+
+            <!-- Badges de status -->
+            <span id="badge-delivery-status"
+              style="font-size:0.75rem;font-weight:700;padding:4px 10px;border-radius:20px;background:#27ae60;color:#fff;cursor:pointer"
+              onclick="carregarStatusDelivery()" title="Clique para atualizar">
+              🟢 Delivery Aberto
+            </span>
+            <span id="badge-horario-extra"
+              style="display:none;font-size:0.75rem;font-weight:700;padding:4px 10px;border-radius:20px;background:#2980b9;color:#fff">
+            </span>
+
+            <!-- Botões de controle -->
+            <button class="btn btn-sm" onclick="abrirModalEstenderHorario()"
+              style="background:#2980b9;color:#fff;padding:6px 12px;font-size:0.78rem;font-weight:700;border-radius:8px;border:none;cursor:pointer"
+              title="Estender horário de hoje">
+              ⏰ +Horário
+            </button>
+            <button class="btn btn-sm" onclick="avisarEncerramentoDelivery()"
+              style="background:#e74c3c;color:#fff;padding:6px 12px;font-size:0.78rem;font-weight:700;border-radius:8px;border:none;cursor:pointer"
+              title="Encerrar delivery e avisar clientes">
+              🚫 Encerrar
+            </button>
+            <button class="btn btn-sm" onclick="reabrirDelivery()"
+              style="background:#27ae60;color:#fff;padding:6px 12px;font-size:0.78rem;font-weight:700;border-radius:8px;border:none;cursor:pointer"
+              title="Reabrir delivery">
+              ✅ Reabrir
+            </button>
+
             <button class="btn btn-relatorio" onclick="abrirRelatorio()" title="Relatório Detalhado">
               <i class="fas fa-clipboard-list"></i><span class="mobile-hide"> Relatório</span>
             </button>

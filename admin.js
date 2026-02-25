@@ -135,7 +135,7 @@ function showTab(tabId, event) {
   }
 
   // 6. Carregamento de dados
-  if (realTabId === 'pedidos') carregarPedidos();
+  if (realTabId === 'pedidos') { carregarPedidos(); carregarStatusDelivery(); }
   if (realTabId === 'cozinha') carregarCozinha();
   if (realTabId === 'financeiro') calcularFinanceiro();
   if (realTabId === 'dashboard') carregarDashboard();
@@ -243,10 +243,14 @@ async function carregarPedidos(silencioso = false) {
   }
 
   // 1. Som e Notificação
-  const { count } = await supa
+  const { count, error: countError } = await supa
     .from('pedidos')
     .select('*', { count: 'exact', head: true })
     .eq('status', 'pendente');
+
+  if (countError) {
+    console.warn('Erro ao contar pedidos pendentes:', countError.message);
+  }
 
   if (count > 0) {
     if (!silencioso && typeof tocarAlarme === 'function') tocarAlarme();
@@ -1613,16 +1617,17 @@ async function salvarProduto() {
     const usaMontavel = ['montavel', 'acai', 'shake', 'suco'];
     if (usaMontavel.includes(tipo)) {
       const etapas = [];
-      document.querySelectorAll('.etapa-item').forEach((div) => {
-        etapas.push({
-          titulo: div.querySelector('.step-titulo').value,
-          max: parseInt(div.querySelector('.step-max').value),
-          itens: div
-            .querySelector('.step-itens')
-            .value.split(',')
-            .map((s) => s.trim())
-            .filter((s) => s),
-        });
+      // Lê novo builder: #builder-steps > .builder-step-card
+      document.querySelectorAll('#builder-steps .builder-step-card').forEach((div) => {
+        const titulo = (div.querySelector('.etapa-titulo') || div.querySelector('.step-titulo'))?.value?.trim() || '';
+        const max    = parseInt((div.querySelector('.etapa-max') || div.querySelector('.step-max'))?.value) || 1;
+        const itens  = [];
+        div.querySelectorAll('.item-row input').forEach(inp => { const v = inp.value.trim(); if (v) itens.push(v); });
+        if (itens.length === 0) {
+          const ta = div.querySelector('.step-itens');
+          if (ta) ta.value.split(',').map(s => s.trim()).filter(s => s).forEach(v => itens.push(v));
+        }
+        if (titulo) etapas.push({ titulo, max, itens });
       });
       configFinal.etapas = etapas;
     }
@@ -1798,7 +1803,8 @@ async function abrirModalProduto(produto = null, tipoInicial = null) {
     if (cfg && !Array.isArray(cfg) && cfg.__tipo) {
       tipo = cfg.__tipo;
 
-      if (tipo === 'montavel' && cfg.etapas) {
+      if (['montavel','acai','shake','suco'].includes(tipo) && cfg.etapas) {
+        document.getElementById('builder-steps').innerHTML = '';
         cfg.etapas.forEach((e) => addBuilderStep(e.titulo, e.max, e.itens));
       }
       if (tipo === 'pizza' && cfg.pizza) {
@@ -1982,12 +1988,7 @@ function toggleBuilder() {
   if (isM) selecionarTipoBuilder('montavel');
 }
 
-function addBuilderStep(t = '', m = 1, i = []) {
-  const div = document.createElement('div');
-  div.className = 'etapa-item';
-  div.innerHTML = `<div class="etapa-header"><input type="text" class="form-control step-titulo" value="${t}" placeholder="Título da etapa (ex: Escolha a base)"><input type="number" class="form-control step-max" value="${m}" style="width:70px" title="Máx. seleções"><button class="btn btn-sm btn-danger" onclick="this.parentElement.parentElement.remove()">X</button></div><textarea class="etapa-ingredientes step-itens" placeholder="Itens separados por vírgula. Ex: Arroz, Atum, Salmão, Tofu">${Array.isArray(i) ? i.join(', ') : i}</textarea>`;
-  document.getElementById('builder-steps').appendChild(div);
-}
+// addBuilderStep: ver definição completa abaixo (linha ~5138)
 
 // ─── VARIAÇÕES DE SABOR BUILDER ───────────────────────────────────
 function addVariacao(dados = {}) {
@@ -2176,7 +2177,12 @@ async function salvarExtrasGlobais() {
 
   const { error } = await supa.from('configuracoes').update({ extras_globais: extras }).eq('id', 1);
   if (error) {
-    alert('Erro ao salvar adicionais globais: ' + error.message);
+    // Verifica se é erro de coluna não existente
+    if (error.message && (error.message.includes('extras_globais') || error.code === 'PGRST204' || error.code === '42703')) {
+      alert('⚠️ A coluna "extras_globais" não existe no banco de dados.');
+    } else {
+      alert('Erro ao salvar adicionais globais: ' + error.message);
+    }
   } else {
     alert('✅ Adicionais globais salvos com sucesso!');
   }
@@ -2187,16 +2193,296 @@ async function carregarExtrasGlobaisAdmin() {
   if (!lista) return;
   lista.innerHTML = '';
   try {
-    const { data } = await supa.from('configuracoes').select('extras_globais').single();
+    const { data, error } = await supa.from('configuracoes').select('extras_globais').single();
+
+    // Se der erro de coluna não encontrada, apenas ignora
+    if (error) {
+      if (error.message && (error.message.includes('extras_globais') || error.code === 'PGRST204')) {
+        console.log('ℹ️ Coluna extras_globais não existe. Crie a coluna no banco para usar esta funcionalidade.');
+      } else {
+        console.warn('Erro ao carregar extras globais:', error.message);
+      }
+      return;
+    }
+
     if (data?.extras_globais && Array.isArray(data.extras_globais)) {
       data.extras_globais.forEach(ex => addExtraGlobal(ex));
     }
-  } catch (e) { /* tabela sem extras ainda */ }
+  } catch (e) { 
+    console.log('ℹ️ Extras globais não disponíveis:', e.message);
+  }
 }
 
 // =========================================
-// 8. PRODUTOS E CATEGORIAS (CORRIGIDO)
+// AVISAR ENCERRAMENTO DO DELIVERY
 // =========================================
+
+/**
+ * Grava na tabela `configuracoes` um timestamp de encerramento
+ * e um aviso visível para todos os clientes.
+ * 
+ * Na tabela configuracoes precisam existir os campos:
+ *   aviso_delivery  TEXT  (mensagem exibida no banner do site)
+ *   delivery_aberto BOOLEAN (controla se o delivery está habilitado)
+ */
+async function avisarEncerramentoDelivery() {
+  const modal = document.getElementById('modal-encerramento-delivery');
+  if (modal) {
+    modal.style.display = 'flex';
+    return;
+  }
+
+  // Cria o modal dinamicamente se não estiver no HTML
+  const overlay = document.createElement('div');
+  overlay.id = 'modal-encerramento-delivery';
+  overlay.style.cssText =
+    'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:24px;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+        <h3 style="margin:0;font-size:1.1rem;color:#c0392b">🚫 Encerrar Delivery</h3>
+        <button onclick="this.closest('#modal-encerramento-delivery').remove()" 
+                style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#999">✕</button>
+      </div>
+
+      <p style="color:#555;font-size:0.9rem;margin-bottom:16px">
+        Isso vai <strong>fechar o delivery imediatamente</strong> e exibir um aviso para os clientes no site.
+      </p>
+
+      <label style="font-weight:600;font-size:0.85rem;color:#333;display:block;margin-bottom:6px">
+        Mensagem para os clientes (opcional):
+      </label>
+      <textarea id="aviso-encerramento-texto" rows="3"
+        style="width:100%;padding:10px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:0.9rem;resize:vertical;box-sizing:border-box;margin-bottom:16px"
+        placeholder="Ex: Delivery encerrado por hoje. Voltamos amanhã às 18h! 🍣"></textarea>
+
+      <div style="display:flex;gap:10px">
+        <button onclick="this.closest('#modal-encerramento-delivery').remove()"
+                style="flex:1;padding:12px;background:#f5f5f5;color:#555;border:none;border-radius:8px;font-weight:600;cursor:pointer">
+          Cancelar
+        </button>
+        <button onclick="_confirmarEncerramentoDelivery()"
+                style="flex:1;padding:12px;background:#e74c3c;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer">
+          🚫 Fechar Agora
+        </button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+}
+
+async function _confirmarEncerramentoDelivery() {
+  const texto = document.getElementById('aviso-encerramento-texto')?.value?.trim()
+    || 'Delivery encerrado por hoje. Obrigado! 🍣';
+
+  const { error } = await supa.from('configuracoes').update({
+    delivery_aberto: false,
+    aviso_delivery: texto,
+  }).eq('id', 1);
+
+  if (error) {
+    // Tenta com upsert se update falhou (configuracoes pode não ter a linha)
+    const { error: e2 } = await supa.from('configuracoes').upsert({
+      id: 1,
+      delivery_aberto: false,
+      aviso_delivery: texto,
+    });
+    if (e2) {
+      alert('Erro ao encerrar delivery: ' + e2.message +
+        '\n\n💡 Execute no Supabase:\nALTER TABLE configuracoes ADD COLUMN IF NOT EXISTS delivery_aberto BOOLEAN DEFAULT true;\nALTER TABLE configuracoes ADD COLUMN IF NOT EXISTS aviso_delivery TEXT DEFAULT \'\';');
+      return;
+    }
+  }
+
+  document.getElementById('modal-encerramento-delivery')?.remove();
+  alert('✅ Delivery encerrado! O aviso já está visível para os clientes.');
+
+  // Atualiza badge no painel se existir
+  const badge = document.getElementById('badge-delivery-status');
+  if (badge) {
+    badge.style.background = '#e74c3c';
+    badge.textContent = '🔴 Delivery Fechado';
+  }
+}
+
+async function reabrirDelivery() {
+  if (!confirm('Reabrir o delivery para novos pedidos?')) return;
+
+  const { error } = await supa.from('configuracoes').update({
+    delivery_aberto: true,
+    aviso_delivery: '',
+  }).eq('id', 1);
+
+  if (error) {
+    alert('Erro: ' + error.message);
+    return;
+  }
+
+  alert('✅ Delivery reaberto com sucesso!');
+
+  const badge = document.getElementById('badge-delivery-status');
+  if (badge) {
+    badge.style.background = '#27ae60';
+    badge.textContent = '🟢 Delivery Aberto';
+  }
+}
+
+// =========================================
+// ESTENDER HORÁRIO DE FUNCIONAMENTO
+// =========================================
+
+/**
+ * Abre um modal para adicionar minutos extras ao horário de hoje.
+ * Grava em configuracoes.horario_extra_hoje = { data: 'YYYY-MM-DD', minutos: N }
+ * O app.js deve ler este campo para calcular o horário real de fechamento.
+ * 
+ * Execute no Supabase:
+ *   ALTER TABLE configuracoes ADD COLUMN IF NOT EXISTS horario_extra_hoje JSONB DEFAULT NULL;
+ */
+function abrirModalEstenderHorario() {
+  const existente = document.getElementById('modal-estender-horario');
+  if (existente) { existente.style.display = 'flex'; return; }
+
+  const overlay = document.createElement('div');
+  overlay.id = 'modal-estender-horario';
+  overlay.style.cssText =
+    'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:24px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+        <h3 style="margin:0;font-size:1.1rem;color:#2980b9">⏰ Estender Horário Hoje</h3>
+        <button onclick="this.closest('#modal-estender-horario').remove()"
+                style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#999">✕</button>
+      </div>
+
+      <p style="color:#555;font-size:0.88rem;margin-bottom:18px">
+        Adicione minutos extras ao horário de hoje. O site aceitará pedidos por mais tempo.
+      </p>
+
+      <label style="font-weight:600;font-size:0.85rem;color:#333;display:block;margin-bottom:10px">
+        Quantos minutos a mais?
+      </label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
+        ${[15, 30, 45, 60, 90, 120].map(m => `
+          <button onclick="_selecionarMinutosExtra(${m}, this)"
+                  data-min="${m}"
+                  style="padding:10px 16px;border:2px solid #e0e0e0;border-radius:8px;background:#f8f9fa;font-weight:700;cursor:pointer;font-size:0.9rem;transition:all 0.15s">
+            +${m}min
+          </button>`).join('')}
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+        <label style="font-size:0.85rem;color:#666;white-space:nowrap">Ou digite:</label>
+        <input type="number" id="input-minutos-extra" min="1" max="480" placeholder="ex: 45"
+               oninput="document.querySelectorAll('[data-min]').forEach(b => b.style.background='#f8f9fa')"
+               style="flex:1;padding:10px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:0.95rem;font-weight:700">
+        <span style="color:#666;font-size:0.85rem">min</span>
+      </div>
+
+      <div style="display:flex;gap:10px">
+        <button onclick="this.closest('#modal-estender-horario').remove()"
+                style="flex:1;padding:12px;background:#f5f5f5;color:#555;border:none;border-radius:8px;font-weight:600;cursor:pointer">
+          Cancelar
+        </button>
+        <button onclick="_confirmarEstenderHorario()"
+                style="flex:1;padding:12px;background:#2980b9;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer">
+          ⏰ Confirmar
+        </button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+}
+
+function _selecionarMinutosExtra(min, btn) {
+  // Destaca o botão selecionado e limpa o input
+  document.querySelectorAll('[data-min]').forEach(b => {
+    b.style.background = '#f8f9fa';
+    b.style.borderColor = '#e0e0e0';
+    b.style.color = '#333';
+  });
+  btn.style.background = '#2980b9';
+  btn.style.borderColor = '#2980b9';
+  btn.style.color = '#fff';
+  const inp = document.getElementById('input-minutos-extra');
+  if (inp) inp.value = min;
+}
+
+async function _confirmarEstenderHorario() {
+  const inp = document.getElementById('input-minutos-extra');
+  const minutos = parseInt(inp?.value || '0');
+  if (!minutos || minutos < 1) {
+    alert('Escolha quantos minutos deseja adicionar.');
+    return;
+  }
+
+  const hoje = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+  const { error } = await supa.from('configuracoes').update({
+    horario_extra_hoje: { data: hoje, minutos }
+  }).eq('id', 1);
+
+  if (error) {
+    const { error: e2 } = await supa.from('configuracoes').upsert({
+      id: 1,
+      horario_extra_hoje: { data: hoje, minutos }
+    });
+    if (e2) {
+      alert('Erro ao salvar: ' + e2.message +
+        '\n\n💡 Execute no Supabase:\nALTER TABLE configuracoes ADD COLUMN IF NOT EXISTS horario_extra_hoje JSONB DEFAULT NULL;');
+      return;
+    }
+  }
+
+  document.getElementById('modal-estender-horario')?.remove();
+  alert(`✅ Horário estendido em +${minutos} minutos hoje!`);
+}
+
+async function removerExtensaoHorario() {
+  if (!confirm('Remover a extensão de horário de hoje?')) return;
+  await supa.from('configuracoes').update({ horario_extra_hoje: null }).eq('id', 1);
+  alert('✅ Extensão removida.');
+}
+
+// Carrega status do delivery no painel (chamado no DOMContentLoaded / showTab)
+async function carregarStatusDelivery() {
+  const badge = document.getElementById('badge-delivery-status');
+  if (!badge) return;
+  try {
+    const { data } = await supa.from('configuracoes')
+      .select('delivery_aberto, aviso_delivery, horario_extra_hoje')
+      .eq('id', 1).single();
+
+    if (!data) return;
+
+    if (data.delivery_aberto === false) {
+      badge.style.background = '#e74c3c';
+      badge.textContent = '🔴 Delivery Fechado';
+    } else {
+      badge.style.background = '#27ae60';
+      badge.textContent = '🟢 Delivery Aberto';
+    }
+
+    // Mostra extensão de horário se ativa hoje
+    const hoje = new Date().toISOString().split('T')[0];
+    const ext = data.horario_extra_hoje;
+    const badgeExt = document.getElementById('badge-horario-extra');
+    if (badgeExt) {
+      if (ext && ext.data === hoje && ext.minutos > 0) {
+        badgeExt.style.display = 'inline-block';
+        badgeExt.textContent = `⏰ +${ext.minutos}min hoje`;
+      } else {
+        badgeExt.style.display = 'none';
+      }
+    }
+  } catch (e) {
+    // Colunas ainda não existem — ignora silenciosamente
+  }
+}
 
 // --- CATEGORIAS ---
 async function carregarCategorias() {

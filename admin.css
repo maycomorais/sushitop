@@ -2009,6 +2009,147 @@ select.form-control, select.input-modern {
     to { opacity: 1; transform: translateY(0); }
 }
 
+/* ── BUILDER MONTÁVEL — Etapa cards ─────────────────────────── */
+.builder-step-card {
+    background: #ffffff;
+    border: 1.5px solid #e0e0e0;
+    border-radius: 10px;
+    margin-bottom: 14px;
+    overflow: hidden;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+.builder-step-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #f0f4ff;
+    border-bottom: 1px solid #dde6ff;
+    padding: 10px 14px;
+}
+.builder-step-header h4 {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #3a4db7;
+}
+.btn-remove-step {
+    background: #ffe8e8;
+    border: none;
+    border-radius: 6px;
+    color: #e74c3c;
+    padding: 5px 9px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: background 0.15s;
+}
+.btn-remove-step:hover { background: #ffc8c8; }
+
+.builder-step-body {
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.builder-step-body .form-group {
+    margin: 0;
+}
+.builder-step-body label {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #666;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+.builder-step-body small {
+    font-size: 0.72rem;
+    color: #aaa;
+    display: block;
+    margin-top: 3px;
+}
+
+/* Itens individuais */
+.itens-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+.item-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.item-row input {
+    flex: 1;
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-radius: 7px;
+    font-size: 0.88rem;
+    background: #fafafa;
+    transition: border-color 0.15s;
+}
+.item-row input:focus {
+    outline: none;
+    border-color: #667eea;
+    background: #fff;
+}
+.btn-remove-item {
+    background: #fff0f0;
+    border: 1px solid #ffd0d0;
+    border-radius: 6px;
+    color: #e74c3c;
+    padding: 6px 9px;
+    cursor: pointer;
+    font-size: 0.78rem;
+    flex-shrink: 0;
+    transition: background 0.15s;
+}
+.btn-remove-item:hover { background: #ffe0e0; }
+
+.btn-add-item {
+    background: #f0f7ff;
+    border: 1.5px dashed #90bef5;
+    border-radius: 7px;
+    color: #2980b9;
+    padding: 7px 12px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 600;
+    width: 100%;
+    transition: background 0.15s;
+}
+.btn-add-item:hover { background: #ddeeff; }
+
+/* inputs do builder montável (etapa-titulo, etapa-max) */
+.etapa-titulo.input-modern,
+.etapa-max.input-modern {
+    width: 100%;
+    padding: 9px 11px;
+    border: 1.5px solid #ddd;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    background: #fafafa;
+    box-sizing: border-box;
+    transition: border-color 0.15s;
+}
+.etapa-titulo.input-modern:focus,
+.etapa-max.input-modern:focus {
+    outline: none;
+    border-color: #667eea;
+    background: #fff;
+}
+.etapa-max.input-modern {
+    max-width: 100px;
+}
+
+/* Grid: título + máx lado a lado */
+.builder-step-body .form-group:has(.etapa-titulo),
+.builder-step-body .form-group:has(.etapa-max) {
+    flex: 1;
+}
+
 /* Grid de config da pizza → flex */
 .pizza-config-grid {
     display: flex;

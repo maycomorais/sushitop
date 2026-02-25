@@ -216,6 +216,16 @@ let itensMontagem = {};
 let cupomAplicado = null;
 let EXTRAS_GLOBAIS = []; // Adicionais que aparecem em TODOS os produtos
 
+// ==========================================
+// VARIÁVEIS DE CONTROLE DE HORÁRIO
+// ==========================================
+let LOJA_CONFIG = null; // Configurações da loja
+let EXTENSAO_HORARIO_TEMP = 0; // Extensão temporária do horário (em minutos) - só para hoje
+let ALERTA_15MIN_MOSTRADO = false; // Controle para não mostrar o alerta múltiplas vezes
+let PROXIMO_FECHAMENTO = null; // Próximo horário de fechamento
+let MODO_AGENDAMENTO = false; // Se o pedido é agendado para outra hora
+let DATA_AGENDAMENTO = null; // Data/hora do agendamento
+
 // Variável Global de Menu (Preenchida via Banco)
 let MENU = {
   promocoes_do_dia: [],
@@ -248,18 +258,45 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // 5. Carrega extras globais (adicionais que aparecem em todos os produtos)
   await carregarExtrasGlobais();
+
+  // 6. Esconde o loading overlay (sempre, mesmo se algum passo falhou)
+  const overlay = document.getElementById('loading-overlay');
+  if (overlay) {
+    overlay.style.opacity = '0';
+    setTimeout(() => { overlay.style.display = 'none'; }, 300);
+  }
 });
 
 // Carrega os extras globais da tabela configuracoes
 // (coluna extras_globais pode não existir ainda — SQL: ALTER TABLE configuracoes ADD COLUMN extras_globais JSONB DEFAULT '[]')
 async function carregarExtrasGlobais() {
   try {
+    // Tenta buscar com a coluna extras_globais
     const { data, error } = await supa.from('configuracoes').select('extras_globais').single();
-    if (!error && data && Array.isArray(data.extras_globais) && data.extras_globais.length > 0) {
+
+    // Se der erro de coluna não encontrada, ignora silenciosamente
+    if (error) {
+      if (error.message && error.message.includes('extras_globais')) {
+        console.log('ℹ️ Coluna extras_globais não existe no banco. Usando array vazio.');
+      } else if (error.code === 'PGRST204' || error.code === '42703') {
+        // Código de erro do PostgREST para coluna não encontrada
+        console.log('ℹ️ Coluna extras_globais não existe no banco. Usando array vazio.');
+      } else {
+        console.warn('Erro ao carregar extras globais:', error.message);
+      }
+      EXTRAS_GLOBAIS = [];
+      return;
+    }
+
+    if (data && Array.isArray(data.extras_globais) && data.extras_globais.length > 0) {
       EXTRAS_GLOBAIS = data.extras_globais;
+      console.log('✅ Extras globais carregados:', EXTRAS_GLOBAIS.length, 'itens');
+    } else {
+      EXTRAS_GLOBAIS = [];
     }
   } catch (e) {
     // Coluna ainda não existe no banco — ignora silenciosamente
+    console.log('ℹ️ Extras globais não disponíveis:', e.message);
     EXTRAS_GLOBAIS = [];
   }
 }
@@ -373,12 +410,56 @@ async function verificarHorario() {
 }
 
 // Renderiza o Menu (Categories + Produtos com subcategorias)
+
+// ── Verifica se a loja está aberta para receber pedidos agora ─────────────
+// Retorna { aberto: true/false, proximoDia: string|null }
+function verificarLojaAbertaParaPedido() {
+  const badge = document.querySelector('.badge-status');
+  const estaAberto = badge && badge.classList.contains('open');
+  // Se não conseguiu determinar pelo badge, assume aberto (evita bloquear por engano)
+  if (!badge) return { aberto: true, proximoDia: null };
+  return { aberto: estaAberto, proximoDia: null };
+}
+
+// ── Mostra alerta quando a loja está fechada ──────────────────────────────
+function mostrarAlertaLojaFechada(proximoDia) {
+  const lang = localStorage.getItem('language') || 'es';
+  const msgs = {
+    es: 'El local está cerrado en este momento. Por favor intente más tarde.',
+    pt: 'A loja está fechada no momento. Por favor tente mais tarde.',
+    en: 'The store is currently closed. Please try again later.',
+    de: 'Das Geschäft ist derzeit geschlossen. Bitte versuchen Sie es später.'
+  };
+  alert(msgs[lang] || msgs.es);
+}
+
+// ── Mostra badge de agendamento no checkout ───────────────────────────────
+function mostrarIndicadorAgendamento() {
+  let indicador = document.getElementById('indicador-agendamento');
+  if (indicador) return; // Já existe
+
+  indicador = document.createElement('div');
+  indicador.id = 'indicador-agendamento';
+  indicador.style.cssText = [
+    'background:#fff3cd;border:1.5px solid #f0a500;border-radius:8px',
+    'padding:10px 14px;font-size:0.85rem;font-weight:600;color:#856404',
+    'margin-bottom:10px;display:flex;align-items:center;gap:8px'
+  ].join(';');
+  indicador.innerHTML = `📅 Pedido agendado${DATA_AGENDAMENTO ? ` para ${DATA_AGENDAMENTO}` : ''}`;
+
+  const lista = document.getElementById('carrinho-lista');
+  if (lista && lista.parentElement) {
+    lista.parentElement.insertBefore(indicador, lista);
+  }
+}
+
 async function renderMenu() {
   const nav = document.getElementById('category-nav');
   const content = document.getElementById('menu-content');
   
   if(!nav || !content) return;
-
+  
+  
   nav.innerHTML = '';
   content.innerHTML = '';
 
@@ -394,7 +475,10 @@ async function renderMenu() {
       .or('somente_balcao.is.null,somente_balcao.eq.false');
 
   if (!produtos || !categsDb) {
-    console.error('Erro ao carregar menu do banco');
+    console.error('Erro ao carregar menu do banco. categsDb:', categsDb, '| produtos:', produtos);
+    // Esconde overlay mesmo em caso de erro
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) { overlay.style.opacity = '0'; setTimeout(() => { overlay.style.display = 'none'; }, 300); }
     return;
   }
 
@@ -565,6 +649,9 @@ function abrirModal(item) {
   let tipo = 'padrao';
   if (cfg && !Array.isArray(cfg) && cfg.__tipo) tipo = cfg.__tipo;
   else if (item.e_montavel || (cfg && Array.isArray(cfg) && cfg.length > 0)) tipo = 'montavel';
+  // acai, shake, suco são subtipos de montavel
+  const _TIPOS_MONTAVEL = ['montavel', 'acai', 'shake', 'suco'];
+  if (_TIPOS_MONTAVEL.includes(tipo)) tipo = 'montavel';
 
   if (tipo === 'montavel') {
     _renderMontavel(item, cfg, divOptions);
@@ -600,6 +687,13 @@ function abrirModal(item) {
 
 function _renderMontavel(item, cfg, container) {
   const etapas = Array.isArray(cfg) ? cfg : (cfg && cfg.etapas ? cfg.etapas : []);
+  if (etapas.length === 0) {
+    const msg = document.createElement('p');
+    msg.style.cssText = 'color:#e67e22; font-size:0.9rem; padding:10px; background:#fff8e6; border-radius:8px;';
+    msg.textContent = '⚠️ Produto montável sem etapas configuradas. Edite o produto no admin para adicionar as etapas.';
+    container.appendChild(msg);
+    return;
+  }
   etapas.forEach((etapa, idxEtapa) => {
     const h4 = document.createElement('h4');
     h4.innerText = `${etapa.titulo} (Máx: ${etapa.max})`;
@@ -1068,6 +1162,8 @@ function adicionarDoModal() {
   let tipo = 'padrao';
   if (cfg && !Array.isArray(cfg) && cfg.__tipo) tipo = cfg.__tipo;
   else if (prodAtual.e_montavel || (cfg && Array.isArray(cfg) && cfg.length > 0)) tipo = 'montavel';
+  // acai, shake, suco são subtipos de montavel
+  if (['acai', 'shake', 'suco'].includes(tipo)) tipo = 'montavel';
 
   // Validações por tipo
   if (tipo === 'pizza') {
@@ -1091,7 +1187,19 @@ function adicionarDoModal() {
   let precoFinal = prodAtual.preco;
 
   if (tipo === 'montavel') {
-    for (let k in itensMontagem) montagem = montagem.concat(itensMontagem[k]);
+    // Recupera títulos das etapas para exibir "Base: Arroz, Proteína: Salmão"
+    const cfgEtapas = Array.isArray(cfg) ? cfg : (cfg && cfg.etapas ? cfg.etapas : []);
+    for (let k in itensMontagem) {
+      const itens = itensMontagem[k];
+      if (!itens || itens.length === 0) continue;
+      const etapa = cfgEtapas[parseInt(k)];
+      const titulo = etapa ? etapa.titulo : null;
+      if (titulo) {
+        montagem.push(`${titulo}: ${itens.join(', ')}`);
+      } else {
+        montagem = montagem.concat(itens);
+      }
+    }
   }
 
   if (tipo === 'pizza') {
@@ -1242,13 +1350,90 @@ function limparCarrinho() {
   }
 }
 
+
+// ==========================================
+// VALIDAÇÃO DE FORMULÁRIOS
+// ==========================================
+function validarCampo(campoId, regras = {}) {
+  const campo = document.getElementById(campoId);
+  if (!campo) return { valido: false, mensagem: 'Campo não encontrado' };
+
+  const valor = campo.value.trim();
+
+  if (regras.obrigatorio && !valor) {
+    marcarErro(campo, 'Este campo é obrigatório');
+    return { valido: false, mensagem: 'Campo obrigatório' };
+  }
+
+  if (regras.minimo && valor.length < regras.minimo) {
+    marcarErro(campo, `Mínimo de ${regras.minimo} caracteres`);
+    return { valido: false, mensagem: `Mínimo de ${regras.minimo} caracteres` };
+  }
+
+  if (regras.telefone && valor) {
+    const telefoneLimpo = valor.replace(/\D/g, '');
+    if (telefoneLimpo.length < 8) {
+      marcarErro(campo, 'Telefone inválido');
+      return { valido: false, mensagem: 'Telefone inválido' };
+    }
+  }
+
+  removerErro(campo);
+  return { valido: true, valor: valor };
+}
+
+function marcarErro(campo, mensagem) {
+  campo.classList.add('erro-validacao');
+  campo.style.borderColor = '#e74c3c';
+
+  // Procura ou cria mensagem de erro
+  let msgEl = campo.parentElement.querySelector('.msg-erro');
+  if (!msgEl) {
+    msgEl = document.createElement('span');
+    msgEl.className = 'msg-erro';
+    msgEl.style.cssText = 'color: #e74c3c; font-size: 0.8rem; margin-top: 4px; display: block;';
+    campo.parentElement.appendChild(msgEl);
+  }
+  msgEl.textContent = mensagem;
+}
+
+function removerErro(campo) {
+  campo.classList.remove('erro-validacao');
+  campo.style.borderColor = '';
+  const msgEl = campo.parentElement.querySelector('.msg-erro');
+  if (msgEl) msgEl.remove();
+}
+
+function limparTodosErros() {
+  document.querySelectorAll('.erro-validacao').forEach(campo => {
+    removerErro(campo);
+  });
+}
+
+// ==========================================
 // ==========================================
 // 7. CHECKOUT E VALIDAÇÃO
 // ==========================================
 function abrirCheckout() {
   if (carrinho.length === 0) return alert('Carrinho vazio!');
+
+  // Verifica se a loja está aberta (se não estiver em modo agendamento)
+  if (!MODO_AGENDAMENTO) {
+    const statusLoja = verificarLojaAbertaParaPedido();
+    if (!statusLoja.aberto) {
+      mostrarAlertaLojaFechada(statusLoja.proximoDia);
+      return;
+    }
+  }
+
   renderCarrinho();
   renderUpsell();
+
+  // Mostra indicador de agendamento se ativo
+  if (MODO_AGENDAMENTO) {
+    mostrarIndicadorAgendamento();
+  }
+
   document.getElementById('checkout-modal').classList.add('active');
 }
 
@@ -1280,7 +1465,15 @@ function renderCarrinho() {
         detalhes += `<br><small style="color:#2980b9;font-weight:600">🍳 ${item.preparo}</small>`;
       }
       if (item.montagem && item.montagem.length > 0) {
-        detalhes += `<br><small style="color:#888">${item.montagem.join(', ')}</small>`;
+        // Cada etapa em linha separada (ex: "Base: Arroz" vira própria linha)
+        item.montagem.forEach(linha => {
+          const partes = linha.split(':');
+          if (partes.length >= 2) {
+            detalhes += `<br><small style="color:#666"><strong style="color:#555">${partes[0]}:</strong>${partes.slice(1).join(':')}</small>`;
+          } else {
+            detalhes += `<br><small style="color:#888">· ${linha}</small>`;
+          }
+        });
       }
     }
     const obs = item.obs ? `<br><small style="color:#666"><strong>Obs:</strong> ${item.obs}</small>` : '';
@@ -1949,6 +2142,13 @@ async function enviarZap() {
   // Limpa carrinho e fecha checkout
   carrinho = [];
   cupomAplicado = null;
+
+  // Reseta modo agendamento
+  MODO_AGENDAMENTO = false;
+  DATA_AGENDAMENTO = null;
+  const indicador = document.getElementById('indicador-agendamento');
+  if (indicador) indicador.remove();
+
   updateUI();
   fecharCheckout();
   
@@ -2466,3 +2666,77 @@ function toggleSaborPizza(saborObj, maxSabores) {
     renderizarSaboresSelecionados(); // Função que pinta a pizza
     calcularTotalPizza();
 }
+
+// ==========================================
+// DETECÇÃO DE CONEXÃO
+// ==========================================
+function initDeteccaoConexao() {
+  // Mostra alerta quando fica offline
+  window.addEventListener('offline', () => {
+    mostrarToast('⚠️ Sem conexão com a internet. Algumas funcionalidades podem não funcionar.', 'warning', 5000);
+  });
+
+  // Mostra alerta quando volta online
+  window.addEventListener('online', () => {
+    mostrarToast('✅ Conexão restaurada!', 'success', 3000);
+    // Recarrega dados
+    verificarHorario();
+  });
+}
+
+// Inicializa detecção de conexão
+initDeteccaoConexao();
+
+// ==========================================
+
+// ==========================================
+// AUTO-SALVAMENTO DO CARRINHO
+// ==========================================
+function salvarCarrinhoLocal() {
+  try {
+    if (carrinho && carrinho.length > 0) {
+      localStorage.setItem('sushi_carrinho_backup', JSON.stringify(carrinho));
+      localStorage.setItem('sushi_carrinho_backup_time', new Date().toISOString());
+    } else {
+      localStorage.removeItem('sushi_carrinho_backup');
+      localStorage.removeItem('sushi_carrinho_backup_time');
+    }
+  } catch (e) {
+    console.warn('Não foi possível salvar backup do carrinho:', e);
+  }
+}
+
+function restaurarCarrinhoBackup() {
+  try {
+    const backup = localStorage.getItem('sushi_carrinho_backup');
+    const backupTime = localStorage.getItem('sushi_carrinho_backup_time');
+
+    if (backup && backupTime) {
+      const tempoBackup = new Date(backupTime);
+      const agora = new Date();
+      const diffHoras = (agora - tempoBackup) / (1000 * 60 * 60);
+
+      // Só restaura se o backup tiver menos de 24 horas
+      if (diffHoras < 24) {
+        const carrinhoSalvo = JSON.parse(backup);
+        if (carrinhoSalvo && carrinhoSalvo.length > 0) {
+          if (confirm('Você tem itens no carrinho de uma sessão anterior. Deseja restaurá-los?')) {
+            carrinho = carrinhoSalvo;
+            updateUI();
+            mostrarToast('✅ Carrinho restaurado!', 'success');
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Não foi possível restaurar backup do carrinho:', e);
+  }
+}
+
+// Salva carrinho a cada mudança
+setInterval(salvarCarrinhoLocal, 5000); // A cada 5 segundos
+
+// Tenta restaurar carrinho ao carregar
+setTimeout(restaurarCarrinhoBackup, 1000);
+
+// ==========================================
