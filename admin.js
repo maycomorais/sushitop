@@ -789,12 +789,22 @@ async function calcularFinanceiro() {
   // ========================================
   // 1. BUSCA PEDIDOS (CORRIGIDO)
   // ========================================
+  // Paraguay = UTC-4 → shift local dates to UTC for correct Supabase filtering
+  // e.g. local 2026-02-26 00:00 = UTC 2026-02-26 04:00
+  const _tzOffsetMs = 4 * 60 * 60 * 1000; // UTC-4 in ms
+  const _localToUTC = (localDateStr, isEnd) => {
+    const d = new Date(localDateStr + (isEnd ? 'T23:59:59' : 'T00:00:00'));
+    return new Date(d.getTime() + _tzOffsetMs).toISOString();
+  };
+  const utcInicio = dataInicio.includes('T') ? dataInicio : _localToUTC(dataInicio.split(' ')[0], false);
+  const utcFim    = dataFim.includes('T')    ? dataFim    : _localToUTC(dataFim.split(' ')[0], true);
+
   let query = supa
     .from('pedidos')
-    .select('*, motoboys(nome)') // JOIN para pegar nome do motoboy
-    .eq('status', 'entregue') // ← CORRIGIDO: só vendas finalizadas
-    .gte('created_at', dataInicio)
-    .lte('created_at', dataFim);
+    .select('*, motoboys(nome)')
+    .in('status', ['entregue', 'em_preparo', 'pronto_entrega', 'saiu_entrega']) // inclui PDV em andamento
+    .gte('created_at', utcInicio)
+    .lte('created_at', utcFim);
 
   // Filtro por forma de pagamento
   if (tipoFiltro !== 'todos') {
@@ -1122,7 +1132,12 @@ async function carregarRelatorio() {
   } else {
     const ini = filtroInicio || hoje;
     const fim = filtroFim || hoje;
-    query = query.gte('created_at', ini + ' 00:00:00').lte('created_at', fim + ' 23:59:59');
+    // Paraguay UTC-4: shift local date range to UTC so after-midnight sales are captured
+    // e.g. local 00:00 PY = UTC 04:00; local 23:59 PY = UTC 03:59 next day
+    const _off = 4 * 60 * 60 * 1000;
+    const utcIni = new Date(new Date(ini + 'T00:00:00').getTime() + _off).toISOString();
+    const utcFim = new Date(new Date(fim + 'T23:59:59').getTime() + _off).toISOString();
+    query = query.gte('created_at', utcIni).lte('created_at', utcFim);
   }
   const { data: pedidos, error } = await query;
   if (error) {
@@ -1140,69 +1155,106 @@ async function carregarRelatorio() {
   };
   const fmtHora = (t) =>
     t ? new Date(t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '-';
+  const scMap = {
+    pendente:       { bg:'#fff3cd', color:'#856404', label:'⏳ Pendente' },
+    em_preparo:     { bg:'#ffe5d0', color:'#a63c06', label:'🔥 Em Preparo' },
+    pronto_entrega: { bg:'#d1ecf1', color:'#0c5460', label:'📦 Pronto' },
+    saiu_entrega:   { bg:'#d4edda', color:'#155724', label:'🛵 Saiu' },
+    entregue:       { bg:'#d4edda', color:'#155724', label:'✅ Entregue' },
+    cancelado:      { bg:'#f8d7da', color:'#721c24', label:'❌ Cancelado' },
+  };
+
   (pedidos || []).forEach((p) => {
-    const statusBadge =
-      {
-        pendente: '🔔 Pendente',
-        em_preparo: '🔥 Preparo',
-        pronto_entrega: '📦 Pronto',
-        saiu_entrega: '🛵 Saiu',
-        entregue: '✅ Entregue',
-        cancelado: '❌ Cancelado',
-      }[p.status] || p.status;
-    const itensList = (p.itens || [])
-      .map((i) => {
-        const qtd = i.qtd || i.q || 1;
-        const nome = i.nome || i.n || '?';
-        const variacao = i.variacao || i.t || '';
-        const preparo = i.preparo || i.pr || '';
-        let label = `${qtd}x ${nome}`;
-        if (variacao && variacao !== nome) label += ` ▸ ${variacao}`;
-        if (preparo) label += ` [${preparo}]`;
-        return label;
-      })
-      .join(', ');
-    tbody.innerHTML +=
-      '<tr><td><strong>#' +
-      p.id +
-      '</strong></td><td>' +
-      new Date(p.created_at).toLocaleString('pt-BR') +
-      '</td><td><div style="font-weight:600">' +
-      (p.cliente_nome || '-') +
-      '</div><div style="font-size:0.75rem;color:#666">' +
-      (p.cliente_telefone || '') +
-      '</div></td><td style="font-size:0.8rem">' +
-      (itensList || '-') +
-      '</td><td>' +
-      statusBadge +
-      (p.cancelamento_solicitado && p.status !== 'cancelado' ? ' 🚫' : '') +
-      '</td><td>Gs ' +
-      (p.total_geral || 0).toLocaleString('es-PY') +
-      '</td><td style="font-size:0.78rem"><div>📥 Receb: ' +
-      fmtHora(p.tempo_recebido) +
-      '</div><div>✅ Aceite: ' +
-      fmtHora(p.tempo_confirmado) +
-      ' (' +
-      fmtDiff(p.tempo_recebido, p.tempo_confirmado) +
-      ')</div><div>🔥 Cozinha: ' +
-      fmtHora(p.tempo_preparo_iniciado) +
-      '</div><div>📦 Pronto: ' +
-      fmtHora(p.tempo_pronto) +
-      ' (' +
-      fmtDiff(p.tempo_preparo_iniciado, p.tempo_pronto) +
-      ')</div><div>🛵 Saiu: ' +
-      fmtHora(p.tempo_saiu_entrega) +
-      '</div><div>✅ Entregue: ' +
-      fmtHora(p.tempo_entregue) +
-      ' (' +
-      fmtDiff(p.tempo_saiu_entrega, p.tempo_entregue) +
-      ')</div><div><strong>⏱ Total: ' +
-      fmtDiff(p.tempo_recebido, p.tempo_entregue) +
-      '</strong></div></td></tr>';
+    const sc = scMap[p.status] || { bg:'#f0f0f0', color:'#333', label: p.status };
+    const isPDV = p.tipo_entrega === 'balcao';
+
+    const itensList = (p.itens || []).map((i) => {
+      const qtd  = i.qtd || i.q || 1;
+      const nome = i.nome || i.n || '?';
+      const variacao = i.variacao || i.t || '';
+      const montagem = i.montagem || i.m || [];
+      let lbl = `<strong>${qtd}x</strong> ${nome}`;
+      if (variacao && variacao !== nome) lbl += ` <span style="color:#e67e22">▸ ${variacao}</span>`;
+      if (montagem.length > 0) lbl += ` <span style="color:#999;font-size:0.78em">(${montagem.join(' · ')})</span>`;
+      return lbl;
+    }).join('<br>');
+
+    // Cancelamento info
+    let cancelInfo = '';
+    if (p.status === 'cancelado') {
+      const quem = p.cancelamento_solicitado_por || 'admin';
+      cancelInfo = `<div style="margin-top:5px;padding:5px 7px;background:#fde;border-radius:6px;font-size:0.72rem;color:#a00">
+        🚫 <strong>Por:</strong> ${quem}${p.cancelamento_motivo ? '<br><em>' + p.cancelamento_motivo + '</em>' : ''}</div>`;
+    } else if (p.cancelamento_solicitado) {
+      cancelInfo = `<div style="margin-top:4px;font-size:0.7rem;color:#e74c3c">
+        🚫 Solicitado por: ${p.cancelamento_solicitado_por || '?'}</div>`;
+    }
+
+    // Tipo badge
+    const tipoBadges = {
+      balcao:   '<span style="background:#e8f4f8;color:#1a6e8a;border-radius:10px;padding:2px 7px;font-size:0.68rem;font-weight:700">🏪 PDV</span>',
+      delivery: '<span style="background:#e8f7e8;color:#1a6e2e;border-radius:10px;padding:2px 7px;font-size:0.68rem;font-weight:700">🛵 Delivery</span>',
+      retirada: '<span style="background:#f7f0e8;color:#6e4a1a;border-radius:10px;padding:2px 7px;font-size:0.68rem;font-weight:700">🚶 Retirada</span>',
+    };
+    const tipoBadge = tipoBadges[p.tipo_entrega] || '';
+
+    // Timeline — PDV tem etapas diferentes
+    const tl = isPDV ? [
+      { icon:'🏪', label:'Abertura', val: fmtHora(p.tempo_recebido || p.created_at), diff: null },
+      { icon:'🔥', label:'Cozinha',  val: fmtHora(p.tempo_preparo_iniciado),          diff: null },
+      { icon:'📦', label:'Pronto',   val: fmtHora(p.tempo_pronto),                    diff: fmtDiff(p.tempo_preparo_iniciado, p.tempo_pronto) },
+      { icon:'✅', label:'Fechado',  val: fmtHora(p.tempo_entregue),                  diff: fmtDiff(p.tempo_recebido || p.created_at, p.tempo_entregue) },
+    ] : [
+      { icon:'📥', label:'Recebido', val: fmtHora(p.tempo_recebido),         diff: null },
+      { icon:'✅', label:'Aceite',   val: fmtHora(p.tempo_confirmado),        diff: fmtDiff(p.tempo_recebido, p.tempo_confirmado) },
+      { icon:'🔥', label:'Cozinha',  val: fmtHora(p.tempo_preparo_iniciado),  diff: null },
+      { icon:'📦', label:'Pronto',   val: fmtHora(p.tempo_pronto),            diff: fmtDiff(p.tempo_preparo_iniciado, p.tempo_pronto) },
+      { icon:'🛵', label:'Saiu',     val: fmtHora(p.tempo_saiu_entrega),      diff: null },
+      { icon:'🏠', label:'Entregue', val: fmtHora(p.tempo_entregue),          diff: fmtDiff(p.tempo_saiu_entrega, p.tempo_entregue) },
+    ];
+
+    const tlHtml = tl.map(t => {
+      const vazio = t.val === '-';
+      return `<div style="display:flex;align-items:baseline;gap:5px;padding:2px 0;border-bottom:1px solid #f5f5f5">
+        <span style="min-width:18px;font-size:0.85em">${t.icon}</span>
+        <span style="min-width:64px;font-size:0.72rem;color:#888">${t.label}:</span>
+        <span style="font-size:0.78rem;font-weight:${vazio?'400':'600'};color:${vazio?'#ccc':'#222'}">${t.val}</span>
+        ${t.diff && t.diff !== '-' ? `<span style="font-size:0.68rem;color:#999">(${t.diff})</span>` : ''}
+      </div>`;
+    }).join('');
+
+    const totalTime = isPDV
+      ? fmtDiff(p.tempo_recebido || p.created_at, p.tempo_entregue)
+      : fmtDiff(p.tempo_recebido, p.tempo_entregue);
+
+    tbody.innerHTML += `<tr style="border-bottom:1px solid #eee;vertical-align:top">
+      <td style="padding:10px 8px;white-space:nowrap">
+        <div style="font-size:1rem;font-weight:700;color:#1a1a2e">#${p.id}</div>
+        <div style="font-size:0.73rem;color:#aaa">${new Date(p.created_at).toLocaleDateString('pt-BR')}</div>
+        <div style="font-size:0.78rem;color:#666">${new Date(p.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div>
+      </td>
+      <td style="padding:10px 8px">
+        <div style="font-weight:700;color:#1a1a2e">${p.cliente_nome || '-'}</div>
+        <div style="font-size:0.73rem;color:#999">📞 ${p.cliente_telefone || '-'}</div>
+        <div style="margin-top:4px">${tipoBadge}</div>
+      </td>
+      <td style="padding:10px 8px;font-size:0.82rem;max-width:260px;line-height:1.6">${itensList || '-'}</td>
+      <td style="padding:10px 8px;white-space:nowrap">
+        <span style="display:inline-block;padding:4px 10px;border-radius:20px;font-size:0.73rem;font-weight:700;background:${sc.bg};color:${sc.color}">${sc.label}</span>
+        ${cancelInfo}
+      </td>
+      <td style="padding:10px 8px;white-space:nowrap;text-align:right">
+        <div style="font-size:0.95rem;font-weight:700;color:#1a1a2e">Gs ${(p.total_geral||0).toLocaleString('es-PY')}</div>
+        <div style="font-size:0.7rem;color:#aaa;margin-top:2px">${p.forma_pagamento || ''}</div>
+      </td>
+      <td style="padding:10px 8px;min-width:175px">
+        ${tlHtml}
+        ${totalTime !== '-' ? `<div style="margin-top:5px;padding:3px 7px;background:#f0f4ff;border-radius:6px;font-size:0.75rem;font-weight:700;color:#3a4db7;text-align:center">⏱ ${totalTime}</div>` : ''}
+      </td>
+    </tr>`;
   });
   if (!pedidos || pedidos.length === 0)
-    tbody.innerHTML =
-      '<tr><td colspan="7" style="text-align:center;padding:20px;color:#aaa">Nenhum pedido encontrado.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:#aaa">Nenhum pedido encontrado.</td></tr>';
   const el = document.getElementById('rel-total-count');
   if (el) el.textContent = (pedidos || []).length + ' pedidos encontrados';
 }
@@ -4731,6 +4783,7 @@ async function salvarPedidoBalcao() {
 
   // ── INSERT: novo pedido de balcão ─────────────────────────────
   const totalNovo = novosItens.reduce((acc, i) => acc + i.preco * i.qtd, 0);
+  const _agora = new Date().toISOString();
   const pedido = {
     uid_temporal: `BALC-${Math.floor(Math.random() * 1000)}`,
     status: 'em_preparo',
@@ -4744,6 +4797,10 @@ async function salvarPedidoBalcao() {
     cliente_nome: nomeFinal,
     cliente_telefone: tel,
     obs_pagamento: obsPagPDV,
+    // Timestamps automáticos para PDV (já entra direto em preparo)
+    tempo_recebido: _agora,
+    tempo_confirmado: _agora,
+    tempo_preparo_iniciado: _agora,
   };
 
   const { error } = await supa.from('pedidos').insert([pedido]);
@@ -4977,9 +5034,11 @@ async function baixarItemMesa(pedidoId, itemIdx) {
 // Função para dar baixa na mesa (Muda status para 'entregue' e sai da lista)
 async function finalizarMesa(id) {
   if (confirm('Confirmar entrega e pagamento desta mesa?')) {
-    await supa.from('pedidos').update({ status: 'entregue' }).eq('id', id);
+    await supa.from('pedidos').update({
+      status: 'entregue',
+      tempo_entregue: new Date().toISOString()   // ← registra hora de fechamento
+    }).eq('id', id);
     carregarMonitorMesas();
-    // Se estiver na aba financeiro, atualiza também
     if (typeof calcularFinanceiro === 'function') calcularFinanceiro();
   }
 }

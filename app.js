@@ -66,8 +66,7 @@ async function confirmarEntregaAutomatica(pedidoId) {
             .from('pedidos')
             .update({ 
                 status: 'entregue',
-                entrega_confirmada_em: new Date().toISOString(),
-                confirmacao_tipo: 'automatica'
+                tempo_entregue: new Date().toISOString()
             })
             .eq('id', pedidoId);
         
@@ -107,8 +106,7 @@ async function confirmarEntregaCliente() {
             .from('pedidos')
             .update({ 
                 status: 'entregue',
-                entrega_confirmada_em: new Date().toISOString(),
-                confirmacao_tipo: 'cliente'
+                tempo_entregue: new Date().toISOString()
             })
             .eq('id', pedidoId);
         
@@ -259,12 +257,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 5. Carrega extras globais (adicionais que aparecem em todos os produtos)
   await carregarExtrasGlobais();
 
-  // 6. Esconde o loading overlay (sempre, mesmo se algum passo falhou)
   const overlay = document.getElementById('loading-overlay');
-  if (overlay) {
-    overlay.style.opacity = '0';
-    setTimeout(() => { overlay.style.display = 'none'; }, 300);
-  }
+    if (overlay) {
+      overlay.style.opacity = '0';
+      setTimeout(() => { overlay.style.display = 'none'; }, 300);
+    }
 });
 
 // Carrega os extras globais da tabela configuracoes
@@ -475,9 +472,9 @@ async function renderMenu() {
       .or('somente_balcao.is.null,somente_balcao.eq.false');
 
   if (!produtos || !categsDb) {
-    console.error('Erro ao carregar menu. categsDb:', categsDb, '| produtos:', produtos);
-    const overlayErr = document.getElementById('loading-overlay');
-    if (overlayErr) { overlayErr.style.opacity = '0'; setTimeout(() => { overlayErr.style.display = 'none'; }, 300); }
+    console.error('Erro ao carregar menu do banco');
+    
+  console.log("DADOS DO SUPABASE:", data, "ERRO:", error)
     return;
   }
 
@@ -2666,11 +2663,16 @@ function atualizarTrackingVisual(status, motoboy) {
         }
     }
 
-    // Botão confirmar recebimento — aparece ao sair para entrega, some nos outros status
+    // Limpa botões dinâmicos anteriores
     const _trackResult = document.getElementById('track-result');
-    const _btnConfirmar = document.getElementById('btn-confirmar-entrega');
+    ['btn-confirmar-entrega','btn-editar-pedido','btn-cancelar-pedido'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.remove();
+    });
+
     if (status === 'saiu_entrega') {
-        if (_trackResult && !_btnConfirmar) {
+        // Botão confirmar recebimento
+        if (_trackResult) {
             const _btn = document.createElement('button');
             _btn.id = 'btn-confirmar-entrega';
             _btn.onclick = confirmarEntregaCliente;
@@ -2685,8 +2687,119 @@ function atualizarTrackingVisual(status, motoboy) {
                 iniciarTimerAutoConfirmacao(_pedidoLocal);
             }
         }
-    } else if (_btnConfirmar) {
-        _btnConfirmar.remove();
+    } else if (status === 'pendente') {
+        // Botão editar pedido (só enquanto pendente)
+        if (_trackResult) {
+            const _btnEdit = document.createElement('button');
+            _btnEdit.id = 'btn-editar-pedido';
+            _btnEdit.onclick = abrirEdicaoPedido;
+            _btnEdit.style.cssText = 'width:100%;margin-top:10px;padding:12px 0;background:linear-gradient(135deg,#f39c12,#e67e22);color:white;border:none;border-radius:12px;font-weight:700;font-size:0.95rem;cursor:pointer;box-shadow:0 4px 12px rgba(243,156,18,0.35)';
+            _btnEdit.innerHTML = '✏️ Editar Pedido';
+            _trackResult.appendChild(_btnEdit);
+        }
+    }
+
+    // Botão cancelar — disponível em pendente e em_preparo
+    if (['pendente','em_preparo'].includes(status) && _trackResult) {
+        const _btnCancel = document.createElement('button');
+        _btnCancel.id = 'btn-cancelar-pedido';
+        _btnCancel.onclick = solicitarCancelamentoCliente;
+        _btnCancel.style.cssText = 'width:100%;margin-top:8px;padding:10px 0;background:transparent;color:#e74c3c;border:1.5px solid #e74c3c;border-radius:12px;font-weight:600;font-size:0.85rem;cursor:pointer;';
+        _btnCancel.innerHTML = '🚫 Solicitar Cancelamento';
+        _trackResult.appendChild(_btnCancel);
+    }
+}
+
+// ── EDIÇÃO DE PEDIDO PELO CLIENTE ────────────────────────────────
+function abrirEdicaoPedido() {
+    const pedidoId = localStorage.getItem('sushi_pedido_id');
+    if (!pedidoId) return;
+
+    // Fecha tracking e abre carrinho com itens atuais
+    const modal = document.createElement('div');
+    modal.id = 'modal-edicao-pedido';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;';
+    modal.innerHTML = `
+      <div style="background:white;border-radius:20px;padding:28px 22px;max-width:400px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.4)">
+        <div style="font-size:2.5rem;margin-bottom:12px">✏️</div>
+        <h3 style="margin:0 0 10px;font-size:1.1rem;color:#1a1a2e">Editar Pedido</h3>
+        <p style="margin:0 0 16px;font-size:0.88rem;color:#555;line-height:1.5">
+          Seu pedido ainda não foi aceito. Você pode:<br>
+          <strong>• Adicionar ou remover itens</strong><br>
+          <strong>• Alterar observações</strong>
+        </p>
+        <div style="background:#fff8e6;border:1.5px solid #f0a500;border-radius:10px;padding:12px;margin-bottom:18px;font-size:0.82rem;color:#855;text-align:left">
+          ⚠️ Ao editar, a nova versão do pedido será enviada via WhatsApp para confirmação da loja. O pedido atual permanece registrado até a loja confirmar a alteração.
+        </div>
+        <button onclick="iniciarEdicaoCarrinho(${pedidoId})" style="width:100%;padding:13px;background:linear-gradient(135deg,#f39c12,#e67e22);color:white;border:none;border-radius:12px;font-weight:700;cursor:pointer;font-size:0.95rem;margin-bottom:10px">
+          ✏️ Editar meu pedido
+        </button>
+        <button onclick="document.getElementById('modal-edicao-pedido').remove()" style="width:100%;padding:10px;background:transparent;color:#999;border:1.5px solid #ddd;border-radius:12px;cursor:pointer;font-size:0.85rem">
+          Cancelar
+        </button>
+      </div>`;
+    document.body.appendChild(modal);
+}
+
+async function iniciarEdicaoCarrinho(pedidoId) {
+    document.getElementById('modal-edicao-pedido')?.remove();
+
+    // Busca o pedido atual para pré-carregar itens
+    const { data: p } = await supa.from('pedidos').select('itens,obs_geral').eq('id', pedidoId).single();
+    
+    if (!p) return alert('Pedido não encontrado.');
+
+    // Pré-carrega itens no carrinho atual
+    if (p.itens && Array.isArray(p.itens)) {
+        carrinho = p.itens.map(i => ({
+            nome: i.nome || i.n,
+            preco: i.preco || i.p || 0,
+            qtd: i.qtd || i.q || 1,
+            variacao: i.variacao || i.t || '',
+            preparo: i.preparo || i.pr || '',
+            montagem: i.montagem || i.m || [],
+            obs: i.obs || i.o || '',
+            img: i.img || '',
+            categoria_slug: i.categoria_slug || ''
+        }));
+        updateUI();
+    }
+
+    // Abre o checkout com nota de edição
+    abrirCheckout();
+
+    // Adiciona banner de aviso no topo do checkout
+    setTimeout(() => {
+        const checkout = document.getElementById('checkout-panel') || document.querySelector('.checkout-container');
+        if (checkout) {
+            const banner = document.createElement('div');
+            banner.id = 'banner-edicao';
+            banner.style.cssText = 'background:#fff3cd;border:1.5px solid #f0a500;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:0.82rem;color:#7a5100;font-weight:600';
+            banner.innerHTML = '✏️ <strong>Modo Edição</strong> — Modifique seus itens e clique em Enviar Pedido. A loja receberá a versão atualizada.';
+            checkout.insertBefore(banner, checkout.firstChild);
+        }
+    }, 100);
+}
+
+// ── SOLICITAR CANCELAMENTO PELO CLIENTE (via tracking) ──────────
+async function solicitarCancelamentoCliente() {
+    const pedidoId = localStorage.getItem('sushi_pedido_id');
+    if (!pedidoId) return;
+    
+    const motivo = prompt('Motivo do cancelamento (obrigatório):');
+    if (!motivo || !motivo.trim()) return;
+
+    const { error } = await supa.from('pedidos').update({
+        cancelamento_solicitado: true,
+        cancelamento_motivo: motivo.trim(),
+        cancelamento_solicitado_por: 'cliente',
+        cancelamento_solicitado_em: new Date().toISOString()
+    }).eq('id', parseInt(pedidoId));
+
+    if (error) {
+        alert('Erro ao solicitar cancelamento. Contate a loja pelo WhatsApp.');
+    } else {
+        alert('✅ Solicitação enviada! A loja irá avaliar e responder em breve.');
     }
 }
 

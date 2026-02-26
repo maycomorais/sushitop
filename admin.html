@@ -166,42 +166,38 @@
       </div>
 
       <div id="pedidos" class="tab-content">
-        <div class="section-topbar">
-          <h2 class="section-title">Pedidos</h2>
-          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <!-- CABEÇALHO PEDIDOS -->
+        <div class="pedidos-topbar">
+          <!-- Linha 1: Título + badge delivery + refresh -->
+          <div class="pedidos-topbar-row1">
+            <div class="pedidos-topbar-left">
+              <h2 class="section-title">Pedidos</h2>
+              <span id="badge-delivery-status" class="delivery-badge delivery-open"
+                onclick="carregarStatusDelivery()" title="Clique para atualizar">
+                🟢 Aberto
+              </span>
+              <span id="badge-horario-extra" class="delivery-badge badge-extra" style="display:none"></span>
+            </div>
+            <div class="pedidos-topbar-right">
+              <button class="topbar-btn btn-refresh-icon" onclick="carregarPedidos()" title="Atualizar">
+                <i class="fas fa-sync-alt"></i>
+              </button>
+            </div>
+          </div>
 
-            <!-- Badges de status -->
-            <span id="badge-delivery-status"
-              style="font-size:0.75rem;font-weight:700;padding:4px 10px;border-radius:20px;background:#27ae60;color:#fff;cursor:pointer"
-              onclick="carregarStatusDelivery()" title="Clique para atualizar">
-              🟢 Delivery Aberto
-            </span>
-            <span id="badge-horario-extra"
-              style="display:none;font-size:0.75rem;font-weight:700;padding:4px 10px;border-radius:20px;background:#2980b9;color:#fff">
-            </span>
-
-            <!-- Botões de controle -->
-            <button class="btn btn-sm" onclick="abrirModalEstenderHorario()"
-              style="background:#2980b9;color:#fff;padding:6px 12px;font-size:0.78rem;font-weight:700;border-radius:8px;border:none;cursor:pointer"
-              title="Estender horário de hoje">
-              ⏰ +Horário
+          <!-- Linha 2: Ações de controle do delivery -->
+          <div class="pedidos-topbar-row2">
+            <button class="topbar-btn btn-horario" onclick="abrirModalEstenderHorario()" title="Estender horário">
+              <i class="fas fa-clock"></i> <span>+Horário</span>
             </button>
-            <button class="btn btn-sm" onclick="avisarEncerramentoDelivery()"
-              style="background:#e74c3c;color:#fff;padding:6px 12px;font-size:0.78rem;font-weight:700;border-radius:8px;border:none;cursor:pointer"
-              title="Encerrar delivery e avisar clientes">
-              🚫 Encerrar
+            <button class="topbar-btn btn-encerrar" onclick="avisarEncerramentoDelivery()" title="Encerrar delivery">
+              <i class="fas fa-ban"></i> <span>Encerrar</span>
             </button>
-            <button class="btn btn-sm" onclick="reabrirDelivery()"
-              style="background:#27ae60;color:#fff;padding:6px 12px;font-size:0.78rem;font-weight:700;border-radius:8px;border:none;cursor:pointer"
-              title="Reabrir delivery">
-              ✅ Reabrir
+            <button class="topbar-btn btn-reabrir" onclick="reabrirDelivery()" title="Reabrir delivery">
+              <i class="fas fa-check"></i> <span>Reabrir</span>
             </button>
-
-            <button class="btn btn-relatorio" onclick="abrirRelatorio()" title="Relatório Detalhado">
-              <i class="fas fa-clipboard-list"></i><span class="mobile-hide"> Relatório</span>
-            </button>
-            <button class="btn btn-primary btn-icon btn-refresh" onclick="carregarPedidos()" title="Atualizar">
-              <i class="fas fa-sync-alt"></i>
+            <button class="topbar-btn btn-relatorio" onclick="abrirRelatorio()" title="Relatório">
+              <i class="fas fa-clipboard-list"></i> <span>Relatório</span>
             </button>
           </div>
         </div>
@@ -1175,16 +1171,15 @@
 
     <!-- Tabela -->
     <div class="table-container" style="overflow-x:auto;">
-      <table style="width:100%; border-collapse:collapse; font-size:0.82rem;">
-        <thead style="background:#2c3e50;color:white;">
-          <tr>
-            <th style="padding:8px;text-align:left">#ID</th>
-            <th style="padding:8px;text-align:left">Data/Hora</th>
-            <th style="padding:8px;text-align:left">Cliente</th>
-            <th style="padding:8px;text-align:left">Itens</th>
-            <th style="padding:8px;text-align:left">Status</th>
-            <th style="padding:8px;text-align:left">Total</th>
-            <th style="padding:8px;text-align:left">Tempos</th>
+      <table style="width:100%;border-collapse:collapse;font-size:0.83rem;border-radius:10px;overflow:hidden;">
+        <thead>
+          <tr style="background:linear-gradient(135deg,#1a1a2e,#2c3e50);color:white;font-size:0.78rem;letter-spacing:0.5px;text-transform:uppercase;">
+            <th style="padding:12px 10px;text-align:left;width:70px">#ID / Data</th>
+            <th style="padding:12px 10px;text-align:left">Cliente</th>
+            <th style="padding:12px 10px;text-align:left">Itens</th>
+            <th style="padding:12px 10px;text-align:left;width:130px">Status</th>
+            <th style="padding:12px 10px;text-align:right;width:110px">Total</th>
+            <th style="padding:12px 10px;text-align:left;width:200px">⏱ Timeline</th>
           </tr>
         </thead>
         <tbody id="rel-tbody"></tbody>
