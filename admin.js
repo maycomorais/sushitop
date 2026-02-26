@@ -177,13 +177,14 @@ function iniciarRealtime() {
   supa
     .channel('tabela-pedidos-admin')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, (payload) => {
-      // Se entrou pedido novo pendente, tenta tocar o som
+      // Som só para pedido NOVO pendente (nunca para cancelamento ou update)
       if (payload.eventType === 'INSERT' && payload.new.status === 'pendente') {
         tocarAlarme();
       }
-      // Atualiza a tela atual
+      // Atualiza tela — silencioso=true em updates para não re-tocar alarme
+      const silencioso = payload.eventType === 'UPDATE';
       const abaAtual = localStorage.getItem('lastTab');
-      if (abaAtual === 'pedidos') carregarPedidos();
+      if (abaAtual === 'pedidos') carregarPedidos(silencioso);
       if (abaAtual === 'cozinha') carregarCozinha();
       if (abaAtual === 'dashboard') carregarDashboard();
     })
@@ -1356,12 +1357,15 @@ function enviarRotaZap() {
       msg += `👤 ${p.cliente_nome} | 📞 ${p.cliente_telefone || ''}\n`;
 
       if (p.itens && Array.isArray(p.itens)) {
-        // Filtra dinamicamente verificando a categoria real do produto no banco
-        const bebidas = p.itens.filter((i) => i.categoria_slug === 'bebidas');
-
+        // Bebidas: categoria_slug === 'bebidas' (campo salvo a partir de agora)
+        // Fallback: campos abreviados n/q para pedidos antigos
+        const bebidas = p.itens.filter((i) => {
+          const cat = (i.categoria_slug || i.cat || '').toLowerCase();
+          return cat === 'bebidas' || cat.includes('bebida');
+        });
         if (bebidas.length > 0) {
-          // Usa b.qtd (ou b.quantidade dependendo de como está no seu carrinho)
-          msg += `🥤 *LEVAR:* ${bebidas.map((b) => `${b.qtd}x ${b.nome}`).join(', ')}\n`;
+          const lista = bebidas.map((b) => `${b.qtd || b.q || 1}x ${b.nome || b.n}`).join(', ');
+          msg += `🥤 *LEVAR:* ${lista}\n`;
         }
       }
 
@@ -1617,17 +1621,16 @@ async function salvarProduto() {
     const usaMontavel = ['montavel', 'acai', 'shake', 'suco'];
     if (usaMontavel.includes(tipo)) {
       const etapas = [];
-      // Lê novo builder: #builder-steps > .builder-step-card
-      document.querySelectorAll('#builder-steps .builder-step-card').forEach((div) => {
-        const titulo = (div.querySelector('.etapa-titulo') || div.querySelector('.step-titulo'))?.value?.trim() || '';
-        const max    = parseInt((div.querySelector('.etapa-max') || div.querySelector('.step-max'))?.value) || 1;
-        const itens  = [];
-        div.querySelectorAll('.item-row input').forEach(inp => { const v = inp.value.trim(); if (v) itens.push(v); });
-        if (itens.length === 0) {
-          const ta = div.querySelector('.step-itens');
-          if (ta) ta.value.split(',').map(s => s.trim()).filter(s => s).forEach(v => itens.push(v));
-        }
-        if (titulo) etapas.push({ titulo, max, itens });
+      document.querySelectorAll('.etapa-item').forEach((div) => {
+        etapas.push({
+          titulo: div.querySelector('.step-titulo').value,
+          max: parseInt(div.querySelector('.step-max').value),
+          itens: div
+            .querySelector('.step-itens')
+            .value.split(',')
+            .map((s) => s.trim())
+            .filter((s) => s),
+        });
       });
       configFinal.etapas = etapas;
     }
@@ -1803,8 +1806,7 @@ async function abrirModalProduto(produto = null, tipoInicial = null) {
     if (cfg && !Array.isArray(cfg) && cfg.__tipo) {
       tipo = cfg.__tipo;
 
-      if (['montavel','acai','shake','suco'].includes(tipo) && cfg.etapas) {
-        document.getElementById('builder-steps').innerHTML = '';
+      if (tipo === 'montavel' && cfg.etapas) {
         cfg.etapas.forEach((e) => addBuilderStep(e.titulo, e.max, e.itens));
       }
       if (tipo === 'pizza' && cfg.pizza) {
@@ -1988,7 +1990,12 @@ function toggleBuilder() {
   if (isM) selecionarTipoBuilder('montavel');
 }
 
-// addBuilderStep: ver definição completa abaixo (linha ~5138)
+function addBuilderStep(t = '', m = 1, i = []) {
+  const div = document.createElement('div');
+  div.className = 'etapa-item';
+  div.innerHTML = `<div class="etapa-header"><input type="text" class="form-control step-titulo" value="${t}" placeholder="Título da etapa (ex: Escolha a base)"><input type="number" class="form-control step-max" value="${m}" style="width:70px" title="Máx. seleções"><button class="btn btn-sm btn-danger" onclick="this.parentElement.parentElement.remove()">X</button></div><textarea class="etapa-ingredientes step-itens" placeholder="Itens separados por vírgula. Ex: Arroz, Atum, Salmão, Tofu">${Array.isArray(i) ? i.join(', ') : i}</textarea>`;
+  document.getElementById('builder-steps').appendChild(div);
+}
 
 // ─── VARIAÇÕES DE SABOR BUILDER ───────────────────────────────────
 function addVariacao(dados = {}) {

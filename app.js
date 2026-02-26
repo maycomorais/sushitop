@@ -475,10 +475,9 @@ async function renderMenu() {
       .or('somente_balcao.is.null,somente_balcao.eq.false');
 
   if (!produtos || !categsDb) {
-    console.error('Erro ao carregar menu do banco. categsDb:', categsDb, '| produtos:', produtos);
-    // Esconde overlay mesmo em caso de erro
-    const overlay = document.getElementById('loading-overlay');
-    if (overlay) { overlay.style.opacity = '0'; setTimeout(() => { overlay.style.display = 'none'; }, 300); }
+    console.error('Erro ao carregar menu. categsDb:', categsDb, '| produtos:', produtos);
+    const overlayErr = document.getElementById('loading-overlay');
+    if (overlayErr) { overlayErr.style.opacity = '0'; setTimeout(() => { overlayErr.style.display = 'none'; }, 300); }
     return;
   }
 
@@ -649,9 +648,6 @@ function abrirModal(item) {
   let tipo = 'padrao';
   if (cfg && !Array.isArray(cfg) && cfg.__tipo) tipo = cfg.__tipo;
   else if (item.e_montavel || (cfg && Array.isArray(cfg) && cfg.length > 0)) tipo = 'montavel';
-  // acai, shake, suco são subtipos de montavel
-  const _TIPOS_MONTAVEL = ['montavel', 'acai', 'shake', 'suco'];
-  if (_TIPOS_MONTAVEL.includes(tipo)) tipo = 'montavel';
 
   if (tipo === 'montavel') {
     _renderMontavel(item, cfg, divOptions);
@@ -687,13 +683,6 @@ function abrirModal(item) {
 
 function _renderMontavel(item, cfg, container) {
   const etapas = Array.isArray(cfg) ? cfg : (cfg && cfg.etapas ? cfg.etapas : []);
-  if (etapas.length === 0) {
-    const msg = document.createElement('p');
-    msg.style.cssText = 'color:#e67e22; font-size:0.9rem; padding:10px; background:#fff8e6; border-radius:8px;';
-    msg.textContent = '⚠️ Produto montável sem etapas configuradas. Edite o produto no admin para adicionar as etapas.';
-    container.appendChild(msg);
-    return;
-  }
   etapas.forEach((etapa, idxEtapa) => {
     const h4 = document.createElement('h4');
     h4.innerText = `${etapa.titulo} (Máx: ${etapa.max})`;
@@ -1162,8 +1151,6 @@ function adicionarDoModal() {
   let tipo = 'padrao';
   if (cfg && !Array.isArray(cfg) && cfg.__tipo) tipo = cfg.__tipo;
   else if (prodAtual.e_montavel || (cfg && Array.isArray(cfg) && cfg.length > 0)) tipo = 'montavel';
-  // acai, shake, suco são subtipos de montavel
-  if (['acai', 'shake', 'suco'].includes(tipo)) tipo = 'montavel';
 
   // Validações por tipo
   if (tipo === 'pizza') {
@@ -1187,19 +1174,7 @@ function adicionarDoModal() {
   let precoFinal = prodAtual.preco;
 
   if (tipo === 'montavel') {
-    // Recupera títulos das etapas para exibir "Base: Arroz, Proteína: Salmão"
-    const cfgEtapas = Array.isArray(cfg) ? cfg : (cfg && cfg.etapas ? cfg.etapas : []);
-    for (let k in itensMontagem) {
-      const itens = itensMontagem[k];
-      if (!itens || itens.length === 0) continue;
-      const etapa = cfgEtapas[parseInt(k)];
-      const titulo = etapa ? etapa.titulo : null;
-      if (titulo) {
-        montagem.push(`${titulo}: ${itens.join(', ')}`);
-      } else {
-        montagem = montagem.concat(itens);
-      }
-    }
+    for (let k in itensMontagem) montagem = montagem.concat(itensMontagem[k]);
   }
 
   if (tipo === 'pizza') {
@@ -1465,15 +1440,7 @@ function renderCarrinho() {
         detalhes += `<br><small style="color:#2980b9;font-weight:600">🍳 ${item.preparo}</small>`;
       }
       if (item.montagem && item.montagem.length > 0) {
-        // Cada etapa em linha separada (ex: "Base: Arroz" vira própria linha)
-        item.montagem.forEach(linha => {
-          const partes = linha.split(':');
-          if (partes.length >= 2) {
-            detalhes += `<br><small style="color:#666"><strong style="color:#555">${partes[0]}:</strong>${partes.slice(1).join(':')}</small>`;
-          } else {
-            detalhes += `<br><small style="color:#888">· ${linha}</small>`;
-          }
-        });
+        detalhes += `<br><small style="color:#888">${item.montagem.join(', ')}</small>`;
       }
     }
     const obs = item.obs ? `<br><small style="color:#666"><strong>Obs:</strong> ${item.obs}</small>` : '';
@@ -1946,6 +1913,41 @@ async function enviarZap() {
 
   if (!nome || !tel || !pag) return alert('Preencha todos os campos obrigatórios!');
 
+  // Troco obrigatório quando pagamento em Efetivo
+  if (pag === 'Efetivo') {
+    const trocoVal = document.getElementById('troco-valor').value.trim();
+    if (!trocoVal || parseFloat(trocoVal.replace(/[^\d]/g, '')) <= 0) {
+      document.getElementById('troco-valor').focus();
+      document.getElementById('troco-valor').style.borderColor = '#e74c3c';
+      return alert('⚠️ Informe o valor em dinheiro para cálculo do troco!');
+    }
+    document.getElementById('troco-valor').style.borderColor = '';
+  }
+
+  // Promoções do dia: bloquear pagamento com Cartão
+  const temPromoItem = carrinho.some(item => {
+    // Verifica se algum item do carrinho pertence a categoria promocoes_do_dia
+    for (const key in MENU) {
+      if (key === 'promocoes_do_dia') {
+        const found = MENU[key].find(m => m.id === item.id || m.nome === item.nome);
+        if (found) return true;
+      }
+    }
+    return false;
+  });
+  if (temPromoItem && pag === 'Cartao') {
+    return alert('⚠️ Produtos da "Promoção do Dia" não aceitam pagamento com Cartão.');
+  }
+
+  // Pedido duplo: bloqueia se mesmo carrinho enviado no último 1h
+  const _agora = Date.now();
+  const _ultimoHash = localStorage.getItem('sushi_last_hash');
+  const _ultimoTs   = parseInt(localStorage.getItem('sushi_last_ts') || '0');
+  const _hashAtual  = carrinho.map(i => i.nome + i.qtd).sort().join('|');
+  if (_ultimoHash === _hashAtual && (_agora - _ultimoTs) < 3600000) {
+    return alert('🚫 Seu pedido anterior foi computado, estamos bloqueando esta segunda tentativa.');
+  }
+
   // Valida multipagamento
   if (pag === 'Multipagamento') {
     const partes = _coletarMultiPagamento();
@@ -2000,12 +2002,15 @@ async function enviarZap() {
                    : '',
       itens: carrinho.map((i) => ({
         n: i.nome,
+        nome: i.nome,             // alias legível para admin/motoboy
         p: i.preco,
         q: i.qtd,
-        t: i.variacao || '',    // variação (ex: "Combo Grande") — separado do nome
-        pr: i.preparo || '',    // preparo (ex: "Flambado", "Batata Frita")
+        qtd: i.qtd,               // alias legível
+        t: i.variacao || '',
+        pr: i.preparo || '',
         m: i.montagem,
-        o: i.obs
+        o: i.obs,
+        categoria_slug: i.categoria_slug || i.cat || ''  // para filtro de bebidas no motoboy
       })),
       endereco_entrega: ref,
       geo_lat: localCliente ? localCliente.lat.toString() : null,
@@ -2055,9 +2060,16 @@ async function enviarZap() {
   msg += `🛵 Tipo: ${modoEntrega === 'delivery' ? 'DELIVERY' : modoEntrega === 'local' ? 'COMER NO LOCAL 🍽️' : 'RETIRADA'}\n`;
 
   if (modoEntrega === 'delivery') {
-    if (localCliente && freteAplicado > 0) {
+    if (localCliente) {
       msg += `📍 Maps: https://maps.google.com/?q=${localCliente.lat},${localCliente.lng}\n`;
-      msg += `🛵 Delivery: Gs ${freteAplicado.toLocaleString('es-PY')}\n`;
+      // Frete real (distância) sempre mostrado para motoboy, mesmo se cliente ganhou grátis
+      const _freteReal = freteCalculado;
+      const _fretePago = freteAplicado;
+      if (_freteReal > 0 && _fretePago === 0) {
+        msg += `🛵 Delivery: FRETE GRÁTIS (valor: Gs ${_freteReal.toLocaleString('es-PY')})\n`;
+      } else if (_freteReal > 0) {
+        msg += `🛵 Delivery: Gs ${_fretePago.toLocaleString('es-PY')}\n`;
+      }
     } else if (usouPlanoB) {
       msg += `📍 *Localização:* Enviarei aqui no WhatsApp 📎\n`;
       msg += `🛵 *Delivery:* A COMBINAR\n`;
@@ -2136,14 +2148,84 @@ async function enviarZap() {
       msg += `\n📄 RUC: ${document.getElementById('cli-ruc').value}\nRazão: ${document.getElementById('cli-zao').value}\n`;
   }
 
-  // Envia
+  // Salva hash anti-duplicata ANTES de enviar
+  const _hashFinal = carrinho.map(i => i.nome + i.qtd).sort().join('|');
+  localStorage.setItem('sushi_last_hash', _hashFinal);
+  localStorage.setItem('sushi_last_ts',   Date.now().toString());
+
+  // Modal de confirmação 5s antes de abrir WhatsApp
+  await _mostrarModalEnvio(msg, numeroPedido);
+}
+
+// Modal: "Seu pedido será validado somente após enviar no WhatsApp"
+function _mostrarModalEnvio(msg, numeroPedido) {
+  return new Promise((resolve) => {
+    // Remove modal anterior se existir
+    const _old = document.getElementById('modal-envio-zap');
+    if (_old) _old.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'modal-envio-zap';
+    modal.style.cssText = [
+      'position:fixed;inset:0;z-index:99999',
+      'background:rgba(0,0,0,0.7)',
+      'display:flex;align-items:center;justify-content:center',
+      'padding:20px;box-sizing:border-box'
+    ].join(';');
+    modal.innerHTML = `
+      <div style="background:white;border-radius:20px;padding:30px 24px;max-width:380px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.4)">
+        <div style="font-size:3rem;margin-bottom:12px">📱</div>
+        <h3 style="margin:0 0 10px;font-size:1.15rem;color:#1a1a2e">Quase lá!</h3>
+        <p style="margin:0 0 18px;font-size:0.92rem;color:#555;line-height:1.5">
+          Seu pedido será <strong>validado somente após enviar</strong> a mensagem no WhatsApp a seguir.
+        </p>
+        <div style="background:#f0fff4;border:2px solid #27ae60;border-radius:12px;padding:14px;margin-bottom:20px">
+          <div style="font-size:0.82rem;color:#27ae60;font-weight:700;margin-bottom:6px">✅ Pedido registrado no sistema</div>
+          <div style="font-size:0.78rem;color:#555">Agora clique em "Abrir WhatsApp" e envie a mensagem para confirmar!</div>
+        </div>
+        <div id="envio-countdown" style="font-size:2rem;font-weight:800;color:#FF441F;margin-bottom:16px">5</div>
+        <button id="btn-abrir-zap" disabled
+          style="width:100%;padding:14px;background:#25D366;color:white;border:none;border-radius:12px;font-size:1rem;font-weight:700;cursor:pointer;opacity:0.5;transition:opacity 0.3s">
+          <i class="fab fa-whatsapp"></i> Abrir WhatsApp
+        </button>
+        <div style="font-size:0.75rem;color:#aaa;margin-top:10px">Abrindo automaticamente em <span id="envio-sec">5</span>s...</div>
+      </div>`;
+    document.body.appendChild(modal);
+
+    let sec = 8;
+    const tick = setInterval(() => {
+      sec--;
+      const cd = document.getElementById('envio-countdown');
+      const sc = document.getElementById('envio-sec');
+      const btn = document.getElementById('btn-abrir-zap');
+      if (cd) cd.textContent = sec;
+      if (sc) sc.textContent = sec;
+      if (sec <= 0) {
+        clearInterval(tick);
+        if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+        // Abre automaticamente
+        _abrirZapEFechar(msg, numeroPedido, modal, resolve);
+      }
+    }, 1000);
+
+    // Botão manual (ativo após countdown)
+    setTimeout(() => {
+      const btn = document.getElementById('btn-abrir-zap');
+      if (btn) btn.onclick = () => {
+        clearInterval(tick);
+        _abrirZapEFechar(msg, numeroPedido, modal, resolve);
+      };
+    }, 8000);
+  });
+}
+
+function _abrirZapEFechar(msg, numeroPedido, modal, resolve) {
   window.open(`https://wa.me/${FONE_LOJA}?text=${encodeURIComponent(msg)}`, '_blank');
+  if (modal) modal.remove();
 
   // Limpa carrinho e fecha checkout
   carrinho = [];
   cupomAplicado = null;
-
-  // Reseta modo agendamento
   MODO_AGENDAMENTO = false;
   DATA_AGENDAMENTO = null;
   const indicador = document.getElementById('indicador-agendamento');
@@ -2151,14 +2233,11 @@ async function enviarZap() {
 
   updateUI();
   fecharCheckout();
-  
-  // Mostra alerta e card de tracking
-  alert('✅ Pedido Enviado! Agora você pode acompanhar seu pedido abaixo.');
-  
-  // Mostra card de tracking
-  if (numeroPedido) {
-    mostrarCardTracking(numeroPedido);
-  }
+
+  // Card de tracking
+  if (numeroPedido) mostrarCardTracking(numeroPedido);
+
+  resolve();
 }
 
 // ==========================================
