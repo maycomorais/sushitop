@@ -274,6 +274,23 @@ async function carregarPedidos(silencioso = false) {
   const cardsDiv = document.getElementById('lista-pedidos-cards');
   if (cardsDiv) cardsDiv.innerHTML = '';
 
+  // ── AUTO-CONFIRM: pedidos saiu_entrega há mais de 4h ──────────────────────
+  const _QUATRO_HORAS_MS = 4 * 60 * 60 * 1000;
+  const _agora = Date.now();
+  const pedidosParaAutoConfirmar = (pedidos || []).filter(p =>
+    p.status === 'saiu_entrega' &&
+    p.tempo_saiu_entrega &&
+    (_agora - new Date(p.tempo_saiu_entrega).getTime()) > _QUATRO_HORAS_MS
+  );
+  for (const p of pedidosParaAutoConfirmar) {
+    console.log(`⏰ Auto-confirmando entrega do pedido #${p.id} (mais de 4h em saiu_entrega)`);
+    await supa.from('pedidos').update({
+      status: 'entregue',
+      tempo_entregue: new Date().toISOString()
+    }).eq('id', p.id);
+  }
+  // ───────────────────────────────────────────────────────────────────────────
+
   // Badge de cancelamento pendente para o dono
   const badgeCancelPendente =
     perfilUsuario === 'dono'
@@ -799,10 +816,12 @@ async function calcularFinanceiro() {
   const utcInicio = dataInicio.includes('T') ? dataInicio : _localToUTC(dataInicio.split(' ')[0], false);
   const utcFim    = dataFim.includes('T')    ? dataFim    : _localToUTC(dataFim.split(' ')[0], true);
 
+  // Financeiro inclui todos os status exceto pendente e cancelado
+  // (em_preparo = PDV em andamento; pronto/saiu/entregue = delivery em curso ou finalizado)
   let query = supa
     .from('pedidos')
     .select('*, motoboys(nome)')
-    .in('status', ['entregue', 'em_preparo', 'pronto_entrega', 'saiu_entrega']) // inclui PDV em andamento
+    .in('status', ['entregue', 'em_preparo', 'pronto_entrega', 'saiu_entrega'])
     .gte('created_at', utcInicio)
     .lte('created_at', utcFim);
 
@@ -1154,7 +1173,10 @@ async function carregarRelatorio() {
     return Math.floor(diff / 60) + 'h ' + (diff % 60) + 'm';
   };
   const fmtHora = (t) =>
-    t ? new Date(t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '-';
+    t ? new Date(t).toLocaleTimeString('pt-BR', {
+          hour: '2-digit', minute: '2-digit',
+          timeZone: 'America/Asuncion'
+        }) : '-';
   const scMap = {
     pendente:       { bg:'#fff3cd', color:'#856404', label:'⏳ Pendente' },
     em_preparo:     { bg:'#ffe5d0', color:'#a63c06', label:'🔥 Em Preparo' },
@@ -1227,11 +1249,12 @@ async function carregarRelatorio() {
       ? fmtDiff(p.tempo_recebido || p.created_at, p.tempo_entregue)
       : fmtDiff(p.tempo_recebido, p.tempo_entregue);
 
+    const _tz = { timeZone: 'America/Asuncion' };
     tbody.innerHTML += `<tr style="border-bottom:1px solid #eee;vertical-align:top">
       <td style="padding:10px 8px;white-space:nowrap">
         <div style="font-size:1rem;font-weight:700;color:#1a1a2e">#${p.id}</div>
-        <div style="font-size:0.73rem;color:#aaa">${new Date(p.created_at).toLocaleDateString('pt-BR')}</div>
-        <div style="font-size:0.78rem;color:#666">${new Date(p.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div>
+        <div style="font-size:0.73rem;color:#aaa">${new Date(p.created_at).toLocaleDateString('pt-BR', _tz)}</div>
+        <div style="font-size:0.78rem;color:#666">${new Date(p.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',..._tz})}</div>
       </td>
       <td style="padding:10px 8px">
         <div style="font-weight:700;color:#1a1a2e">${p.cliente_nome || '-'}</div>

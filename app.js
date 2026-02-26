@@ -55,7 +55,7 @@ function restaurarTimerSeNecessario() {
     } else {
         // Tempo já expirou, confirmar agora
         console.log('⏰ Tempo expirado, confirmando agora...');
-        confirmarEntregaAutomatica(pedidoId);
+        confirmarEntregaAutomatica(parseInt(pedidoId));
     }
 }
 
@@ -68,7 +68,7 @@ async function confirmarEntregaAutomatica(pedidoId) {
                 status: 'entregue',
                 tempo_entregue: new Date().toISOString()
             })
-            .eq('id', pedidoId);
+            .eq('id', parseInt(pedidoId));  // parseInt garante que não é string
         
         if (error) throw error;
         
@@ -108,7 +108,7 @@ async function confirmarEntregaCliente() {
                 status: 'entregue',
                 tempo_entregue: new Date().toISOString()
             })
-            .eq('id', pedidoId);
+            .eq('id', parseInt(pedidoId));  // parseInt garante tipo correto
         
         if (error) throw error;
         
@@ -2180,12 +2180,12 @@ function _mostrarModalEnvio(msg, numeroPedido) {
           <div style="font-size:0.82rem;color:#27ae60;font-weight:700;margin-bottom:6px">✅ Pedido registrado no sistema</div>
           <div style="font-size:0.78rem;color:#555">Agora clique em "Abrir WhatsApp" e envie a mensagem para confirmar!</div>
         </div>
-        <div id="envio-countdown" style="font-size:2rem;font-weight:800;color:#FF441F;margin-bottom:16px">5</div>
+        <div id="envio-countdown" style="font-size:2rem;font-weight:800;color:#FF441F;margin-bottom:16px">8</div>
         <button id="btn-abrir-zap" disabled
           style="width:100%;padding:14px;background:#25D366;color:white;border:none;border-radius:12px;font-size:1rem;font-weight:700;cursor:pointer;opacity:0.5;transition:opacity 0.3s">
           <i class="fab fa-whatsapp"></i> Abrir WhatsApp
         </button>
-        <div style="font-size:0.75rem;color:#aaa;margin-top:10px">Abrindo automaticamente em <span id="envio-sec">5</span>s...</div>
+        <div style="font-size:0.75rem;color:#aaa;margin-top:10px">Abrindo automaticamente em <span id="envio-sec">8</span>s...</div>
       </div>`;
     document.body.appendChild(modal);
 
