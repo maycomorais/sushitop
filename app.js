@@ -1171,7 +1171,13 @@ function adicionarDoModal() {
   let precoFinal = prodAtual.preco;
 
   if (tipo === 'montavel') {
-    for (let k in itensMontagem) montagem = montagem.concat(itensMontagem[k]);
+    const cfgEtapas = Array.isArray(cfg) ? cfg : (cfg && cfg.etapas ? cfg.etapas : []);
+    for (let k in itensMontagem) {
+      if (itensMontagem[k] && itensMontagem[k].length > 0) {
+        const titulo = cfgEtapas[k] ? cfgEtapas[k].titulo : `Etapa ${parseInt(k)+1}`;
+        montagem.push(`${titulo}: ${itensMontagem[k].join(', ')}`);
+      }
+    }
   }
 
   if (tipo === 'pizza') {

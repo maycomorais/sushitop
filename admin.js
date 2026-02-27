@@ -626,6 +626,8 @@ async function imprimirPedido(id) {
         q: i.qtd || i.q || 1,
         n: i.nome || i.n,
         p: i.preco || i.p || 0,
+        t: i.variacao || i.t || '',
+        pr: i.preparo || i.pr || '',
         m: i.montagem || i.m,
         o: i.obs || i.o,
       })),
@@ -704,9 +706,17 @@ async function carregarCozinha() {
       const obs = observacao
         ? `<div style="color:#e74c3c; font-size:0.85rem">⚠️ ${observacao}</div>`
         : '';
-      const listaMontagem = Array.isArray(montagemArray) ? montagemArray.join(', ') : '';
+      const listaMontagem = Array.isArray(montagemArray)
+        ? montagemArray.map(linha => {
+            const idx = linha.indexOf(':');
+            if (idx > 0) {
+              return `<strong>${linha.slice(0, idx)}:</strong> ${linha.slice(idx + 1).trim()}`;
+            }
+            return linha;
+          }).join('<br>')
+        : '';
       const montagem = listaMontagem
-        ? `<div style="font-size:0.8rem; color:#666; margin-left:10px;">+ ${listaMontagem}</div>`
+        ? `<div style="font-size:0.8rem; color:#444; margin-left:10px; line-height:1.6;">${listaMontagem}</div>`
         : '';
       const variacaoHtml = variacaoItem
         ? `<span style="color:#FF441F; font-size:0.85rem; font-weight:600;"> ▸ ${variacaoItem}</span>`
@@ -1197,7 +1207,14 @@ async function carregarRelatorio() {
       const montagem = i.montagem || i.m || [];
       let lbl = `<strong>${qtd}x</strong> ${nome}`;
       if (variacao && variacao !== nome) lbl += ` <span style="color:#e67e22">▸ ${variacao}</span>`;
-      if (montagem.length > 0) lbl += ` <span style="color:#999;font-size:0.78em">(${montagem.join(' · ')})</span>`;
+      if (montagem.length > 0) {
+        const montagemHtml = montagem.map(linha => {
+          const idx = linha.indexOf(':');
+          if (idx > 0) return `<strong>${linha.slice(0, idx)}:</strong> ${linha.slice(idx + 1).trim()}`;
+          return linha;
+        }).join(' · ');
+        lbl += ` <span style="color:#555;font-size:0.78em">(${montagemHtml})</span>`;
+      }
       return lbl;
     }).join('<br>');
 
