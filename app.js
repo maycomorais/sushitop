@@ -686,7 +686,13 @@ function _renderMontavel(item, cfg, container) {
     h4.style.cssText = 'margin-top:10px; font-size:0.95rem; color:#555;';
     container.appendChild(h4);
 
-    etapa.itens.forEach((ingrediente) => {
+    // Suporta itens como array de strings ou string separada por vírgula (legado)
+    let listaItens = etapa.itens || [];
+    if (!Array.isArray(listaItens)) {
+      listaItens = String(listaItens).split(',').map(s => s.trim()).filter(Boolean);
+    }
+
+    listaItens.forEach((ingrediente) => {
       const label = document.createElement('label');
       label.style.cssText = 'display:block; padding:7px 10px; margin-bottom:3px; border:1px solid #eee; border-radius:8px; cursor:pointer;';
       const input = document.createElement('input');

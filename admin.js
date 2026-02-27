@@ -1713,16 +1713,13 @@ async function salvarProduto() {
     const usaMontavel = ['montavel', 'acai', 'shake', 'suco'];
     if (usaMontavel.includes(tipo)) {
       const etapas = [];
-      document.querySelectorAll('.etapa-item').forEach((div) => {
-        etapas.push({
-          titulo: div.querySelector('.step-titulo').value,
-          max: parseInt(div.querySelector('.step-max').value),
-          itens: div
-            .querySelector('.step-itens')
-            .value.split(',')
-            .map((s) => s.trim())
-            .filter((s) => s),
-        });
+      document.querySelectorAll('.builder-step-card').forEach((stepDiv) => {
+        const titulo = stepDiv.querySelector('.etapa-titulo')?.value?.trim() || '';
+        const max = parseInt(stepDiv.querySelector('.etapa-max')?.value) || 1;
+        const itens = Array.from(stepDiv.querySelectorAll('.itens-list .item-row input'))
+          .map((inp) => inp.value.trim())
+          .filter(Boolean);
+        if (titulo) etapas.push({ titulo, max, itens });
       });
       configFinal.etapas = etapas;
     }
@@ -1813,9 +1810,8 @@ async function salvarProduto() {
       configFinal.variacoes = variacoes;
     }
 
-    // Compatibilidade retroativa: mantém montagem_config array para tipo montavel
+    // Compatibilidade retroativa: mantém e_montavel para indicar tipo
     const isM = usaMontavel.includes(tipo);
-    const montagemCompat = isM ? configFinal.etapas || [] : [];
 
     // Para variações: preco = menor valor entre as variações (usado no "A partir de")
     let precoBase = parseFloat(document.getElementById('prod-preco').value) || 0;
@@ -1832,7 +1828,7 @@ async function salvarProduto() {
       subcategoria_slug: document.getElementById('prod-subcat')?.value || null,
       imagem_url: urlFinal,
       e_montavel: isM,
-      montagem_config: isM ? montagemCompat : configFinal, // novo: armazena config completo
+      montagem_config: configFinal, // salva config completo sempre (etapas + extras + preparo + __tipo)
       ativo: true,
       somente_balcao: document.getElementById('prod-somente-balcao')?.checked || false,
     };
@@ -2082,12 +2078,7 @@ function toggleBuilder() {
   if (isM) selecionarTipoBuilder('montavel');
 }
 
-function addBuilderStep(t = '', m = 1, i = []) {
-  const div = document.createElement('div');
-  div.className = 'etapa-item';
-  div.innerHTML = `<div class="etapa-header"><input type="text" class="form-control step-titulo" value="${t}" placeholder="Título da etapa (ex: Escolha a base)"><input type="number" class="form-control step-max" value="${m}" style="width:70px" title="Máx. seleções"><button class="btn btn-sm btn-danger" onclick="this.parentElement.parentElement.remove()">X</button></div><textarea class="etapa-ingredientes step-itens" placeholder="Itens separados por vírgula. Ex: Arroz, Atum, Salmão, Tofu">${Array.isArray(i) ? i.join(', ') : i}</textarea>`;
-  document.getElementById('builder-steps').appendChild(div);
-}
+// addBuilderStep — definição abaixo (linha ~5240), esta foi removida para evitar duplicata
 
 // ─── VARIAÇÕES DE SABOR BUILDER ───────────────────────────────────
 function addVariacao(dados = {}) {
