@@ -1457,10 +1457,14 @@ function renderCarrinho() {
           ${obs}
           <div class="cart-item-price">Gs ${totalItem.toLocaleString('es-PY')}</div>
         </div>
-        <div class="qty-mini">
-          <button onclick="mudarQtdCarrinho(${idx}, -1)">−</button>
-          <span>${item.qtd}</span>
-          <button onclick="mudarQtdCarrinho(${idx}, 1)">+</button>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+          <div class="qty-mini">
+            <button onclick="mudarQtdCarrinho(${idx}, -1)">−</button>
+            <span>${item.qtd}</span>
+            <button onclick="mudarQtdCarrinho(${idx}, 1)">+</button>
+          </div>
+          <button onclick="removerItemCarrinho(${idx})" title="Remover item"
+            style="background:none;border:none;cursor:pointer;color:#e74c3c;font-size:1.1rem;padding:2px 6px;">🗑️</button>
         </div>
       </div>
     `;
@@ -1472,7 +1476,13 @@ function renderCarrinho() {
 function mudarQtdCarrinho(idx, delta) {
   if (idx < 0 || idx >= carrinho.length) return;
   carrinho[idx].qtd = Math.max(1, carrinho[idx].qtd + delta);
-  if (carrinho[idx].qtd === 0) carrinho.splice(idx, 1);
+  renderCarrinho();
+  updateUI();
+}
+
+function removerItemCarrinho(idx) {
+  if (idx < 0 || idx >= carrinho.length) return;
+  carrinho.splice(idx, 1);
   renderCarrinho();
   updateUI();
 }
@@ -2163,7 +2173,6 @@ async function enviarZap() {
 // Modal: "Seu pedido será validado somente após enviar no WhatsApp"
 function _mostrarModalEnvio(msg, numeroPedido) {
   return new Promise((resolve) => {
-    // Remove modal anterior se existir
     const _old = document.getElementById('modal-envio-zap');
     if (_old) _old.remove();
 
@@ -2180,45 +2189,18 @@ function _mostrarModalEnvio(msg, numeroPedido) {
         <div style="font-size:3rem;margin-bottom:12px">📱</div>
         <h3 style="margin:0 0 10px;font-size:1.15rem;color:#1a1a2e">Quase lá!</h3>
         <p style="margin:0 0 18px;font-size:0.92rem;color:#555;line-height:1.5">
-          Seu pedido será <strong>validado somente após enviar</strong> a mensagem no WhatsApp a seguir.
+          Seu pedido foi <strong>registrado no sistema</strong>. Agora envie a mensagem no WhatsApp para confirmar!
         </p>
-        <div style="background:#f0fff4;border:2px solid #27ae60;border-radius:12px;padding:14px;margin-bottom:20px">
-          <div style="font-size:0.82rem;color:#27ae60;font-weight:700;margin-bottom:6px">✅ Pedido registrado no sistema</div>
-          <div style="font-size:0.78rem;color:#555">Agora clique em "Abrir WhatsApp" e envie a mensagem para confirmar!</div>
-        </div>
-        <div id="envio-countdown" style="font-size:2rem;font-weight:800;color:#FF441F;margin-bottom:16px">8</div>
-        <button id="btn-abrir-zap" disabled
-          style="width:100%;padding:14px;background:#25D366;color:white;border:none;border-radius:12px;font-size:1rem;font-weight:700;cursor:pointer;opacity:0.5;transition:opacity 0.3s">
-          <i class="fab fa-whatsapp"></i> Abrir WhatsApp
+        <button id="btn-abrir-zap"
+          style="width:100%;padding:16px;background:#25D366;color:white;border:none;border-radius:12px;font-size:1.05rem;font-weight:700;cursor:pointer;">
+          <i class="fab fa-whatsapp"></i> Enviar no WhatsApp
         </button>
-        <div style="font-size:0.75rem;color:#aaa;margin-top:10px">Abrindo automaticamente em <span id="envio-sec">8</span>s...</div>
       </div>`;
     document.body.appendChild(modal);
 
-    let sec = 8;
-    const tick = setInterval(() => {
-      sec--;
-      const cd = document.getElementById('envio-countdown');
-      const sc = document.getElementById('envio-sec');
-      const btn = document.getElementById('btn-abrir-zap');
-      if (cd) cd.textContent = sec;
-      if (sc) sc.textContent = sec;
-      if (sec <= 0) {
-        clearInterval(tick);
-        if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
-        // Abre automaticamente
-        _abrirZapEFechar(msg, numeroPedido, modal, resolve);
-      }
-    }, 1000);
-
-    // Botão manual (ativo após countdown)
-    setTimeout(() => {
-      const btn = document.getElementById('btn-abrir-zap');
-      if (btn) btn.onclick = () => {
-        clearInterval(tick);
-        _abrirZapEFechar(msg, numeroPedido, modal, resolve);
-      };
-    }, 8000);
+    document.getElementById('btn-abrir-zap').onclick = () => {
+      _abrirZapEFechar(msg, numeroPedido, modal, resolve);
+    };
   });
 }
 
@@ -2233,6 +2215,12 @@ function _abrirZapEFechar(msg, numeroPedido, modal, resolve) {
   DATA_AGENDAMENTO = null;
   const indicador = document.getElementById('indicador-agendamento');
   if (indicador) indicador.remove();
+
+  // Limpa backup imediatamente para não restaurar na próxima visita
+  try {
+    localStorage.removeItem('sushi_carrinho_backup');
+    localStorage.removeItem('sushi_carrinho_backup_time');
+  } catch(e) {}
 
   updateUI();
   fecharCheckout();
