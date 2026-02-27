@@ -2176,25 +2176,42 @@ function _mostrarModalEnvio(msg, numeroPedido) {
     const _old = document.getElementById('modal-envio-zap');
     if (_old) _old.remove();
 
+    // Injeta animação de pulsar (só uma vez)
+    if (!document.getElementById('zap-pulse-style')) {
+      const st = document.createElement('style');
+      st.id = 'zap-pulse-style';
+      st.textContent = `
+        @keyframes zapPulse {
+          0%   { box-shadow: 0 0 0 0 rgba(37,211,102,0.7); transform: scale(1); }
+          50%  { box-shadow: 0 0 0 14px rgba(37,211,102,0); transform: scale(1.03); }
+          100% { box-shadow: 0 0 0 0 rgba(37,211,102,0); transform: scale(1); }
+        }
+        #btn-abrir-zap { animation: zapPulse 1.2s ease-in-out infinite; }
+      `;
+      document.head.appendChild(st);
+    }
+
     const modal = document.createElement('div');
     modal.id = 'modal-envio-zap';
     modal.style.cssText = [
       'position:fixed;inset:0;z-index:99999',
-      'background:rgba(0,0,0,0.7)',
+      'background:rgba(0,0,0,0.75)',
       'display:flex;align-items:center;justify-content:center',
       'padding:20px;box-sizing:border-box'
     ].join(';');
     modal.innerHTML = `
       <div style="background:white;border-radius:20px;padding:30px 24px;max-width:380px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.4)">
-        <div style="font-size:3rem;margin-bottom:12px">📱</div>
-        <h3 style="margin:0 0 10px;font-size:1.15rem;color:#1a1a2e">Quase lá!</h3>
-        <p style="margin:0 0 18px;font-size:0.92rem;color:#555;line-height:1.5">
-          Seu pedido foi <strong>registrado no sistema</strong>. Agora envie a mensagem no WhatsApp para confirmar!
+        <div style="font-size:3.5rem;margin-bottom:10px">📱</div>
+        <h3 style="margin:0 0 8px;font-size:1.2rem;color:#1a1a2e">Pedido registrado! ✅</h3>
+        <p style="margin:0 0 20px;font-size:0.93rem;color:#555;line-height:1.55">
+          Para <strong>confirmar seu pedido</strong>, toque no botão abaixo e envie a mensagem no WhatsApp.
+          <br><span style="color:#e74c3c;font-weight:700">Sem o envio, o pedido não será aceito.</span>
         </p>
         <button id="btn-abrir-zap"
-          style="width:100%;padding:16px;background:#25D366;color:white;border:none;border-radius:12px;font-size:1.05rem;font-weight:700;cursor:pointer;">
-          <i class="fab fa-whatsapp"></i> Enviar no WhatsApp
+          style="width:100%;padding:18px;background:#25D366;color:white;border:none;border-radius:14px;font-size:1.1rem;font-weight:800;cursor:pointer;letter-spacing:0.3px;">
+          <i class="fab fa-whatsapp"></i> &nbsp;Enviar mensagem no WhatsApp
         </button>
+        <p style="margin:14px 0 0;font-size:0.75rem;color:#aaa;">Este aviso não fecha sozinho. Envie a mensagem para continuar.</p>
       </div>`;
     document.body.appendChild(modal);
 
