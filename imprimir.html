@@ -52,8 +52,8 @@
             padding-bottom: 3px;
             font-weight: bold;
         }
-        td { vertical-align: top; padding: 4px 0; font-weight: 600; }
-        td small { font-size: 12px; font-weight: normal; }
+        td { vertical-align: top; padding: 4px 0; font-weight: 600; font-size: 20px; }
+        td small { font-size: 20px; font-weight: normal; }
 
         .totals       { text-align: right; font-size: 14px; margin-top: 8px; line-height: 1.8; }
         .total-final  { font-size: 22px; font-weight: bold; margin-top: 6px; }
@@ -114,17 +114,17 @@
 
             /* Itens */
             table  { font-size: 20px; }
-            th     { font-size: 18px; font-weight: bold; border-bottom-width: 2px; }
-            td     { padding: 5px 0; font-weight: bold; }
-            td small { font-size: 16px; font-weight: normal; }
+            th     { font-size: 20px; font-weight: bold; border-bottom-width: 2px; }
+            td     { padding: 5px 0; font-weight: bold; font-size: 20px; }
+            td small { font-size: 20px; font-weight: normal; }
 
             /* Observações e variação */
-            td small[style*="color:#555"],  /* variação */
-            td small[style*="color:#2980b9"] /* preparo */ {
-                font-size: 16px;
+            td small[style*="color:#555; font-size: 20px"],  /* variação */
+            td small[style*="color:#2980b9; font-size: 20px"] /* preparo */ {
+                font-size: 20px;
                 font-weight: bold;
             }
-            td strong[style*="font-size:10px"] { /* OBS */
+            td strong[style*="font-size:20px"] { /* OBS */
                 font-size: 17px !important;
                 font-weight: bold;
             }
@@ -176,7 +176,7 @@
                 </tr>
             </thead>
             <tbody id="lista-itens">
-                <tr><td colspan="3" style="text-align:center;padding:10px;">Carregando...</td></tr>
+                <tr><td colspan="3" style="text-align:center;padding:20px;">Carregando...</td></tr>
             </tbody>
         </table>
         <hr>
@@ -286,13 +286,13 @@
                           montagem.forEach(linha => {
                             const idx = linha.indexOf(':');
                             if (idx > 0) {
-                              detalhes += '<br><small style="font-size:10px"><strong>'+linha.slice(0,idx)+':</strong> '+linha.slice(idx+1).trim()+'</small>';
+                              detalhes += '<br><small style="font-size:20px"><strong>'+linha.slice(0,idx)+':</strong> '+linha.slice(idx+1).trim()+'</small>';
                             } else {
-                              detalhes += '<br><small style="font-style:italic; font-size:10px">· '+linha+'</small>';
+                              detalhes += '<br><small style="font-style:italic; font-size:20px">· '+linha+'</small>';
                             }
                           });
                         }
-                        if (observacao) detalhes += '<br><strong style="font-size:10px">OBS: '+observacao+'</strong>';
+                        if (observacao) detalhes += '<br><strong style="font-size:20px">OBS: '+observacao+'</strong>';
                         
                         const total = (preco * quantidade).toLocaleString('es-PY');
                         tr.innerHTML = '<td style="vertical-align:top">'+quantidade+'x</td><td>'+nomeItem+detalhes+'</td><td style="text-align:right">Gs '+total+'</td>';

@@ -465,7 +465,10 @@ async function carregarPedidos(silencioso = false) {
                             <span class="status-badge st-${p.status}" style="font-size:0.7rem">${statusLabel}</span>
                         </div>
                         <div style="display:flex;justify-content:space-between;align-items:center;">
-                            <strong style="font-size:1rem;color:var(--dark)">Gs ${(p.total_geral || 0).toLocaleString('es-PY')}</strong>
+                            <div>
+                              <strong style="font-size:1rem;color:var(--dark)">Gs ${(p.total_geral || 0).toLocaleString('es-PY')}</strong>
+                              ${p.frete_motoboy ? `<div style="font-size:0.72rem;color:#27ae60;margin-top:2px">🛵 Motoboy: Gs ${(p.frete_motoboy).toLocaleString('es-PY')}</div>` : ''}
+                            </div>
                             <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">${cardAcoes}</div>
                         </div>
                         ${badgeCancelCard}
@@ -1713,13 +1716,16 @@ async function salvarProduto() {
     const usaMontavel = ['montavel', 'acai', 'shake', 'suco'];
     if (usaMontavel.includes(tipo)) {
       const etapas = [];
-      document.querySelectorAll('.builder-step-card').forEach((stepDiv) => {
-        const titulo = stepDiv.querySelector('.etapa-titulo')?.value?.trim() || '';
-        const max = parseInt(stepDiv.querySelector('.etapa-max')?.value) || 1;
-        const itens = Array.from(stepDiv.querySelectorAll('.itens-list .item-row input'))
-          .map((inp) => inp.value.trim())
-          .filter(Boolean);
-        if (titulo) etapas.push({ titulo, max, itens });
+      document.querySelectorAll('.etapa-item').forEach((div) => {
+        etapas.push({
+          titulo: div.querySelector('.step-titulo').value,
+          max: parseInt(div.querySelector('.step-max').value),
+          itens: div
+            .querySelector('.step-itens')
+            .value.split(',')
+            .map((s) => s.trim())
+            .filter((s) => s),
+        });
       });
       configFinal.etapas = etapas;
     }
@@ -2078,7 +2084,12 @@ function toggleBuilder() {
   if (isM) selecionarTipoBuilder('montavel');
 }
 
-// addBuilderStep — definição abaixo (linha ~5240), esta foi removida para evitar duplicata
+function addBuilderStep(t = '', m = 1, i = []) {
+  const div = document.createElement('div');
+  div.className = 'etapa-item';
+  div.innerHTML = `<div class="etapa-header"><input type="text" class="form-control step-titulo" value="${t}" placeholder="Título da etapa (ex: Escolha a base)"><input type="number" class="form-control step-max" value="${m}" style="width:70px" title="Máx. seleções"><button class="btn btn-sm btn-danger" onclick="this.parentElement.parentElement.remove()">X</button></div><textarea class="etapa-ingredientes step-itens" placeholder="Itens separados por vírgula. Ex: Arroz, Atum, Salmão, Tofu">${Array.isArray(i) ? i.join(', ') : i}</textarea>`;
+  document.getElementById('builder-steps').appendChild(div);
+}
 
 // ─── VARIAÇÕES DE SABOR BUILDER ───────────────────────────────────
 function addVariacao(dados = {}) {
@@ -3708,6 +3719,9 @@ async function carregarConfiguracoes() {
 
   // Carrega adicionais globais
   await carregarExtrasGlobaisAdmin();
+
+  // Carrega tabela de frete
+  _renderTabelaFrete(data.tabela_frete || null);
 }
 
 async function salvarConfiguracoes() {
@@ -3808,6 +3822,81 @@ function previewIcone(input) {
     if (box) box.style.display = 'block';
   };
   reader.readAsDataURL(input.files[0]);
+}
+
+// =========================================================
+// TABELA DE FRETE
+// =========================================================
+const FRETE_FAIXAS = [
+  { label: '0 – 3 km',      max: 3.0  },
+  { label: '3,1 – 4 km',    max: 4.0  },
+  { label: '4,1 – 5 km',    max: 5.0  },
+  { label: '5,1 – 6 km',    max: 6.0  },
+  { label: '6,1 – 7 km',    max: 7.0  },
+  { label: '7,1 – 8 km',    max: 8.0  },
+  { label: '8,1 – 9 km',    max: 9.0  },
+  { label: '9,1 – 10 km',   max: 10.0 },
+  { label: '10,1 – 11 km',  max: 11.0 },
+  { label: '11,1 – 12 km',  max: 12.0 },
+  { label: '12,1 – 13 km',  max: 13.0 },
+  { label: '13,1 – 14 km',  max: 14.0 },
+  { label: '14,1 – 15 km',  max: 15.0 },
+  { label: '15,1 – 16 km',  max: 16.0 },
+  { label: '16,1 – 17 km',  max: 17.0 },
+  { label: '17,1 – 18 km',  max: 18.0 },
+  { label: '18,1 – 19 km',  max: 19.0 },
+  { label: '19,1 – 20 km',  max: 20.0 },
+];
+
+function _renderTabelaFrete(savedData) {
+  const tbody = document.getElementById('tabela-frete-body');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  FRETE_FAIXAS.forEach((faixa, idx) => {
+    const saved = (savedData && savedData[idx]) || {};
+    const valLoja   = saved.loja   ?? '';
+    const valMoto   = saved.motoboy ?? '';
+    const bg = idx % 2 === 0 ? '#fff' : '#f9f9f9';
+    tbody.innerHTML += `
+      <tr style="background:${bg}">
+        <td style="padding:8px;font-weight:600;white-space:nowrap">${faixa.label}</td>
+        <td style="padding:8px;text-align:center">
+          <input type="number" class="form-control frete-loja" data-idx="${idx}"
+                 value="${valLoja}" placeholder="0" min="0" step="1000"
+                 style="text-align:center;max-width:130px;margin:0 auto;border:1.5px solid #2980b9">
+        </td>
+        <td style="padding:8px;text-align:center">
+          <input type="number" class="form-control frete-motoboy" data-idx="${idx}"
+                 value="${valMoto}" placeholder="0" min="0" step="1000"
+                 style="text-align:center;max-width:130px;margin:0 auto;border:1.5px solid #27ae60">
+        </td>
+      </tr>`;
+  });
+}
+
+async function salvarTabelaFrete() {
+  const tabela = [];
+  FRETE_FAIXAS.forEach((_, idx) => {
+    const loja   = parseInt(document.querySelector(`.frete-loja[data-idx="${idx}"]`)?.value)   || 0;
+    const motoboy = parseInt(document.querySelector(`.frete-motoboy[data-idx="${idx}"]`)?.value) || 0;
+    tabela.push({ loja, motoboy });
+  });
+
+  // Tenta salvar. Se a coluna não existir, orienta o admin.
+  const { error } = await supa.from('configuracoes').update({ tabela_frete: tabela }).gt('id', 0);
+  if (error) {
+    if (error.code === '42703' || (error.message && error.message.includes('tabela_frete'))) {
+      alert(
+        '⚠️ A coluna "tabela_frete" ainda não existe no banco.\n\n' +
+        'Execute no Supabase SQL Editor:\n\n' +
+        'ALTER TABLE configuracoes ADD COLUMN IF NOT EXISTS tabela_frete JSONB DEFAULT NULL;'
+      );
+    } else {
+      alert('Erro ao salvar tabela de frete: ' + error.message);
+    }
+    return;
+  }
+  alert('✅ Tabela de frete salva com sucesso!');
 }
 
 async function salvarPersonalizacao() {

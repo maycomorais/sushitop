@@ -207,12 +207,14 @@ if (typeof supa === 'undefined') {
 // ==========================================
 let carrinho = [];
 let freteCalculado = 0;
+let freteMotoboy = 0; // Valor pago ao motoboy (da tabela de frete)
 let localCliente = null;
 let modoEntrega = 'delivery';
 let prodAtual = null, optAtual = null, qtd = 1;
 let itensMontagem = {};
 let cupomAplicado = null;
 let EXTRAS_GLOBAIS = []; // Adicionais que aparecem em TODOS os produtos
+let TABELA_FRETE = null; // Tabela de frete por faixa de km (carregada do banco)
 
 // ==========================================
 // VARIÁVEIS DE CONTROLE DE HORÁRIO
@@ -308,6 +310,7 @@ async function verificarHorario() {
   if (!data) return;
 
   if (data.cotacao_real) COTACAO_REAL = data.cotacao_real;
+  if (data.tabela_frete && Array.isArray(data.tabela_frete)) TABELA_FRETE = data.tabela_frete;
 
   const agora = new Date();
   const horaAtual = agora.getHours() * 60 + agora.getMinutes();
@@ -686,13 +689,7 @@ function _renderMontavel(item, cfg, container) {
     h4.style.cssText = 'margin-top:10px; font-size:0.95rem; color:#555;';
     container.appendChild(h4);
 
-    // Suporta itens como array de strings ou string separada por vírgula (legado)
-    let listaItens = etapa.itens || [];
-    if (!Array.isArray(listaItens)) {
-      listaItens = String(listaItens).split(',').map(s => s.trim()).filter(Boolean);
-    }
-
-    listaItens.forEach((ingrediente) => {
+    etapa.itens.forEach((ingrediente) => {
       const label = document.createElement('label');
       label.style.cssText = 'display:block; padding:7px 10px; margin-bottom:3px; border:1px solid #eee; border-radius:8px; cursor:pointer;';
       const input = document.createElement('input');
@@ -1878,19 +1875,37 @@ async function calcularFrete() {
       localCliente = { lat: position.coords.latitude, lng: position.coords.longitude };
       const dist = calcularDistancia(COORD_LOJA.lat, COORD_LOJA.lng, localCliente.lat, localCliente.lng);
       
-      // === NOVA TABELA DE FRETE ===
-      if (dist <= 3.3) {
-        freteCalculado = 6000;
-      } else if (dist <= 4.2) {
-        freteCalculado = 12000;
-      } else if (dist <= 5.2) {
-        freteCalculado = 18000;
-      } else if (dist <= 6.2) {
-        freteCalculado = 24000;
+      // === TABELA DE FRETE DINÂMICA (configurada no admin) ===
+      // Faixas: [0-3], [3.1-4], [4.1-5], ..., [19.1-20], >20 = a combinar
+      const LIMITES_KM = [3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20];
+      let freteIndex = -1;
+      for (let i = 0; i < LIMITES_KM.length; i++) {
+        if (dist <= LIMITES_KM[i]) { freteIndex = i; break; }
+      }
+
+      if (freteIndex === -1) {
+        // Acima de 20km
+        freteCalculado = -1; // sentinela: a combinar
+        msg.innerHTML = `<span style="color:#e67e22">⚠️ Distância: ${dist.toFixed(1)}km — Frete <strong>a combinar</strong> pelo WhatsApp.</span>`;
+        msg.style.color = '#e67e22';
+        boxErro.style.display = 'none';
+        btn.innerText = '✅ Localização OK';
+        btn.disabled = false;
+        atualizarTotalCheckout();
+        return;
+      }
+
+      if (TABELA_FRETE && TABELA_FRETE[freteIndex] !== undefined) {
+        freteCalculado = TABELA_FRETE[freteIndex].loja || 0;
+        freteMotoboy   = TABELA_FRETE[freteIndex].motoboy || 0;
       } else {
-        // Acima de 6.3km: 24.000 + 3.000 por km adicional
-        const kmExtra = Math.ceil(dist - 6.2);
-        freteCalculado = 24000 + (kmExtra * 3000);
+        // Fallback se tabela não configurada: faixas padrão antigas
+        if (dist <= 3.3)       freteCalculado = 6000;
+        else if (dist <= 4.2)  freteCalculado = 12000;
+        else if (dist <= 5.2)  freteCalculado = 18000;
+        else if (dist <= 6.2)  freteCalculado = 24000;
+        else { const kmExtra = Math.ceil(dist - 6.2); freteCalculado = 24000 + (kmExtra * 3000); }
+        freteMotoboy = freteCalculado; // sem tabela, assume igual ao loja
       }
       
       msg.innerHTML = `<span style="color:#27ae60">✅ Distância: ${dist.toFixed(1)}km - Frete: Gs ${freteCalculado.toLocaleString('es-PY')}</span>`;
@@ -2013,6 +2028,7 @@ async function enviarZap() {
       tipo_entrega: modoEntrega,
       subtotal: totalItens,
       frete_cobrado_cliente: modoEntrega === 'delivery' ? freteAplicado : 0,
+      frete_motoboy: modoEntrega === 'delivery' ? freteMotoboy : 0,
       desconto_cupom: desconto,
       total_geral: totalGeral,
       forma_pagamento: pag,

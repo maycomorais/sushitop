@@ -819,6 +819,45 @@
             <i class="fas fa-paint-brush"></i> Salvar Personalização
           </button>
         </div>
+
+        <!-- ===== TABELA DE FRETE ===== -->
+        <div class="card cfg-card" style="margin-top:16px">
+          <div class="cfg-section-title">
+            <i class="fas fa-motorcycle"></i> Tabela de Frete por KM
+            <small style="font-weight:400;color:#888;font-size:0.82rem;display:block;margin-top:4px">
+              Defina o valor cobrado do <strong>cliente</strong> e o valor pago ao <strong>motoboy</strong> por faixa de distância.
+              Acima de 20km será exibido "A combinar" para o cliente.
+            </small>
+          </div>
+
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:0.88rem">
+              <thead>
+                <tr style="background:#f4f6f8">
+                  <th style="padding:10px 8px;text-align:left;border-bottom:2px solid #e0e0e0;white-space:nowrap">Faixa (km)</th>
+                  <th style="padding:10px 8px;text-align:center;border-bottom:2px solid #e0e0e0;color:#2980b9">💰 Valor Loja (Gs)</th>
+                  <th style="padding:10px 8px;text-align:center;border-bottom:2px solid #e0e0e0;color:#27ae60">🛵 Valor Motoboy (Gs)</th>
+                </tr>
+              </thead>
+              <tbody id="tabela-frete-body">
+                <!-- Gerado pelo JS -->
+              </tbody>
+              <tfoot>
+                <tr style="background:#fff8e6">
+                  <td style="padding:10px 8px;font-weight:700;border-top:2px dashed #e0e0e0">Acima de 20 km</td>
+                  <td colspan="2" style="padding:10px 8px;text-align:center;color:#e67e22;font-weight:700;border-top:2px dashed #e0e0e0">
+                    🤝 A Combinar
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <button class="btn btn-primary" onclick="salvarTabelaFrete()" style="margin-top:16px;width:100%">
+            <i class="fas fa-save"></i> Salvar Tabela de Frete
+          </button>
+        </div>
+
       </div>
 
     </div><!-- /main-content -->
