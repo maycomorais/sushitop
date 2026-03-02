@@ -1716,17 +1716,36 @@ async function salvarProduto() {
     const usaMontavel = ['montavel', 'acai', 'shake', 'suco'];
     if (usaMontavel.includes(tipo)) {
       const etapas = [];
-      document.querySelectorAll('.etapa-item').forEach((div) => {
-        etapas.push({
-          titulo: div.querySelector('.step-titulo').value,
-          max: parseInt(div.querySelector('.step-max').value),
-          itens: div
-            .querySelector('.step-itens')
-            .value.split(',')
-            .map((s) => s.trim())
-            .filter((s) => s),
+
+      // Suporta AMBOS os formatos de builder:
+      // Formato novo: .builder-step-card com .etapa-titulo, .etapa-max e inputs individuais por item
+      // Formato antigo: .etapa-item com .step-titulo, .step-max e .step-itens (textarea)
+      const novosCards = document.querySelectorAll('.builder-step-card');
+      if (novosCards.length > 0) {
+        novosCards.forEach((div) => {
+          const titulo = div.querySelector('.etapa-titulo')?.value?.trim() || '';
+          const max = parseInt(div.querySelector('.etapa-max')?.value) || 1;
+          const itens = [];
+          div.querySelectorAll('.itens-list input[type="text"]').forEach((inp) => {
+            const v = inp.value.trim();
+            if (v) itens.push(v);
+          });
+          etapas.push({ titulo, max, itens });
         });
-      });
+      } else {
+        // Fallback para formato antigo (.etapa-item)
+        document.querySelectorAll('.etapa-item').forEach((div) => {
+          etapas.push({
+            titulo: div.querySelector('.step-titulo')?.value?.trim() || '',
+            max: parseInt(div.querySelector('.step-max')?.value) || 1,
+            itens: (div.querySelector('.step-itens')?.value || '')
+              .split(',')
+              .map((s) => s.trim())
+              .filter((s) => s),
+          });
+        });
+      }
+
       configFinal.etapas = etapas;
     }
 
@@ -2084,12 +2103,7 @@ function toggleBuilder() {
   if (isM) selecionarTipoBuilder('montavel');
 }
 
-function addBuilderStep(t = '', m = 1, i = []) {
-  const div = document.createElement('div');
-  div.className = 'etapa-item';
-  div.innerHTML = `<div class="etapa-header"><input type="text" class="form-control step-titulo" value="${t}" placeholder="Título da etapa (ex: Escolha a base)"><input type="number" class="form-control step-max" value="${m}" style="width:70px" title="Máx. seleções"><button class="btn btn-sm btn-danger" onclick="this.parentElement.parentElement.remove()">X</button></div><textarea class="etapa-ingredientes step-itens" placeholder="Itens separados por vírgula. Ex: Arroz, Atum, Salmão, Tofu">${Array.isArray(i) ? i.join(', ') : i}</textarea>`;
-  document.getElementById('builder-steps').appendChild(div);
-}
+// addBuilderStep definida abaixo (versão nova com builder-step-card)
 
 // ─── VARIAÇÕES DE SABOR BUILDER ───────────────────────────────────
 function addVariacao(dados = {}) {
