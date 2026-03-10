@@ -402,6 +402,15 @@
       </select>
     </div>
 
+    <!-- FILTRO DE CAIXA — visível apenas para o dono (JS controla display) -->
+    <div class="filtro-group" id="filtro-caixa-grupo" style="display:none">
+      <label><i class="fas fa-cash-register"></i> Caixa / Operador</label>
+      <select id="fin-caixa" onchange="calcularFinanceiro()">
+        <option value="todos">🏦 Todos os Caixas</option>
+        <!-- Operadores carregados pelo JS -->
+      </select>
+    </div>
+
     <button class="btn-filtrar" onclick="calcularFinanceiro()">
       <i class="fas fa-filter"></i> Filtrar
     </button>
@@ -420,6 +429,10 @@
     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px">
       <div style="width: 4px; height: 20px; background: var(--primary); border-radius: 2px"></div>
       <h3 style="margin: 0; color: #444">Controle de Caixa</h3>
+      <!-- Badge dinâmico mostrando qual caixa está aberto -->
+      <span id="caixa-titulo-operador" style="margin-left:auto; font-size:0.82rem; background:#e8f5e9; color:#2e7d32; border-radius:20px; padding:4px 12px; font-weight:600; border:1px solid #a5d6a7;">
+        🖥️ Meu Caixa
+      </span>
     </div>
 
     <div class="actions-grid">

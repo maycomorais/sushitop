@@ -2,15 +2,18 @@
 // 1. CONSTANTES E INICIALIZAÇÃO
 // =========================================
 const TAXA_MOTOBOY = 5000;
-const AJUDA_COMBUSTIVEL = 20000;
+let AJUDA_COMBUSTIVEL = 20000; // Carregado do banco em carregarConfiguracoes()
 const COORD_LOJA = { lat: -25.2365803, lng: -57.5380816 };
 
 let perfilUsuario = null;
+// Dados do operador logado — preenchidos no DOMContentLoaded
+window._operadorId = null; // UUID do auth.users
+window._operadorNome = null; // email ou nome para exibição
 let audioHabilitado = false; // Controle de permissão do navegador
 
 document.addEventListener('DOMContentLoaded', async () => {
   // Recupera a última aba ou define padrão
-  let lastTab = localStorage.getItem('lastTab');
+  let lastTab = localStorage.getItem('cantinho_lastTab');
   if (!lastTab || !document.getElementById(lastTab)) {
     lastTab = 'pedidos';
   }
@@ -22,7 +25,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // === SISTEMA DE AUTO-REFRESH (10 SEGUNDOS) ===
   // Backup caso o Realtime falhe
   setInterval(() => {
-    const abaAtual = localStorage.getItem('lastTab');
+    const abaAtual = localStorage.getItem('cantinho_lastTab');
     // true = modo silencioso (sem recarregar som se já estiver tocando)
     if (abaAtual === 'pedidos') carregarPedidos(true);
     if (abaAtual === 'cozinha') carregarCozinha();
@@ -40,9 +43,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       .eq('id', session.user.id)
       .single();
 
-    perfilUsuario = perfil ? perfil.cargo : 'gerente';
+    perfilUsuario = perfil ? perfil.cargo : 'dono'; // fallback: sem perfil = dono (instalação nova)
+
+    // ── Guarda dados do operador logado globalmente ──
+    window._operadorId = session.user.id;
+    window._operadorNome = session.user.email;
+
     const elCargo = document.getElementById('user-cargo');
     if (elCargo) elCargo.innerText = perfilUsuario.toUpperCase();
+
+    // Email no topo do sidebar
+    const elEmail = document.getElementById('user-email');
+    if (elEmail) elEmail.innerText = window._operadorNome;
 
     if (perfilUsuario === 'dono') {
       const menuFin = document.getElementById('menu-financeiro');
@@ -53,9 +65,44 @@ document.addEventListener('DOMContentLoaded', async () => {
     carregarMotoboysSelect();
   }
 
-  window.addEventListener('resize', () => {
-    if (document.getElementById('pdv')?.classList.contains('active')) pdvIniciarTabs();
-  });
+  // ── Resize: usa visualViewport para ignorar abertura de teclado virtual ──────
+  // O teclado virtual reduz o viewport mas NÃO é um resize real de janela.
+  // Usando visualViewport.height como referência, só chamamos pdvIniciarTabs()
+  // quando a janela realmente muda de tamanho (rotação, expansão de janela).
+  let _vvHeightBase = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+
+  const _onRealResize = () => {
+    const currentH = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    const currentW = window.innerWidth;
+    // Considera resize real apenas quando a largura muda OU altura aumenta
+    // (teclado fechando) em mais de 150px — evita loop de teclado abrindo
+    const alturaAumentou = currentH > _vvHeightBase + 150;
+    const larguraMudou = Math.abs(currentW - (window._pdvLastW || currentW)) > 50;
+    window._pdvLastW = currentW;
+    _vvHeightBase = currentH;
+
+    if (!alturaAumentou && !larguraMudou) return; // só teclado abrindo — ignora
+
+    if (document.getElementById('pdv')?.classList.contains('active')) {
+      pdvIniciarTabs(true); // true = preservar aba atual
+    }
+  };
+
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', _onRealResize);
+  } else {
+    window.addEventListener('resize', () => {
+      const activeEl = document.activeElement;
+      const isKeyboardOpen =
+        activeEl &&
+        (activeEl.tagName === 'INPUT' ||
+          activeEl.tagName === 'TEXTAREA' ||
+          activeEl.tagName === 'SELECT' ||
+          activeEl.isContentEditable);
+      if (isKeyboardOpen) return;
+      if (document.getElementById('pdv')?.classList.contains('active')) pdvIniciarTabs(true);
+    });
+  }
 
   // === DESBLOQUEIO DE SOM — AudioContext (sem AbortError) ===
   // play().then(pause()) SEMPRE gera AbortError no Chrome. Usamos buffer silencioso.
@@ -104,7 +151,7 @@ function showTab(tabId, event) {
     realTabId = 'pedidos';
   }
 
-  localStorage.setItem('lastTab', realTabId);
+  localStorage.setItem('cantinho_lastTab', realTabId);
 
   // 2. Reset visual
   document.querySelectorAll('.tab-content').forEach((t) => t.classList.remove('active'));
@@ -135,9 +182,19 @@ function showTab(tabId, event) {
   }
 
   // 6. Carregamento de dados
-  if (realTabId === 'pedidos') { carregarPedidos(); carregarStatusDelivery(); }
+  if (realTabId === 'pedidos') {
+    carregarPedidos();
+    carregarStatusDelivery();
+  }
   if (realTabId === 'cozinha') carregarCozinha();
-  if (realTabId === 'financeiro') calcularFinanceiro();
+  if (realTabId === 'financeiro') {
+    // Mostra o filtro de caixa/operador apenas para o dono
+    const filtroCaixaGrupo = document.getElementById('filtro-caixa-grupo');
+    if (filtroCaixaGrupo) {
+      filtroCaixaGrupo.style.display = perfilUsuario === 'dono' ? '' : 'none';
+    }
+    calcularFinanceiro();
+  }
   if (realTabId === 'dashboard') carregarDashboard();
   if (realTabId === 'pdv') carregarPDV();
   if (realTabId === 'equipe') carregarEquipe();
@@ -183,7 +240,7 @@ function iniciarRealtime() {
       }
       // Atualiza tela — silencioso=true em updates para não re-tocar alarme
       const silencioso = payload.eventType === 'UPDATE';
-      const abaAtual = localStorage.getItem('lastTab');
+      const abaAtual = localStorage.getItem('cantinho_lastTab');
       if (abaAtual === 'pedidos') carregarPedidos(silencioso);
       if (abaAtual === 'cozinha') carregarCozinha();
       if (abaAtual === 'dashboard') carregarDashboard();
@@ -277,17 +334,21 @@ async function carregarPedidos(silencioso = false) {
   // ── AUTO-CONFIRM: pedidos saiu_entrega há mais de 4h ──────────────────────
   const _QUATRO_HORAS_MS = 4 * 60 * 60 * 1000;
   const _agora = Date.now();
-  const pedidosParaAutoConfirmar = (pedidos || []).filter(p =>
-    p.status === 'saiu_entrega' &&
-    p.tempo_saiu_entrega &&
-    (_agora - new Date(p.tempo_saiu_entrega).getTime()) > _QUATRO_HORAS_MS
+  const pedidosParaAutoConfirmar = (pedidos || []).filter(
+    (p) =>
+      p.status === 'saiu_entrega' &&
+      p.tempo_saiu_entrega &&
+      _agora - new Date(p.tempo_saiu_entrega).getTime() > _QUATRO_HORAS_MS,
   );
   for (const p of pedidosParaAutoConfirmar) {
     console.log(`⏰ Auto-confirmando entrega do pedido #${p.id} (mais de 4h em saiu_entrega)`);
-    await supa.from('pedidos').update({
-      status: 'entregue',
-      tempo_entregue: new Date().toISOString()
-    }).eq('id', p.id);
+    await supa
+      .from('pedidos')
+      .update({
+        status: 'entregue',
+        tempo_entregue: new Date().toISOString(),
+      })
+      .eq('id', p.id);
   }
   // ───────────────────────────────────────────────────────────────────────────
 
@@ -467,7 +528,7 @@ async function carregarPedidos(silencioso = false) {
                         <div style="display:flex;justify-content:space-between;align-items:center;">
                             <div>
                               <strong style="font-size:1rem;color:var(--dark)">Gs ${(p.total_geral || 0).toLocaleString('es-PY')}</strong>
-                              ${p.frete_motoboy ? `<div style="font-size:0.72rem;color:#27ae60;margin-top:2px">🛵 Motoboy: Gs ${(p.frete_motoboy).toLocaleString('es-PY')}</div>` : ''}
+                              ${p.frete_motoboy ? `<div style="font-size:0.72rem;color:#27ae60;margin-top:2px">🛵 Motoboy: Gs ${p.frete_motoboy.toLocaleString('es-PY')}</div>` : ''}
                             </div>
                             <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">${cardAcoes}</div>
                         </div>
@@ -607,7 +668,7 @@ async function mudarStatus(id, novoStatus) {
 
   if (typeof pararAlarme === 'function') pararAlarme();
 
-  const abaAtual = localStorage.getItem('lastTab');
+  const abaAtual = localStorage.getItem('cantinho_lastTab');
   if (abaAtual === 'cozinha') carregarCozinha();
   else if (abaAtual === 'pedidos') carregarPedidos();
   else if (abaAtual === 'pdv') carregarMonitorMesas();
@@ -648,6 +709,31 @@ async function imprimirPedido(id) {
     .replace(/=+$/, '');
 
   // Abre a janela de impressão
+  window.open(`imprimir.html?d=${base64}`, 'Print', 'width=420,height=700');
+}
+
+// Imprime direto dos dados locais — sem fetch extra ao banco
+function _imprimirPedidoLocal(pedidoObj, itens) {
+  const dados = {
+    id: pedidoObj.uid_temporal || pedidoObj.id || 'PDV',
+    cliente: { nome: pedidoObj.cliente_nome, tel: pedidoObj.cliente_telefone },
+    entrega: { tipo: pedidoObj.tipo_entrega, ref: pedidoObj.endereco_entrega },
+    itens: itens.map((i) => ({
+      q: i.qtd || 1,
+      n: i.nome,
+      p: i.preco || 0,
+      t: i.variacao || '',
+      pr: i.preparo || '',
+      m: i.montagem || [],
+      o: i.obs || '',
+    })),
+    valores: { sub: pedidoObj.subtotal, frete: pedidoObj.frete_cobrado_cliente || 0, total: pedidoObj.total_geral },
+    pagamento: { metodo: pedidoObj.forma_pagamento, obs: pedidoObj.obs_pagamento },
+    factura: null,
+    data: new Date().toLocaleString('pt-BR'),
+  };
+  const base64 = btoa(unescape(encodeURIComponent(JSON.stringify(dados))))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   window.open(`imprimir.html?d=${base64}`, 'Print', 'width=420,height=700');
 }
 
@@ -701,8 +787,8 @@ async function carregarCozinha() {
     itensPendentes.forEach((item) => {
       const quantidade = item.qtd || item.q || 1;
       const nomeItem = item.nome || item.n || 'Item';
-      const variacaoItem = item.variacao || item.t || '';   // variação separada do nome
-      const preparoItem = item.preparo || item.pr || '';    // preparo (cru/flambado etc)
+      const variacaoItem = item.variacao || item.t || ''; // variação separada do nome
+      const preparoItem = item.preparo || item.pr || ''; // preparo (cru/flambado etc)
       const observacao = item.obs || item.o || '';
       const montagemArray = item.montagem || item.m || [];
 
@@ -710,13 +796,15 @@ async function carregarCozinha() {
         ? `<div style="color:#e74c3c; font-size:0.85rem">⚠️ ${observacao}</div>`
         : '';
       const listaMontagem = Array.isArray(montagemArray)
-        ? montagemArray.map(linha => {
-            const idx = linha.indexOf(':');
-            if (idx > 0) {
-              return `<strong>${linha.slice(0, idx)}:</strong> ${linha.slice(idx + 1).trim()}`;
-            }
-            return linha;
-          }).join('<br>')
+        ? montagemArray
+            .map((linha) => {
+              const idx = linha.indexOf(':');
+              if (idx > 0) {
+                return `<strong>${linha.slice(0, idx)}:</strong> ${linha.slice(idx + 1).trim()}`;
+              }
+              return linha;
+            })
+            .join('<br>')
         : '';
       const montagem = listaMontagem
         ? `<div style="font-size:0.8rem; color:#444; margin-left:10px; line-height:1.6;">${listaMontagem}</div>`
@@ -784,18 +872,49 @@ async function calcularFinanceiro() {
 
   console.log('💰 Calculando Financeiro...');
 
+  // Inicializa dropdown de operadores se dono
+  if (perfilUsuario === 'dono') {
+    await _garantirDropdownOperadores();
+  }
+
   // Pega elementos do DOM
   const elInicio = document.getElementById('fin-inicio');
   const elFim = document.getElementById('fin-fim');
   const elTipo = document.getElementById('fin-tipo');
-  const elFactura = document.getElementById('fin-factura'); // NOVO filtro
+  const elFactura = document.getElementById('fin-factura');
+  const elCaixa = document.getElementById('fin-caixa'); // Só existe para o dono
 
   if (!elInicio || !elFim || !elTipo) return;
 
   const inicio = elInicio.value;
   const fim = elFim.value;
   const tipoFiltro = elTipo.value;
-  const facturaFiltro = elFactura ? elFactura.value : 'todos'; // NOVO
+  const facturaFiltro = elFactura ? elFactura.value : 'todos';
+
+  // Qual operador filtrar?
+  // dono com "todos" → sem filtro | dono com operador específico → filtra | gerente/func → próprio ID
+  let filtroOperadorId = null;
+  if (perfilUsuario === 'dono') {
+    const selVal = elCaixa ? elCaixa.value : 'todos';
+    filtroOperadorId = selVal && selVal !== 'todos' ? selVal : null;
+  } else {
+    filtroOperadorId = window._operadorId; // funcionário/gerente vê só o seu
+  }
+
+  // ── Atualiza cabeçalho do caixa ──────────────────────────────────
+  const elCaixaTitulo = document.getElementById('caixa-titulo-operador');
+  if (elCaixaTitulo) {
+    if (perfilUsuario === 'dono') {
+      if (filtroOperadorId) {
+        const nomeOp = elCaixa?.options[elCaixa.selectedIndex]?.text || filtroOperadorId;
+        elCaixaTitulo.textContent = `🖥️ Caixa: ${nomeOp}`;
+      } else {
+        elCaixaTitulo.textContent = '🏦 Caixa Geral (Todos os Operadores)';
+      }
+    } else {
+      elCaixaTitulo.textContent = `🖥️ Meu Caixa — ${window._operadorNome || ''}`;
+    }
+  }
 
   let dataInicio, dataFim;
 
@@ -817,20 +936,18 @@ async function calcularFinanceiro() {
   }
 
   // ========================================
-  // 1. BUSCA PEDIDOS (CORRIGIDO)
+  // 1. BUSCA PEDIDOS
   // ========================================
-  // Paraguay = UTC-4 → shift local dates to UTC for correct Supabase filtering
-  // e.g. local 2026-02-26 00:00 = UTC 2026-02-26 04:00
-  const _tzOffsetMs = 4 * 60 * 60 * 1000; // UTC-4 in ms
+  const _tzOffsetMs = 4 * 60 * 60 * 1000;
   const _localToUTC = (localDateStr, isEnd) => {
     const d = new Date(localDateStr + (isEnd ? 'T23:59:59' : 'T00:00:00'));
     return new Date(d.getTime() + _tzOffsetMs).toISOString();
   };
-  const utcInicio = dataInicio.includes('T') ? dataInicio : _localToUTC(dataInicio.split(' ')[0], false);
-  const utcFim    = dataFim.includes('T')    ? dataFim    : _localToUTC(dataFim.split(' ')[0], true);
+  const utcInicio = dataInicio.includes('T')
+    ? dataInicio
+    : _localToUTC(dataInicio.split(' ')[0], false);
+  const utcFim = dataFim.includes('T') ? dataFim : _localToUTC(dataFim.split(' ')[0], true);
 
-  // Financeiro inclui todos os status exceto pendente e cancelado
-  // (em_preparo = PDV em andamento; pronto/saiu/entregue = delivery em curso ou finalizado)
   let query = supa
     .from('pedidos')
     .select('*, motoboys(nome)')
@@ -838,9 +955,19 @@ async function calcularFinanceiro() {
     .gte('created_at', utcInicio)
     .lte('created_at', utcFim);
 
-  // Filtro por forma de pagamento
   if (tipoFiltro !== 'todos') {
-    query = query.eq('forma_pagamento', tipoFiltro); // ← CORRIGIDO: campo certo
+    query = query.eq('forma_pagamento', tipoFiltro);
+  }
+
+  // ── Filtro por operador ──────────────────────────
+  // Para funcionário/gerente: filtra por operador_id (pedidos do seu PDV)
+  // Para dono com operador selecionado: filtra pelo operador escolhido
+  // Para dono com "todos": inclui todos (pedidos do app + PDV)
+  if (filtroOperadorId) {
+    query = query.eq('operador_id', filtroOperadorId);
+  } else if (perfilUsuario !== 'dono') {
+    // Segurança extra: jamais mostra tudo para não-donos
+    query = query.eq('operador_id', window._operadorId);
   }
 
   const { data: pedidos, error } = await query;
@@ -865,13 +992,21 @@ async function calcularFinanceiro() {
   }
 
   // ========================================
-  // 3. BUSCA MOVIMENTAÇÕES DE CAIXA
+  // 3. BUSCA MOVIMENTAÇÕES DE CAIXA (filtrado por operador)
   // ========================================
-  const { data: caixa } = await supa
+  let qCaixa = supa
     .from('movimentacoes_caixa')
     .select('*')
     .gte('created_at', dataInicio)
     .lte('created_at', dataFim);
+
+  if (filtroOperadorId) {
+    qCaixa = qCaixa.eq('operador_id', filtroOperadorId);
+  } else if (perfilUsuario !== 'dono') {
+    qCaixa = qCaixa.eq('operador_id', window._operadorId);
+  }
+
+  const { data: caixa } = await qCaixa;
 
   // ========================================
   // 4. CÁLCULOS
@@ -1001,17 +1136,46 @@ async function calcularFinanceiro() {
   });
 }
 
+// ── Preenche o dropdown de operadores (apenas para o dono) ──────────────────
+let _operadoresCarregados = false;
+async function _garantirDropdownOperadores() {
+  const el = document.getElementById('fin-caixa');
+  if (!el || _operadoresCarregados) return;
+  _operadoresCarregados = true;
+
+  const { data } = await supa.from('perfis_acesso').select('id, email, cargo').order('cargo');
+  if (!data) return;
+
+  // Mantém a opção "Todos" já presente no HTML
+  data.forEach((u) => {
+    const opt = document.createElement('option');
+    opt.value = u.id;
+    opt.textContent = `${u.email} (${u.cargo})`;
+    el.appendChild(opt);
+  });
+}
+
 async function exportarFinanceiro() {
   // 1. Pega os mesmos filtros da tela
   const elInicio = document.getElementById('fin-inicio');
   const elFim = document.getElementById('fin-fim');
   const elTipo = document.getElementById('fin-tipo');
   const elFactura = document.getElementById('fin-factura');
+  const elCaixa = document.getElementById('fin-caixa');
 
   const inicio = elInicio.value;
   const fim = elFim.value;
   const tipoFiltro = elTipo ? elTipo.value : 'todos';
   const facturaFiltro = elFactura ? elFactura.value : 'todos';
+
+  // Mesma lógica de filtro de operador usada em calcularFinanceiro
+  let filtroOperadorId = null;
+  if (perfilUsuario === 'dono') {
+    const selVal = elCaixa ? elCaixa.value : 'todos';
+    filtroOperadorId = selVal && selVal !== 'todos' ? selVal : null;
+  } else {
+    filtroOperadorId = window._operadorId;
+  }
 
   // Define período
   const hoje = new Date();
@@ -1038,6 +1202,11 @@ async function exportarFinanceiro() {
 
   if (tipoFiltro !== 'todos') {
     query = query.eq('forma_pagamento', tipoFiltro);
+  }
+  if (filtroOperadorId) {
+    query = query.eq('operador_id', filtroOperadorId);
+  } else if (perfilUsuario !== 'dono') {
+    query = query.eq('operador_id', window._operadorId);
   }
 
   const { data: pedidos, error } = await query;
@@ -1186,40 +1355,49 @@ async function carregarRelatorio() {
     return Math.floor(diff / 60) + 'h ' + (diff % 60) + 'm';
   };
   const fmtHora = (t) =>
-    t ? new Date(t).toLocaleTimeString('pt-BR', {
-          hour: '2-digit', minute: '2-digit',
-          timeZone: 'America/Asuncion'
-        }) : '-';
+    t
+      ? new Date(t).toLocaleTimeString('pt-BR', {
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone: 'America/Asuncion',
+        })
+      : '-';
   const scMap = {
-    pendente:       { bg:'#fff3cd', color:'#856404', label:'⏳ Pendente' },
-    em_preparo:     { bg:'#ffe5d0', color:'#a63c06', label:'🔥 Em Preparo' },
-    pronto_entrega: { bg:'#d1ecf1', color:'#0c5460', label:'📦 Pronto' },
-    saiu_entrega:   { bg:'#d4edda', color:'#155724', label:'🛵 Saiu' },
-    entregue:       { bg:'#d4edda', color:'#155724', label:'✅ Entregue' },
-    cancelado:      { bg:'#f8d7da', color:'#721c24', label:'❌ Cancelado' },
+    pendente: { bg: '#fff3cd', color: '#856404', label: '⏳ Pendente' },
+    em_preparo: { bg: '#ffe5d0', color: '#a63c06', label: '🔥 Em Preparo' },
+    pronto_entrega: { bg: '#d1ecf1', color: '#0c5460', label: '📦 Pronto' },
+    saiu_entrega: { bg: '#d4edda', color: '#155724', label: '🛵 Saiu' },
+    entregue: { bg: '#d4edda', color: '#155724', label: '✅ Entregue' },
+    cancelado: { bg: '#f8d7da', color: '#721c24', label: '❌ Cancelado' },
   };
 
   (pedidos || []).forEach((p) => {
-    const sc = scMap[p.status] || { bg:'#f0f0f0', color:'#333', label: p.status };
+    const sc = scMap[p.status] || { bg: '#f0f0f0', color: '#333', label: p.status };
     const isPDV = p.tipo_entrega === 'balcao';
 
-    const itensList = (p.itens || []).map((i) => {
-      const qtd  = i.qtd || i.q || 1;
-      const nome = i.nome || i.n || '?';
-      const variacao = i.variacao || i.t || '';
-      const montagem = i.montagem || i.m || [];
-      let lbl = `<strong>${qtd}x</strong> ${nome}`;
-      if (variacao && variacao !== nome) lbl += ` <span style="color:#e67e22">▸ ${variacao}</span>`;
-      if (montagem.length > 0) {
-        const montagemHtml = montagem.map(linha => {
-          const idx = linha.indexOf(':');
-          if (idx > 0) return `<strong>${linha.slice(0, idx)}:</strong> ${linha.slice(idx + 1).trim()}`;
-          return linha;
-        }).join(' · ');
-        lbl += ` <span style="color:#555;font-size:0.78em">(${montagemHtml})</span>`;
-      }
-      return lbl;
-    }).join('<br>');
+    const itensList = (p.itens || [])
+      .map((i) => {
+        const qtd = i.qtd || i.q || 1;
+        const nome = i.nome || i.n || '?';
+        const variacao = i.variacao || i.t || '';
+        const montagem = i.montagem || i.m || [];
+        let lbl = `<strong>${qtd}x</strong> ${nome}`;
+        if (variacao && variacao !== nome)
+          lbl += ` <span style="color:#e67e22">▸ ${variacao}</span>`;
+        if (montagem.length > 0) {
+          const montagemHtml = montagem
+            .map((linha) => {
+              const idx = linha.indexOf(':');
+              if (idx > 0)
+                return `<strong>${linha.slice(0, idx)}:</strong> ${linha.slice(idx + 1).trim()}`;
+              return linha;
+            })
+            .join(' · ');
+          lbl += ` <span style="color:#555;font-size:0.78em">(${montagemHtml})</span>`;
+        }
+        return lbl;
+      })
+      .join('<br>');
 
     // Cancelamento info
     let cancelInfo = '';
@@ -1234,36 +1412,73 @@ async function carregarRelatorio() {
 
     // Tipo badge
     const tipoBadges = {
-      balcao:   '<span style="background:#e8f4f8;color:#1a6e8a;border-radius:10px;padding:2px 7px;font-size:0.68rem;font-weight:700">🏪 PDV</span>',
-      delivery: '<span style="background:#e8f7e8;color:#1a6e2e;border-radius:10px;padding:2px 7px;font-size:0.68rem;font-weight:700">🛵 Delivery</span>',
-      retirada: '<span style="background:#f7f0e8;color:#6e4a1a;border-radius:10px;padding:2px 7px;font-size:0.68rem;font-weight:700">🚶 Retirada</span>',
+      balcao:
+        '<span style="background:#e8f4f8;color:#1a6e8a;border-radius:10px;padding:2px 7px;font-size:0.68rem;font-weight:700">🏪 PDV</span>',
+      delivery:
+        '<span style="background:#e8f7e8;color:#1a6e2e;border-radius:10px;padding:2px 7px;font-size:0.68rem;font-weight:700">🛵 Delivery</span>',
+      retirada:
+        '<span style="background:#f7f0e8;color:#6e4a1a;border-radius:10px;padding:2px 7px;font-size:0.68rem;font-weight:700">🚶 Retirada</span>',
     };
     const tipoBadge = tipoBadges[p.tipo_entrega] || '';
 
     // Timeline — PDV tem etapas diferentes
-    const tl = isPDV ? [
-      { icon:'🏪', label:'Abertura', val: fmtHora(p.tempo_recebido || p.created_at), diff: null },
-      { icon:'🔥', label:'Cozinha',  val: fmtHora(p.tempo_preparo_iniciado),          diff: null },
-      { icon:'📦', label:'Pronto',   val: fmtHora(p.tempo_pronto),                    diff: fmtDiff(p.tempo_preparo_iniciado, p.tempo_pronto) },
-      { icon:'✅', label:'Fechado',  val: fmtHora(p.tempo_entregue),                  diff: fmtDiff(p.tempo_recebido || p.created_at, p.tempo_entregue) },
-    ] : [
-      { icon:'📥', label:'Recebido', val: fmtHora(p.tempo_recebido),         diff: null },
-      { icon:'✅', label:'Aceite',   val: fmtHora(p.tempo_confirmado),        diff: fmtDiff(p.tempo_recebido, p.tempo_confirmado) },
-      { icon:'🔥', label:'Cozinha',  val: fmtHora(p.tempo_preparo_iniciado),  diff: null },
-      { icon:'📦', label:'Pronto',   val: fmtHora(p.tempo_pronto),            diff: fmtDiff(p.tempo_preparo_iniciado, p.tempo_pronto) },
-      { icon:'🛵', label:'Saiu',     val: fmtHora(p.tempo_saiu_entrega),      diff: null },
-      { icon:'🏠', label:'Entregue', val: fmtHora(p.tempo_entregue),          diff: fmtDiff(p.tempo_saiu_entrega, p.tempo_entregue) },
-    ];
+    const tl = isPDV
+      ? [
+          {
+            icon: '🏪',
+            label: 'Abertura',
+            val: fmtHora(p.tempo_recebido || p.created_at),
+            diff: null,
+          },
+          { icon: '🔥', label: 'Cozinha', val: fmtHora(p.tempo_preparo_iniciado), diff: null },
+          {
+            icon: '📦',
+            label: 'Pronto',
+            val: fmtHora(p.tempo_pronto),
+            diff: fmtDiff(p.tempo_preparo_iniciado, p.tempo_pronto),
+          },
+          {
+            icon: '✅',
+            label: 'Fechado',
+            val: fmtHora(p.tempo_entregue),
+            diff: fmtDiff(p.tempo_recebido || p.created_at, p.tempo_entregue),
+          },
+        ]
+      : [
+          { icon: '📥', label: 'Recebido', val: fmtHora(p.tempo_recebido), diff: null },
+          {
+            icon: '✅',
+            label: 'Aceite',
+            val: fmtHora(p.tempo_confirmado),
+            diff: fmtDiff(p.tempo_recebido, p.tempo_confirmado),
+          },
+          { icon: '🔥', label: 'Cozinha', val: fmtHora(p.tempo_preparo_iniciado), diff: null },
+          {
+            icon: '📦',
+            label: 'Pronto',
+            val: fmtHora(p.tempo_pronto),
+            diff: fmtDiff(p.tempo_preparo_iniciado, p.tempo_pronto),
+          },
+          { icon: '🛵', label: 'Saiu', val: fmtHora(p.tempo_saiu_entrega), diff: null },
+          {
+            icon: '🏠',
+            label: 'Entregue',
+            val: fmtHora(p.tempo_entregue),
+            diff: fmtDiff(p.tempo_saiu_entrega, p.tempo_entregue),
+          },
+        ];
 
-    const tlHtml = tl.map(t => {
-      const vazio = t.val === '-';
-      return `<div style="display:flex;align-items:baseline;gap:5px;padding:2px 0;border-bottom:1px solid #f5f5f5">
+    const tlHtml = tl
+      .map((t) => {
+        const vazio = t.val === '-';
+        return `<div style="display:flex;align-items:baseline;gap:5px;padding:2px 0;border-bottom:1px solid #f5f5f5">
         <span style="min-width:18px;font-size:0.85em">${t.icon}</span>
         <span style="min-width:64px;font-size:0.72rem;color:#888">${t.label}:</span>
-        <span style="font-size:0.78rem;font-weight:${vazio?'400':'600'};color:${vazio?'#ccc':'#222'}">${t.val}</span>
+        <span style="font-size:0.78rem;font-weight:${vazio ? '400' : '600'};color:${vazio ? '#ccc' : '#222'}">${t.val}</span>
         ${t.diff && t.diff !== '-' ? `<span style="font-size:0.68rem;color:#999">(${t.diff})</span>` : ''}
       </div>`;
-    }).join('');
+      })
+      .join('');
 
     const totalTime = isPDV
       ? fmtDiff(p.tempo_recebido || p.created_at, p.tempo_entregue)
@@ -1274,7 +1489,7 @@ async function carregarRelatorio() {
       <td style="padding:10px 8px;white-space:nowrap">
         <div style="font-size:1rem;font-weight:700;color:#1a1a2e">#${p.id}</div>
         <div style="font-size:0.73rem;color:#aaa">${new Date(p.created_at).toLocaleDateString('pt-BR', _tz)}</div>
-        <div style="font-size:0.78rem;color:#666">${new Date(p.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',..._tz})}</div>
+        <div style="font-size:0.78rem;color:#666">${new Date(p.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', ..._tz })}</div>
       </td>
       <td style="padding:10px 8px">
         <div style="font-weight:700;color:#1a1a2e">${p.cliente_nome || '-'}</div>
@@ -1287,7 +1502,7 @@ async function carregarRelatorio() {
         ${cancelInfo}
       </td>
       <td style="padding:10px 8px;white-space:nowrap;text-align:right">
-        <div style="font-size:0.95rem;font-weight:700;color:#1a1a2e">Gs ${(p.total_geral||0).toLocaleString('es-PY')}</div>
+        <div style="font-size:0.95rem;font-weight:700;color:#1a1a2e">Gs ${(p.total_geral || 0).toLocaleString('es-PY')}</div>
         <div style="font-size:0.7rem;color:#aaa;margin-top:2px">${p.forma_pagamento || ''}</div>
       </td>
       <td style="padding:10px 8px;min-width:175px">
@@ -1297,7 +1512,8 @@ async function carregarRelatorio() {
     </tr>`;
   });
   if (!pedidos || pedidos.length === 0)
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:#aaa">Nenhum pedido encontrado.</td></tr>';
+    tbody.innerHTML =
+      '<tr><td colspan="6" style="text-align:center;padding:40px;color:#aaa">Nenhum pedido encontrado.</td></tr>';
   const el = document.getElementById('rel-total-count');
   if (el) el.textContent = (pedidos || []).length + ' pedidos encontrados';
 }
@@ -1325,8 +1541,8 @@ async function salvarMovimentacaoCaixa() {
 
   if (!valor || valor <= 0) return alert('Digite um valor válido.');
 
-  // Pega email do usuario logado (simulado ou do html)
-  const userEmail = document.getElementById('user-email').innerText || 'admin';
+  const userEmail =
+    window._operadorNome || document.getElementById('user-email').innerText || 'admin';
 
   const { error } = await supa.from('movimentacoes_caixa').insert([
     {
@@ -1334,6 +1550,8 @@ async function salvarMovimentacaoCaixa() {
       valor: valor,
       descricao: desc,
       usuario_email: userEmail,
+      operador_id: window._operadorId || null,
+      operador_nome: userEmail,
     },
   ]);
 
@@ -1342,7 +1560,7 @@ async function salvarMovimentacaoCaixa() {
   } else {
     alert('Operação registrada com sucesso!');
     fecharModal('modal-caixa');
-    calcularFinanceiro(); // Atualiza os números
+    calcularFinanceiro();
   }
 }
 
@@ -1354,14 +1572,19 @@ async function fecharCaixaResumo() {
   const fmt = (n) => 'Gs ' + n.toLocaleString('es-PY');
   const lucro = s.faturamento + s.totalEntradas - s.custoEntregas - s.totalSaidas;
 
-  // Registra fechamento no banco como movimentação
+  const userEmail =
+    window._operadorNome || document.getElementById('user-email')?.innerText || 'admin';
+
+  // Registra fechamento no banco como movimentação vinculada ao operador
   try {
     await supa.from('movimentacoes_caixa').insert([
       {
         tipo: 'fechamento',
         valor: lucro,
         descricao: `Fechamento ${new Date().toLocaleDateString('pt-BR')} | Fat: ${fmt(s.faturamento)} | Res: ${fmt(lucro)}`,
-        usuario_email: document.getElementById('user-email')?.innerText || 'admin',
+        usuario_email: userEmail,
+        operador_id: window._operadorId || null,
+        operador_nome: userEmail,
       },
     ]);
   } catch (e) {
@@ -1713,40 +1936,45 @@ async function salvarProduto() {
     // Monta o config completo
     let configFinal = { __tipo: tipo };
 
-    const usaMontavel = ['montavel', 'acai', 'shake', 'suco'];
+    const usaMontavel = ['montavel', 'acai', 'suco'];
     if (usaMontavel.includes(tipo)) {
       const etapas = [];
-
-      // Suporta AMBOS os formatos de builder:
-      // Formato novo: .builder-step-card com .etapa-titulo, .etapa-max e inputs individuais por item
-      // Formato antigo: .etapa-item com .step-titulo, .step-max e .step-itens (textarea)
-      const novosCards = document.querySelectorAll('.builder-step-card');
-      if (novosCards.length > 0) {
-        novosCards.forEach((div) => {
-          const titulo = div.querySelector('.etapa-titulo')?.value?.trim() || '';
-          const max = parseInt(div.querySelector('.etapa-max')?.value) || 1;
-          const itens = [];
-          div.querySelectorAll('.itens-list input[type="text"]').forEach((inp) => {
-            const v = inp.value.trim();
-            if (v) itens.push(v);
-          });
-          etapas.push({ titulo, max, itens });
+      document.querySelectorAll('.etapa-item').forEach((div) => {
+        etapas.push({
+          titulo: div.querySelector('.step-titulo').value,
+          max: parseInt(div.querySelector('.step-max').value),
+          itens: div
+            .querySelector('.step-itens')
+            .value.split(',')
+            .map((s) => s.trim())
+            .filter((s) => s),
         });
-      } else {
-        // Fallback para formato antigo (.etapa-item)
-        document.querySelectorAll('.etapa-item').forEach((div) => {
-          etapas.push({
-            titulo: div.querySelector('.step-titulo')?.value?.trim() || '',
-            max: parseInt(div.querySelector('.step-max')?.value) || 1,
-            itens: (div.querySelector('.step-itens')?.value || '')
-              .split(',')
-              .map((s) => s.trim())
-              .filter((s) => s),
-          });
-        });
-      }
-
+      });
       configFinal.etapas = etapas;
+    }
+
+    // Shake dedicado: tamanhos + sabores
+    if (tipo === 'shake') {
+      const tamanhos = [];
+      document.querySelectorAll('.shake-tamanho-row').forEach((row) => {
+        const nome = row.querySelector('[data-f="snome"]').value.trim();
+        const ml = parseInt(row.querySelector('[data-f="sml"]').value) || 0;
+        const preco = parseFloat(row.querySelector('[data-f="spreco"]').value) || 0;
+        if (nome) tamanhos.push({ nome, ml, preco });
+      });
+      const sabores = [];
+      document.querySelectorAll('.shake-sabor-row').forEach((row) => {
+        const nome = row.querySelector('[data-f="snome"]').value.trim();
+        const preco = parseFloat(row.querySelector('[data-f="spreco"]').value) || 0;
+        const img = row.querySelector('[data-f="simg"]')?.value?.trim() || '';
+        if (nome) sabores.push({ nome, preco, img });
+      });
+      configFinal.shake = { tamanhos, sabores };
+      // preco base = menor tamanho
+      const precos = tamanhos.map((t) => t.preco).filter((p) => p > 0);
+      if (precos.length > 0) {
+        document.getElementById('prod-preco').value = Math.min(...precos);
+      }
     }
 
     if (tipo === 'pizza') {
@@ -1754,16 +1982,29 @@ async function salvarProduto() {
       document.querySelectorAll('.pizza-tamanho-row').forEach((row) => {
         const pTrad = parseFloat(row.querySelector('[data-f="preco_tradicional"]')?.value) || 0;
         const pEsp = parseFloat(row.querySelector('[data-f="preco_especial"]')?.value) || 0;
+        const pPrem = parseFloat(row.querySelector('[data-f="Premium"]')?.value) || 0;
         const pDoce = parseFloat(row.querySelector('[data-f="preco_doce"]')?.value) || 0;
+        const pBordaRow = parseFloat(row.querySelector('[data-f="borda_preco"]')?.value) || 0;
+        const pBordaEspRow =
+          parseFloat(row.querySelector('[data-f="borda_preco_especial"]')?.value) || 0;
+        const pBordaPremRow =
+          parseFloat(row.querySelector('[data-f="borda_preco_premium"]')?.value) || 0;
+        const pBordaDoceRow =
+          parseFloat(row.querySelector('[data-f="borda_preco_doce"]')?.value) || 0;
+        const maxSabRow = parseInt(row.querySelector('[data-f="max_sabores"]')?.value) || null;
         tamanhos.push({
           nome: row.querySelector('[data-f="nome"]').value,
           fatias: parseInt(row.querySelector('[data-f="fatias"]').value) || 0,
           cm: parseInt(row.querySelector('[data-f="cm"]').value) || 0,
           preco_tradicional: pTrad,
           preco_especial: pEsp,
+          preco_premium: pEsp,
           preco_doce: pDoce,
-          borda_preco: parseFloat(row.querySelector('[data-f="borda_preco"]')?.value) || 0,
-          // compatibilidade: preco = menor valor entre as categorias usadas
+          borda_preco: pBordaRow,
+          borda_preco_especial: pBordaEspRow || null,
+          borda_preco_premium: pBordaPremRow || null,
+          borda_preco_doce: pBordaDoceRow || null,
+          max_sabores: maxSabRow,
           preco: Math.min(...[pTrad, pEsp, pDoce].filter((v) => v > 0)) || pTrad,
         });
       });
@@ -1771,17 +2012,17 @@ async function salvarProduto() {
       document.querySelectorAll('.pizza-sabor-row').forEach((row) => {
         sabores.push({
           nome: row.querySelector('[data-f="snome"]').value,
+          desc: row.querySelector('[data-f="sdesc"]')?.value?.trim() || '',
           tipo: row.querySelector('[data-f="stipo"]').value,
           img: row.querySelector('[data-f="simg"]')?.value || '',
-          preco: 0, // preço agora é definido por categoria no tamanho
+          preco: 0,
         });
       });
-      // Coleta lista de bordas
       const bordas = [];
       document.querySelectorAll('.pizza-borda-row').forEach((row) => {
         const nome = row.querySelector('[data-f="bnome"]').value.trim();
-        const preco = parseFloat(row.querySelector('[data-f="bpreco"]').value) || 0;
-        if (nome) bordas.push({ nome, preco });
+        const tipo = row.querySelector('[data-f="btipo"]')?.value || 'Tradicional';
+        if (nome) bordas.push({ nome, tipo });
       });
 
       configFinal.pizza = {
@@ -1791,8 +2032,8 @@ async function salvarProduto() {
           document.getElementById('pizza-tipo-doce').checked ? 'Doce' : null,
         ].filter(Boolean),
         tem_borda: bordas.length > 0,
-        bordas, // lista completa de bordas com nome+preco
-        borda_preco: bordas[0]?.preco || 0, // compatibilidade retroativa
+        bordas,
+        borda_preco: 0,
         tamanhos,
         sabores,
       };
@@ -1814,7 +2055,7 @@ async function salvarProduto() {
     const temPreparo = document.getElementById('prod-tem-preparo')?.checked;
     if (temPreparo) {
       const preparoOpcoes = [];
-      document.querySelectorAll('.preparo-opcao-input').forEach(inp => {
+      document.querySelectorAll('.preparo-opcao-input').forEach((inp) => {
         const v = inp.value.trim();
         if (v) preparoOpcoes.push(v);
       });
@@ -1836,7 +2077,7 @@ async function salvarProduto() {
     }
 
     // Compatibilidade retroativa: mantém e_montavel para indicar tipo
-    const isM = usaMontavel.includes(tipo);
+    const isM = usaMontavel.includes(tipo) || tipo === 'shake';
 
     // Para variações: preco = menor valor entre as variações (usado no "A partir de")
     let precoBase = parseFloat(document.getElementById('prod-preco').value) || 0;
@@ -1886,6 +2127,10 @@ async function abrirModalProduto(produto = null, tipoInicial = null) {
   document.getElementById('prod-tem-extras').checked = false;
   document.getElementById('extras-area').style.display = 'none';
   document.getElementById('extras-lista').innerHTML = '';
+  document.getElementById('shake-tamanhos-lista') &&
+    (document.getElementById('shake-tamanhos-lista').innerHTML = '');
+  document.getElementById('shake-sabores-lista') &&
+    (document.getElementById('shake-sabores-lista').innerHTML = '');
   document.getElementById('pizza-tamanhos-lista').innerHTML = '';
   document.getElementById('pizza-bordas-lista').innerHTML = '';
   document.getElementById('pizza-borda-preco-box').style.display = 'none';
@@ -1944,6 +2189,9 @@ async function abrirModalProduto(produto = null, tipoInicial = null) {
           p.sabores.forEach((s) => addPizzaSabor(s));
         }
       }
+      if (tipo === 'shake' && cfg.shake) {
+        _popularShakeBuilder(cfg.shake);
+      }
       if (tipo === 'almoco' && cfg.almoco) {
         // Tipo almoco legado: tratar como simples (builder removido)
         tipo = 'padrao';
@@ -1967,7 +2215,7 @@ async function abrirModalProduto(produto = null, tipoInicial = null) {
         prepEl.checked = true;
         if (preparoArea) preparoArea.style.display = 'block';
         if (preparoLista) preparoLista.innerHTML = '';
-        cfg.preparo_opcoes.forEach(op => addOpcaoPreparo(op));
+        cfg.preparo_opcoes.forEach((op) => addOpcaoPreparo(op));
       }
     } else if (cfg && Array.isArray(cfg)) {
       // Compatibilidade: array antigo = montavel
@@ -2011,7 +2259,7 @@ const BUILDER_MAP = {
   pizza: 'builder-pizza',
   montavel: 'builder-montavel',
   acai: 'builder-montavel',
-  shake: 'builder-montavel',
+  shake: 'builder-shake',
   suco: 'builder-montavel',
   variacoes: 'builder-variacoes',
 };
@@ -2103,7 +2351,12 @@ function toggleBuilder() {
   if (isM) selecionarTipoBuilder('montavel');
 }
 
-// addBuilderStep definida abaixo (versão nova com builder-step-card)
+function addBuilderStep(t = '', m = 1, i = []) {
+  const div = document.createElement('div');
+  div.className = 'etapa-item';
+  div.innerHTML = `<div class="etapa-header"><input type="text" class="form-control step-titulo" value="${t}" placeholder="Título da etapa (ex: Escolha a base)"><input type="number" class="form-control step-max" value="${m}" style="width:70px" title="Máx. seleções"><button class="btn btn-sm btn-danger" onclick="this.parentElement.parentElement.remove()">X</button></div><textarea class="etapa-ingredientes step-itens" placeholder="Itens separados por vírgula. Ex: Arroz, Atum, Salmão, Tofu">${Array.isArray(i) ? i.join(', ') : i}</textarea>`;
+  document.getElementById('builder-steps').appendChild(div);
+}
 
 // ─── VARIAÇÕES DE SABOR BUILDER ───────────────────────────────────
 function addVariacao(dados = {}) {
@@ -2143,13 +2396,24 @@ function addPizzaBorda(dados = {}) {
   const lista = document.getElementById('pizza-bordas-lista');
   const row = document.createElement('div');
   row.className = 'pizza-borda-row';
+  row.style.cssText =
+    'display:flex;gap:8px;align-items:center;background:#fff;border:1px solid #eee;border-radius:8px;padding:8px 10px;margin-bottom:6px';
+  const tipoVal = dados.tipo || 'Tradicional';
   row.innerHTML = `
-    <input data-f="bnome" class="form-control" value="${dados.nome || ''}" placeholder="Ex: Cheddar, Catupiry, Chocolate...">
-    <div style="display:flex;align-items:center;gap:4px">
-      <span style="white-space:nowrap;font-size:0.8rem;color:#777">Gs</span>
-      <input data-f="bpreco" type="number" class="form-control" value="${dados.preco || ''}" placeholder="Ex: 8000">
+    <div style="flex:3">
+      <label style="font-size:0.72rem;color:#888">Nome da borda</label>
+      <input data-f="bnome" class="form-control" value="${dados.nome || ''}" placeholder="Ex: Cheddar, Catupiry, Chocolate">
     </div>
-    <button class="btn btn-sm btn-danger" onclick="this.closest('.pizza-borda-row').remove()" title="Remover">✕</button>
+    <div style="flex:2">
+      <label style="font-size:0.72rem;color:#888">Tipo</label>
+      <select data-f="btipo" class="form-control">
+        <option value="Tradicional" ${tipoVal === 'Tradicional' ? 'selected' : ''}>🍕 Tradicional</option>
+        <option value="Especial" ${tipoVal === 'Especial' ? 'selected' : ''}>⭐ Especial</option>
+        <option value="Premium" ${tipoVal === 'Premium' ? 'selected' : ''}>🏆 Premium</option>
+        <option value="Doce" ${tipoVal === 'Doce' ? 'selected' : ''}>🍫 Doce</option>
+      </select>
+    </div>
+    <button class="btn btn-sm btn-danger" onclick="this.closest('.pizza-borda-row').remove()" title="Remover" style="align-self:flex-end;margin-bottom:2px">✕</button>
   `;
   lista.appendChild(row);
 }
@@ -2161,23 +2425,34 @@ function addPizzaTamanho(dados = {}) {
   // Retrocompatibilidade: se veio só `preco` (formato antigo), usa como preco_tradicional
   const pTrad = dados.preco_tradicional ?? dados.preco ?? '';
   const pEsp = dados.preco_especial ?? '';
+  const pPrem = dados.preco_premium ?? '';
   const pDoce = dados.preco_doce ?? '';
   const pBorda = dados.borda_preco ?? '';
+  const maxSab = dados.max_sabores ?? '';
+
   row.innerHTML = `
     <div class="pizza-tamanho-header">
       <div class="pizza-tamanho-info">
         <div><label>Nome</label><input data-f="nome" class="form-control" value="${dados.nome || ''}" placeholder="Ex: G"></div>
         <div><label>Fatias</label><input data-f="fatias" type="number" class="form-control" value="${dados.fatias || ''}" placeholder="8"></div>
         <div><label>Cm</label><input data-f="cm" type="number" class="form-control" value="${dados.cm || ''}" placeholder="35"></div>
+        <div><label>Máx. sabores</label><input data-f="max_sabores" type="number" min="1" max="4" class="form-control" value="${maxSab}" placeholder="2"></div>
       </div>
       <button class="btn btn-sm btn-danger pizza-tamanho-remove" onclick="this.closest('.pizza-tamanho-row').remove()" title="Remover">✕</button>
     </div>
     <div class="pizza-tamanho-precos">
       <div><label>🍕 Tradicional (Gs)</label><input data-f="preco_tradicional" type="number" class="form-control" value="${pTrad}" placeholder="60000"></div>
       <div><label>⭐ Especial (Gs)</label><input data-f="preco_especial" type="number" class="form-control" value="${pEsp}" placeholder="65000"></div>
+      <div><label>🏆 Premium (Gs)</label><input data-f="preco_premium" type="number" class="form-control" value="${pPrem}" placeholder="65000"></div>
       <div><label>🍫 Doce (Gs)</label><input data-f="preco_doce" type="number" class="form-control" value="${pDoce}" placeholder="60000"></div>
-      <div><label>🧀 Borda (Gs)</label><input data-f="borda_preco" type="number" class="form-control" value="${pBorda}" placeholder="10000"></div>
     </div>
+    <div class="pizza-tamanho-precos" style="margin-top:6px;padding-top:8px;border-top:1px dashed #e0e0e0">
+      <div><label>🧀 Borda Trad. (Gs)</label><input data-f="borda_preco" type="number" class="form-control" value="${pBorda}" placeholder="10000"></div>
+      <div><label>🧀 Borda Esp. (Gs)</label><input data-f="borda_preco_especial" type="number" class="form-control" value="${dados.borda_preco_especial ?? ''}" placeholder="12000"></div>
+      <div><label>🧀 Borda Prem. (Gs)</label><input data-f="borda_preco_Premium" type="number" class="form-control" value="${dados.borda_preco_Premium ?? ''}" placeholder="12000"></div>
+      <div><label>🧀 Borda Doce (Gs)</label><input data-f="borda_preco_doce" type="number" class="form-control" value="${dados.borda_preco_doce ?? ''}" placeholder="12000"></div>
+    </div>
+
   `;
   lista.appendChild(row);
 }
@@ -2217,10 +2492,12 @@ function addPizzaSabor(dados = {}) {
       <select data-f="stipo" class="form-control pizza-sabor-tipo">
         <option value="Tradicional" ${!dados.tipo || dados.tipo === 'Tradicional' || dados.tipo === 'Salgada' ? 'selected' : ''}>🍕 Tradicional</option>
         <option value="Especial" ${dados.tipo === 'Especial' ? 'selected' : ''}>⭐ Especial</option>
+        <option value="Premium" ${dados.tipo === 'Premium' ? 'selected' : ''}>🏆 Premium</option>
         <option value="Doce" ${dados.tipo === 'Doce' ? 'selected' : ''}>🍫 Doce</option>
       </select>
       <button class="btn btn-sm btn-danger" onclick="this.closest('.pizza-sabor-row').remove()" title="Remover">✕</button>
     </div>
+    <textarea data-f="sdesc" class="form-control pizza-sabor-desc-input" rows="2" placeholder="Descrição do sabor">${dados.desc || ''}</textarea>
     <div class="pizza-sabor-img-row">
       <img class="pizza-sabor-img-preview" src="${imgSrc}" style="display:${imgSrc ? 'block' : 'none'}" alt="">
       <input data-f="simg" type="text" class="form-control" value="${imgSrc}" placeholder="URL da imagem (ou clique 📷)">
@@ -2284,7 +2561,7 @@ function addExtraGlobal(dados = {}) {
 
 async function salvarExtrasGlobais() {
   const extras = [];
-  document.querySelectorAll('#extras-globais-lista .extra-row').forEach(row => {
+  document.querySelectorAll('#extras-globais-lista .extra-row').forEach((row) => {
     const nome = row.querySelector('[data-f="gnome"]').value.trim();
     const preco = parseFloat(row.querySelector('[data-f="gpreco"]').value) || 0;
     if (nome) extras.push({ nome, preco });
@@ -2293,7 +2570,12 @@ async function salvarExtrasGlobais() {
   const { error } = await supa.from('configuracoes').update({ extras_globais: extras }).eq('id', 1);
   if (error) {
     // Verifica se é erro de coluna não existente
-    if (error.message && (error.message.includes('extras_globais') || error.code === 'PGRST204' || error.code === '42703')) {
+    if (
+      error.message &&
+      (error.message.includes('extras_globais') ||
+        error.code === 'PGRST204' ||
+        error.code === '42703')
+    ) {
       alert('⚠️ A coluna "extras_globais" não existe no banco de dados.');
     } else {
       alert('Erro ao salvar adicionais globais: ' + error.message);
@@ -2312,8 +2594,13 @@ async function carregarExtrasGlobaisAdmin() {
 
     // Se der erro de coluna não encontrada, apenas ignora
     if (error) {
-      if (error.message && (error.message.includes('extras_globais') || error.code === 'PGRST204')) {
-        console.log('ℹ️ Coluna extras_globais não existe. Crie a coluna no banco para usar esta funcionalidade.');
+      if (
+        error.message &&
+        (error.message.includes('extras_globais') || error.code === 'PGRST204')
+      ) {
+        console.log(
+          'ℹ️ Coluna extras_globais não existe. Crie a coluna no banco para usar esta funcionalidade.',
+        );
       } else {
         console.warn('Erro ao carregar extras globais:', error.message);
       }
@@ -2321,9 +2608,9 @@ async function carregarExtrasGlobaisAdmin() {
     }
 
     if (data?.extras_globais && Array.isArray(data.extras_globais)) {
-      data.extras_globais.forEach(ex => addExtraGlobal(ex));
+      data.extras_globais.forEach((ex) => addExtraGlobal(ex));
     }
-  } catch (e) { 
+  } catch (e) {
     console.log('ℹ️ Extras globais não disponíveis:', e.message);
   }
 }
@@ -2335,7 +2622,7 @@ async function carregarExtrasGlobaisAdmin() {
 /**
  * Grava na tabela `configuracoes` um timestamp de encerramento
  * e um aviso visível para todos os clientes.
- * 
+ *
  * Na tabela configuracoes precisam existir os campos:
  *   aviso_delivery  TEXT  (mensagem exibida no banner do site)
  *   delivery_aberto BOOLEAN (controla se o delivery está habilitado)
@@ -2352,7 +2639,9 @@ async function avisarEncerramentoDelivery() {
   overlay.id = 'modal-encerramento-delivery';
   overlay.style.cssText =
     'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
-  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+  overlay.onclick = (e) => {
+    if (e.target === overlay) overlay.remove();
+  };
 
   overlay.innerHTML = `
     <div style="background:#fff;border-radius:16px;padding:24px;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
@@ -2389,13 +2678,17 @@ async function avisarEncerramentoDelivery() {
 }
 
 async function _confirmarEncerramentoDelivery() {
-  const texto = document.getElementById('aviso-encerramento-texto')?.value?.trim()
-    || 'Delivery encerrado por hoje. Obrigado! 🍣';
+  const texto =
+    document.getElementById('aviso-encerramento-texto')?.value?.trim() ||
+    'Delivery encerrado por hoje. Obrigado! 🍣';
 
-  const { error } = await supa.from('configuracoes').update({
-    delivery_aberto: false,
-    aviso_delivery: texto,
-  }).eq('id', 1);
+  const { error } = await supa
+    .from('configuracoes')
+    .update({
+      delivery_aberto: false,
+      aviso_delivery: texto,
+    })
+    .eq('id', 1);
 
   if (error) {
     // Tenta com upsert se update falhou (configuracoes pode não ter a linha)
@@ -2405,8 +2698,11 @@ async function _confirmarEncerramentoDelivery() {
       aviso_delivery: texto,
     });
     if (e2) {
-      alert('Erro ao encerrar delivery: ' + e2.message +
-        '\n\n💡 Execute no Supabase:\nALTER TABLE configuracoes ADD COLUMN IF NOT EXISTS delivery_aberto BOOLEAN DEFAULT true;\nALTER TABLE configuracoes ADD COLUMN IF NOT EXISTS aviso_delivery TEXT DEFAULT \'\';');
+      alert(
+        'Erro ao encerrar delivery: ' +
+          e2.message +
+          "\n\n💡 Execute no Supabase:\nALTER TABLE configuracoes ADD COLUMN IF NOT EXISTS delivery_aberto BOOLEAN DEFAULT true;\nALTER TABLE configuracoes ADD COLUMN IF NOT EXISTS aviso_delivery TEXT DEFAULT '';",
+      );
       return;
     }
   }
@@ -2425,10 +2721,13 @@ async function _confirmarEncerramentoDelivery() {
 async function reabrirDelivery() {
   if (!confirm('Reabrir o delivery para novos pedidos?')) return;
 
-  const { error } = await supa.from('configuracoes').update({
-    delivery_aberto: true,
-    aviso_delivery: '',
-  }).eq('id', 1);
+  const { error } = await supa
+    .from('configuracoes')
+    .update({
+      delivery_aberto: true,
+      aviso_delivery: '',
+    })
+    .eq('id', 1);
 
   if (error) {
     alert('Erro: ' + error.message);
@@ -2452,19 +2751,24 @@ async function reabrirDelivery() {
  * Abre um modal para adicionar minutos extras ao horário de hoje.
  * Grava em configuracoes.horario_extra_hoje = { data: 'YYYY-MM-DD', minutos: N }
  * O app.js deve ler este campo para calcular o horário real de fechamento.
- * 
+ *
  * Execute no Supabase:
  *   ALTER TABLE configuracoes ADD COLUMN IF NOT EXISTS horario_extra_hoje JSONB DEFAULT NULL;
  */
 function abrirModalEstenderHorario() {
   const existente = document.getElementById('modal-estender-horario');
-  if (existente) { existente.style.display = 'flex'; return; }
+  if (existente) {
+    existente.style.display = 'flex';
+    return;
+  }
 
   const overlay = document.createElement('div');
   overlay.id = 'modal-estender-horario';
   overlay.style.cssText =
     'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
-  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+  overlay.onclick = (e) => {
+    if (e.target === overlay) overlay.remove();
+  };
 
   overlay.innerHTML = `
     <div style="background:#fff;border-radius:16px;padding:24px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
@@ -2482,12 +2786,16 @@ function abrirModalEstenderHorario() {
         Quantos minutos a mais?
       </label>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
-        ${[15, 30, 45, 60, 90, 120].map(m => `
+        ${[15, 30, 45, 60, 90, 120]
+          .map(
+            (m) => `
           <button onclick="_selecionarMinutosExtra(${m}, this)"
                   data-min="${m}"
                   style="padding:10px 16px;border:2px solid #e0e0e0;border-radius:8px;background:#f8f9fa;font-weight:700;cursor:pointer;font-size:0.9rem;transition:all 0.15s">
             +${m}min
-          </button>`).join('')}
+          </button>`,
+          )
+          .join('')}
       </div>
 
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
@@ -2515,7 +2823,7 @@ function abrirModalEstenderHorario() {
 
 function _selecionarMinutosExtra(min, btn) {
   // Destaca o botão selecionado e limpa o input
-  document.querySelectorAll('[data-min]').forEach(b => {
+  document.querySelectorAll('[data-min]').forEach((b) => {
     b.style.background = '#f8f9fa';
     b.style.borderColor = '#e0e0e0';
     b.style.color = '#333';
@@ -2537,18 +2845,24 @@ async function _confirmarEstenderHorario() {
 
   const hoje = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
-  const { error } = await supa.from('configuracoes').update({
-    horario_extra_hoje: { data: hoje, minutos }
-  }).eq('id', 1);
+  const { error } = await supa
+    .from('configuracoes')
+    .update({
+      horario_extra_hoje: { data: hoje, minutos },
+    })
+    .eq('id', 1);
 
   if (error) {
     const { error: e2 } = await supa.from('configuracoes').upsert({
       id: 1,
-      horario_extra_hoje: { data: hoje, minutos }
+      horario_extra_hoje: { data: hoje, minutos },
     });
     if (e2) {
-      alert('Erro ao salvar: ' + e2.message +
-        '\n\n💡 Execute no Supabase:\nALTER TABLE configuracoes ADD COLUMN IF NOT EXISTS horario_extra_hoje JSONB DEFAULT NULL;');
+      alert(
+        'Erro ao salvar: ' +
+          e2.message +
+          '\n\n💡 Execute no Supabase:\nALTER TABLE configuracoes ADD COLUMN IF NOT EXISTS horario_extra_hoje JSONB DEFAULT NULL;',
+      );
       return;
     }
   }
@@ -2568,9 +2882,11 @@ async function carregarStatusDelivery() {
   const badge = document.getElementById('badge-delivery-status');
   if (!badge) return;
   try {
-    const { data } = await supa.from('configuracoes')
+    const { data } = await supa
+      .from('configuracoes')
       .select('delivery_aberto, aviso_delivery, horario_extra_hoje')
-      .eq('id', 1).single();
+      .eq('id', 1)
+      .single();
 
     if (!data) return;
 
@@ -2641,7 +2957,7 @@ async function carregarCategorias() {
     const cJson = JSON.stringify(c).replace(/'/g, '&apos;').replace(/"/g, '&quot;');
     const horarioBadge =
       c.hora_inicio && c.hora_fim
-        ? `<span class="cat-badge cat-badge-horario">🕐 ${c.hora_inicio} – ${c.hora_fim}</span>`
+        ? `<span class="cat-badge cat-badge-horario">🕐 ${c.hora_inicio}–${c.hora_fim}${Array.isArray(c.dias_semana) && c.dias_semana.length ? ' (' + c.dias_semana.join(',') + ')' : ''}</span>`
         : `<span class="cat-badge cat-badge-sempre">✅ Sempre visível</span>`;
 
     const card = document.createElement('div');
@@ -3076,6 +3392,12 @@ function editarCategoria(c) {
 
   document.getElementById('cat-nome').value = c.nome_exibicao;
   document.getElementById('cat-ordem').value = c.ordem;
+  document.getElementById('cat-hora-inicio').value = c.hora_inicio || '';
+  document.getElementById('cat-hora-fim').value = c.hora_fim || '';
+  const diasSalvos = Array.isArray(c.dias_semana) ? c.dias_semana : [];
+  document.querySelectorAll('.cat-dia-check').forEach((cb) => {
+    cb.checked = diasSalvos.includes(cb.value);
+  });
 
   document.getElementById('modal-cat').style.display = 'flex';
 }
@@ -3113,11 +3435,20 @@ async function salvarCategoria() {
 
     if (slugMudou) {
       // 1. Insere novo registro com o novo slug
+      const horaIni = document.getElementById('cat-hora-inicio').value || null;
+      const horaFim = document.getElementById('cat-hora-fim').value || null;
+      const dias = Array.from(document.querySelectorAll('.cat-dia-check:checked')).map(
+        (cb) => cb.value,
+      );
       const { error: insErr } = await supa.from('categorias').insert([
         {
           slug,
+          nome: nome,
           nome_exibicao: nome,
           ordem: ordemVal,
+          hora_inicio: horaIni,
+          hora_fim: horaFim,
+          dias_semana: dias.length > 0 ? dias : null,
         },
       ]);
       if (insErr) {
@@ -3145,14 +3476,39 @@ async function salvarCategoria() {
     } else {
       const { error } = await supa
         .from('categorias')
-        .update({ nome_exibicao: nome, ordem: ordemVal })
+        .update({
+          nome: nome,
+          nome_exibicao: nome,
+          ordem: ordemVal,
+          hora_inicio: document.getElementById('cat-hora-inicio').value || null,
+          hora_fim: document.getElementById('cat-hora-fim').value || null,
+          dias_semana: (() => {
+            const d = Array.from(document.querySelectorAll('.cat-dia-check:checked')).map(
+              (cb) => cb.value,
+            );
+            return d.length > 0 ? d : null;
+          })(),
+        })
         .eq('slug', slugOriginal);
       erro = error;
     }
   } else {
-    const { error } = await supa
-      .from('categorias')
-      .insert([{ slug, nome_exibicao: nome, ordem: ordemVal }]);
+    const { error } = await supa.from('categorias').insert([
+      {
+        slug,
+        nome: nome,
+        nome_exibicao: nome,
+        ordem: ordemVal,
+        hora_inicio: document.getElementById('cat-hora-inicio').value || null,
+        hora_fim: document.getElementById('cat-hora-fim').value || null,
+        dias_semana: (() => {
+          const d = Array.from(document.querySelectorAll('.cat-dia-check:checked')).map(
+            (cb) => cb.value,
+          );
+          return d.length > 0 ? d : null;
+        })(),
+      },
+    ]);
     erro = error;
   }
 
@@ -3171,6 +3527,9 @@ async function abrirModalCategoria() {
   slugInput.readOnly = false;
   slugInput.dataset.slugOriginal = '';
   document.getElementById('cat-nome').value = '';
+  document.getElementById('cat-hora-inicio').value = '';
+  document.getElementById('cat-hora-fim').value = '';
+  document.querySelectorAll('.cat-dia-check').forEach((cb) => (cb.checked = false));
 
   // Auto-preenche a ordem com o próximo número
   try {
@@ -3616,41 +3975,65 @@ function removerTurno(btn) {
   btn.closest('.gs-turno-row').remove();
 }
 
-function toggleDiaFechado(checkbox) {
-  const row = checkbox.closest('.dia-row');
-  const turnos = row.querySelector('.dia-turnos');
-  const statusTxt = row.querySelector('.dia-status-text');
-  if (checkbox.checked) {
-    if (turnos) turnos.style.display = 'none';
-    if (statusTxt) statusTxt.innerHTML = '<span style="color:#e74c3c">Fechado</span>';
-  } else {
-    if (turnos) turnos.style.display = '';
-    if (statusTxt) statusTxt.innerHTML = '<span style="color:#27ae60">Aberto</span>';
-  }
-}
-
-function adicionarTurno(btn) {
-  const lista = btn.previousElementSibling;
-  const idx = lista.querySelectorAll('.turno-row').length;
-  if (idx >= 2) {
-    alert('Máximo de 2 turnos por dia.');
-    return;
-  }
-  const div = document.createElement('div');
-  div.className = 'turno-row';
-  div.dataset.idx = idx;
-  div.innerHTML = `
-    <span class="turno-sep">e das</span>
-    <input type="time" class="form-control turno-abre" style="width:110px">
-    <span class="turno-sep">às</span>
-    <input type="time" class="form-control turno-fecha" style="width:110px">
-    <button class="btn-rm-turno" onclick="removerTurno(this)" title="Remover turno">✕</button>
+/* ══════════════════════════════════════════════
+   SHAKE BUILDER — Tamanhos + Sabores
+   ══════════════════════════════════════════════ */
+function addShakeTamanho(dados = {}) {
+  const lista = document.getElementById('shake-tamanhos-lista');
+  if (!lista) return;
+  const row = document.createElement('div');
+  row.className = 'shake-tamanho-row';
+  row.style.cssText =
+    'display:flex;gap:8px;align-items:center;background:#fff;border:1px solid #dde;border-radius:8px;padding:8px 10px;';
+  row.innerHTML = `
+    <div style="flex:2">
+      <label style="font-size:0.72rem;color:#888">Nome</label>
+      <input data-f="snome" class="form-control" value="${dados.nome || ''}" placeholder="Ex: P, M, G, 500ml">
+    </div>
+    <div style="flex:1">
+      <label style="font-size:0.72rem;color:#888">Volume (ml)</label>
+      <input data-f="sml" type="number" class="form-control" value="${dados.ml || ''}" placeholder="400">
+    </div>
+    <div style="flex:2">
+      <label style="font-size:0.72rem;color:#888">Preço (Gs)</label>
+      <input data-f="spreco" type="number" class="form-control" value="${dados.preco || ''}" placeholder="15000">
+    </div>
+    <button onclick="this.closest('.shake-tamanho-row').remove()" style="background:none;border:none;color:#e74c3c;font-size:1.2rem;cursor:pointer;padding:0 4px;flex-shrink:0">✕</button>
   `;
-  lista.appendChild(div);
+  lista.appendChild(row);
 }
 
-function removerTurno(btn) {
-  btn.closest('.turno-row').remove();
+function addShakeSabor(dados = {}) {
+  const lista = document.getElementById('shake-sabores-lista');
+  if (!lista) return;
+  const row = document.createElement('div');
+  row.className = 'shake-sabor-row';
+  row.style.cssText =
+    'display:flex;gap:8px;align-items:center;background:#fff;border:1px solid #dde;border-radius:8px;padding:8px 10px;';
+  row.innerHTML = `
+    <div style="flex:3">
+      <label style="font-size:0.72rem;color:#888">Sabor</label>
+      <input data-f="snome" class="form-control" value="${dados.nome || ''}" placeholder="Ex: Morango, Chocolate">
+    </div>
+    <div style="flex:2">
+      <label style="font-size:0.72rem;color:#888">Preço extra (Gs)</label>
+      <input data-f="spreco" type="number" class="form-control" value="${dados.preco || ''}" placeholder="0">
+    </div>
+    <div style="flex:2">
+      <label style="font-size:0.72rem;color:#888">URL Foto (opcional)</label>
+      <input data-f="simg" class="form-control" value="${dados.img || ''}" placeholder="https://...">
+    </div>
+    <button onclick="this.closest('.shake-sabor-row').remove()" style="background:none;border:none;color:#e74c3c;font-size:1.2rem;cursor:pointer;padding:0 4px;flex-shrink:0">✕</button>
+  `;
+  lista.appendChild(row);
+}
+
+function _popularShakeBuilder(shakeConfig) {
+  document.getElementById('shake-tamanhos-lista').innerHTML = '';
+  document.getElementById('shake-sabores-lista').innerHTML = '';
+  if (!shakeConfig) return;
+  (shakeConfig.tamanhos || []).forEach((t) => addShakeTamanho(t));
+  (shakeConfig.sabores || []).forEach((s) => addShakeSabor(s));
 }
 
 function _lerGradeSemanal() {
@@ -3723,19 +4106,25 @@ async function carregarConfiguracoes() {
     });
   }
 
-  // Preview do ícone se existir
-  if (data.icone_url) {
-    const prevIcone = document.getElementById('cfg-icone-preview');
-    const boxIcone = document.getElementById('cfg-icone-preview-box');
-    if (prevIcone) prevIcone.src = data.icone_url;
-    if (boxIcone) boxIcone.style.display = 'block';
+  const iconeUrlInput = document.getElementById('cfg-icone-url');
+  const iconePreview = document.getElementById('cfg-icone-preview');
+  if (iconeUrlInput) iconeUrlInput.value = data.icone_url || '';
+  if (iconePreview && data.icone_url) {
+    iconePreview.src = data.icone_url;
+    iconePreview.style.display = 'block';
   }
 
   // Carrega adicionais globais
   await carregarExtrasGlobaisAdmin();
 
-  // Carrega tabela de frete
+  // Carrega tabela de frete e combustível
   _renderTabelaFrete(data.tabela_frete || null);
+  const combEl = document.getElementById('cfg-combustivel');
+  if (combEl) {
+    const saved = data.ajuda_combustivel ?? 20000;
+    combEl.value = saved;
+    AJUDA_COMBUSTIVEL = saved;
+  }
 }
 
 async function salvarConfiguracoes() {
@@ -3746,7 +4135,7 @@ async function salvarConfiguracoes() {
   const dados = {
     loja_aberta: g('cfg-aberta') === 'true',
     cotacao_real: parseFloat(g('cfg-cotacao')) || 1100,
-    banner_produto_id: g('cfg-banner-id'),
+    banner_produto_id: parseInt(g('cfg-banner-id')) || null,
     banner_imagem: g('cfg-banner-img') || '',
     horarios_semanais: _lerGradeSemanal(),
   };
@@ -3827,40 +4216,67 @@ async function salvarBanner() {
   }
 }
 function previewIcone(input) {
-  if (!input.files || !input.files[0]) return;
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const prev = document.getElementById('cfg-icone-preview');
-    const box = document.getElementById('cfg-icone-preview-box');
-    if (prev) prev.src = e.target.result;
-    if (box) box.style.display = 'block';
-  };
-  reader.readAsDataURL(input.files[0]);
+  const file = input.files?.[0];
+  const prev = document.getElementById('cfg-icone-preview');
+  const box = document.getElementById('cfg-icone-preview-box');
+  if (!prev) return;
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      prev.src = e.target.result;
+      prev.style.display = 'block';
+      if (box) box.style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+  } else {
+    prev.src = '';
+    prev.style.display = 'none';
+    if (box) box.style.display = 'none';
+  }
 }
 
 // =========================================================
 // TABELA DE FRETE
 // =========================================================
 const FRETE_FAIXAS = [
-  { label: '0 – 3 km',      max: 3.0  },
-  { label: '3,1 – 4 km',    max: 4.0  },
-  { label: '4,1 – 5 km',    max: 5.0  },
-  { label: '5,1 – 6 km',    max: 6.0  },
-  { label: '6,1 – 7 km',    max: 7.0  },
-  { label: '7,1 – 8 km',    max: 8.0  },
-  { label: '8,1 – 9 km',    max: 9.0  },
-  { label: '9,1 – 10 km',   max: 10.0 },
-  { label: '10,1 – 11 km',  max: 11.0 },
-  { label: '11,1 – 12 km',  max: 12.0 },
-  { label: '12,1 – 13 km',  max: 13.0 },
-  { label: '13,1 – 14 km',  max: 14.0 },
-  { label: '14,1 – 15 km',  max: 15.0 },
-  { label: '15,1 – 16 km',  max: 16.0 },
-  { label: '16,1 – 17 km',  max: 17.0 },
-  { label: '17,1 – 18 km',  max: 18.0 },
-  { label: '18,1 – 19 km',  max: 19.0 },
-  { label: '19,1 – 20 km',  max: 20.0 },
+  { label: '0 – 2 km', max: 2.0 },
+  { label: '2,1 – 3,9 km', max: 3.9 },
+  { label: '4 – 6 km', max: 6.0 },
+  { label: '6,1 – 7 km', max: 7.0 },
+  { label: '7,1 – 8 km', max: 8.0 },
+  { label: '8,1 – 9 km', max: 9.0 },
+  { label: '9,1 – 10 km', max: 10.0 },
+  { label: '10,1 – 11 km', max: 11.0 },
+  { label: '11,1 – 12 km', max: 12.0 },
+  { label: '12,1 – 13 km', max: 13.0 },
+  { label: '13,1 – 14 km', max: 14.0 },
+  { label: '14,1 – 15 km', max: 15.0 },
+  { label: '15,1 – 16 km', max: 16.0 },
+  { label: '16,1 – 17 km', max: 17.0 },
+  { label: '17,1 – 18 km', max: 18.0 },
+  { label: '18,1 – 19 km', max: 19.0 },
+  { label: '19,1 – 20 km', max: 20.0 },
 ];
+
+function toggleCombinarFrete(checkbox, idx) {
+  const lojaInput = document.querySelector(`.frete-loja[data-idx="${idx}"]`);
+  const motoInput = document.querySelector(`.frete-motoboy[data-idx="${idx}"]`);
+  const lojaWrap = document.getElementById(`frete-loja-wrap-${idx}`);
+  const motoWrap = document.getElementById(`frete-moto-wrap-${idx}`);
+  const checked = checkbox.checked;
+  if (lojaInput) {
+    lojaInput.disabled = checked;
+    lojaInput.style.opacity = checked ? '0.3' : '1';
+  }
+  if (motoInput) {
+    motoInput.disabled = checked;
+    motoInput.style.opacity = checked ? '0.3' : '1';
+  }
+  if (lojaWrap) lojaWrap.style.display = checked ? 'none' : '';
+  if (motoWrap) motoWrap.style.display = checked ? 'none' : '';
+  const badge = document.getElementById(`frete-combinar-badge-${idx}`);
+  if (badge) badge.style.display = checked ? '' : 'none';
+}
 
 function _renderTabelaFrete(savedData) {
   const tbody = document.getElementById('tabela-frete-body');
@@ -3868,21 +4284,48 @@ function _renderTabelaFrete(savedData) {
   tbody.innerHTML = '';
   FRETE_FAIXAS.forEach((faixa, idx) => {
     const saved = (savedData && savedData[idx]) || {};
-    const valLoja   = saved.loja   ?? '';
-    const valMoto   = saved.motoboy ?? '';
+    const valLoja = saved.loja ?? '';
+    const valMoto = saved.motoboy ?? '';
+    const combinado = !!saved.acombinar;
     const bg = idx % 2 === 0 ? '#fff' : '#f9f9f9';
     tbody.innerHTML += `
-      <tr style="background:${bg}">
-        <td style="padding:8px;font-weight:600;white-space:nowrap">${faixa.label}</td>
-        <td style="padding:8px;text-align:center">
-          <input type="number" class="form-control frete-loja" data-idx="${idx}"
-                 value="${valLoja}" placeholder="0" min="0" step="1000"
-                 style="text-align:center;max-width:130px;margin:0 auto;border:1.5px solid #2980b9">
+      <tr style="background:${bg}; vertical-align:middle;">
+        <td style="padding:8px 10px;font-weight:700;white-space:nowrap;font-size:0.87rem">${faixa.label}</td>
+
+        <td style="padding:8px;text-align:center;">
+          <div id="frete-loja-wrap-${idx}" style="display:${combinado ? 'none' : ''}">
+            <input type="number" class="form-control frete-loja" data-idx="${idx}"
+                   value="${valLoja}" placeholder="0" min="0" step="1000"
+                   ${combinado ? 'disabled' : ''}
+                   style="text-align:center;max-width:130px;margin:0 auto;
+                          border:1.5px solid #2980b9;opacity:${combinado ? '0.3' : '1'}">
+          </div>
+          <span id="frete-combinar-badge-${idx}"
+                style="display:${combinado ? '' : 'none'};
+                       background:#fff3cd;color:#856404;border:1px solid #ffc107;
+                       border-radius:20px;padding:3px 12px;font-size:0.8rem;font-weight:700;
+                       white-space:nowrap;">
+            🤝 A Combinar
+          </span>
+          <label style="display:flex;align-items:center;justify-content:center;gap:5px;
+                        margin-top:5px;font-size:0.75rem;color:#888;cursor:pointer;user-select:none;">
+            <input type="checkbox" class="frete-combinar" data-idx="${idx}"
+                   ${combinado ? 'checked' : ''}
+                   onchange="toggleCombinarFrete(this, ${idx})"
+                   style="width:14px;height:14px;accent-color:#e67e22;cursor:pointer;margin:0">
+            A combinar
+          </label>
         </td>
-        <td style="padding:8px;text-align:center">
-          <input type="number" class="form-control frete-motoboy" data-idx="${idx}"
-                 value="${valMoto}" placeholder="0" min="0" step="1000"
-                 style="text-align:center;max-width:130px;margin:0 auto;border:1.5px solid #27ae60">
+
+        <td style="padding:8px;text-align:center;">
+          <div id="frete-moto-wrap-${idx}" style="display:${combinado ? 'none' : ''}">
+            <input type="number" class="form-control frete-motoboy" data-idx="${idx}"
+                   value="${valMoto}" placeholder="0" min="0" step="1000"
+                   ${combinado ? 'disabled' : ''}
+                   style="text-align:center;max-width:130px;margin:0 auto;
+                          border:1.5px solid #27ae60;opacity:${combinado ? '0.3' : '1'}">
+          </div>
+          ${combinado ? `<span style="color:#aaa;font-size:0.8rem;font-style:italic">—</span>` : ''}
         </td>
       </tr>`;
   });
@@ -3891,19 +4334,35 @@ function _renderTabelaFrete(savedData) {
 async function salvarTabelaFrete() {
   const tabela = [];
   FRETE_FAIXAS.forEach((_, idx) => {
-    const loja   = parseInt(document.querySelector(`.frete-loja[data-idx="${idx}"]`)?.value)   || 0;
-    const motoboy = parseInt(document.querySelector(`.frete-motoboy[data-idx="${idx}"]`)?.value) || 0;
-    tabela.push({ loja, motoboy });
+    const combinado =
+      document.querySelector(`.frete-combinar[data-idx="${idx}"]`)?.checked || false;
+    const loja = combinado
+      ? null
+      : parseInt(document.querySelector(`.frete-loja[data-idx="${idx}"]`)?.value) || 0;
+    const motoboy = combinado
+      ? null
+      : parseInt(document.querySelector(`.frete-motoboy[data-idx="${idx}"]`)?.value) || 0;
+    tabela.push({ loja, motoboy, acombinar: combinado });
   });
 
-  // Tenta salvar. Se a coluna não existir, orienta o admin.
-  const { error } = await supa.from('configuracoes').update({ tabela_frete: tabela }).gt('id', 0);
+  const novoCombus = parseInt(document.getElementById('cfg-combustivel')?.value) || 0;
+  AJUDA_COMBUSTIVEL = novoCombus;
+
+  const { error } = await supa
+    .from('configuracoes')
+    .update({ tabela_frete: tabela, ajuda_combustivel: novoCombus })
+    .gt('id', 0);
   if (error) {
-    if (error.code === '42703' || (error.message && error.message.includes('tabela_frete'))) {
+    if (
+      error.code === '42703' ||
+      (error.message &&
+        (error.message.includes('tabela_frete') || error.message.includes('ajuda_combustivel')))
+    ) {
       alert(
         '⚠️ A coluna "tabela_frete" ainda não existe no banco.\n\n' +
-        'Execute no Supabase SQL Editor:\n\n' +
-        'ALTER TABLE configuracoes ADD COLUMN IF NOT EXISTS tabela_frete JSONB DEFAULT NULL;'
+          'Execute no Supabase SQL Editor:\n\n' +
+          'ALTER TABLE configuracoes ADD COLUMN IF NOT EXISTS tabela_frete JSONB DEFAULT NULL;\n' +
+          'ALTER TABLE configuracoes ADD COLUMN IF NOT EXISTS ajuda_combustivel INTEGER DEFAULT 20000;',
       );
     } else {
       alert('Erro ao salvar tabela de frete: ' + error.message);
@@ -3926,15 +4385,17 @@ async function salvarPersonalizacao() {
 
     if (nomeLoja) dados.nome_loja = nomeLoja;
     if (corPri) dados.cor_primaria = corPri;
-    // Se o usuário digitou hex manual, usa ele
     if (corHex && corHex.startsWith('#')) dados.cor_primaria = corHex;
 
-    // Upload do ícone se houver
-    const iconeFile = document.getElementById('cfg-icone-file');
-    if (iconeFile?.files?.length) {
-      const file = iconeFile.files[0];
-      const nomeArq = `icone_loja_${Date.now()}.${file.name.split('.').pop()}`;
-      await supa.storage.from('produtos').upload(nomeArq, file, { upsert: true });
+    // Upload do ícone se houver arquivo selecionado
+    const iconeFile = document.getElementById('cfg-icone-file')?.files?.[0];
+    if (iconeFile) {
+      const ext = iconeFile.name.split('.').pop();
+      const nomeArq = `icone-loja-${Date.now()}.${ext}`;
+      const { error: upErr } = await supa.storage
+        .from('produtos')
+        .upload(nomeArq, iconeFile, { upsert: true });
+      if (upErr) throw new Error('Erro no upload: ' + upErr.message);
       const { data: urlData } = supa.storage.from('produtos').getPublicUrl(nomeArq);
       dados.icone_url = urlData.publicUrl;
     }
@@ -4139,7 +4600,10 @@ function _calcularIntervalo(periodo, idI, idF) {
 // ══════════════════════════════════════════════════════════
 // PDV MOBILE — Tabs de navegação
 // ══════════════════════════════════════════════════════════
+let _pdvAbaAtiva = 'produtos'; // Rastreia a aba atual no mobile
+
 function pdvMudarAba(aba, btn) {
+  _pdvAbaAtiva = aba; // Persiste a aba selecionada
   document.querySelectorAll('.pdv-tab-btn').forEach((b) => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
   // No mobile, os painéis são os próprios elements dentro do pdv-panel-venda
@@ -4184,7 +4648,7 @@ function pdvMudarView(view) {
   }
 }
 
-function pdvIniciarTabs() {
+function pdvIniciarTabs(preservarAba = false) {
   const isMobile = window.innerWidth <= 768;
   const tabsEl = document.getElementById('pdv-tabs');
   const footer = document.getElementById('pdv-mobile-footer');
@@ -4194,13 +4658,22 @@ function pdvIniciarTabs() {
     if (tabsEl) tabsEl.style.display = 'flex';
     if (footer) footer.style.display = 'flex';
     if (headerBar) headerBar.style.display = 'none';
-    // Mobile começa mostrando o cardápio
-    document.querySelectorAll('.pdv-tab-btn').forEach((b) => b.classList.remove('active'));
-    const btnCardapio = tabsEl ? tabsEl.querySelector('.pdv-tab-btn:nth-child(1)') : null;
-    if (btnCardapio) {
-      btnCardapio.classList.add('active');
+
+    if (preservarAba && _pdvAbaAtiva) {
+      // Restaura a aba que estava ativa antes do resize
+      const tabIndex = { produtos: 1, carrinho: 2, monitor: 3 }[_pdvAbaAtiva] || 1;
+      document.querySelectorAll('.pdv-tab-btn').forEach((b) => b.classList.remove('active'));
+      const btnAtivo = tabsEl ? tabsEl.querySelector(`.pdv-tab-btn:nth-child(${tabIndex})`) : null;
+      if (btnAtivo) btnAtivo.classList.add('active');
+      pdvMudarAba(_pdvAbaAtiva, null);
+    } else {
+      // Primeira carga: começa no cardápio
+      _pdvAbaAtiva = 'produtos';
+      document.querySelectorAll('.pdv-tab-btn').forEach((b) => b.classList.remove('active'));
+      const btnCardapio = tabsEl ? tabsEl.querySelector('.pdv-tab-btn:nth-child(1)') : null;
+      if (btnCardapio) btnCardapio.classList.add('active');
+      pdvMudarAba('produtos', null);
     }
-    pdvMudarAba('produtos', null);
   } else {
     if (tabsEl) tabsEl.style.display = 'none';
     if (footer) footer.style.display = 'none';
@@ -4229,6 +4702,27 @@ async function logout() {
 // 9. VENDA BALCÃO (VISUAL / NOVO)
 // =========================================
 let carrinhoPDV = [];
+let _pdvTipoEntrega = 'local'; // 'local' | 'levar' | 'delivery'
+
+function pdvSelecionarTipo(tipo) {
+  _pdvTipoEntrega = tipo;
+  ['local', 'levar', 'delivery'].forEach((t) => {
+    const btn = document.getElementById(`pdv-tipo-${t}`);
+    if (btn) btn.classList.toggle('pdv-tipo-ativo', t === tipo);
+  });
+  const mesaCol = document.getElementById('pdv-mesa-col');
+  const deliveryRow = document.getElementById('pdv-delivery-row');
+  if (tipo === 'local') {
+    if (mesaCol) mesaCol.style.display = '';
+    if (deliveryRow) deliveryRow.style.display = 'none';
+  } else if (tipo === 'levar') {
+    if (mesaCol) mesaCol.style.display = 'none';
+    if (deliveryRow) deliveryRow.style.display = 'none';
+  } else if (tipo === 'delivery') {
+    if (mesaCol) mesaCol.style.display = 'none';
+    if (deliveryRow) deliveryRow.style.display = 'block';
+  }
+}
 let produtosCachePDV = [];
 // Cotação carregada das configurações (fallback 1100)
 let _cotacaoPDV = 1100;
@@ -4385,22 +4879,18 @@ let _extrasGlobaisCache = null;
 async function _getExtrasGlobais() {
   if (_extrasGlobaisCache !== null) return _extrasGlobaisCache;
   // Tenta carregar das configurações (campo extras_globais no Supabase)
-  const { data } = await supa
-    .from('configuracoes')
-    .select('extras_globais')
-    .single()
-    .catch(() => ({ data: null }));
+  let data = null;
+  try {
+    const res = await supa.from('configuracoes').select('extras_globais').single();
+    data = res.data;
+  } catch (_) {
+    data = null;
+  }
   if (data && Array.isArray(data.extras_globais) && data.extras_globais.length > 0) {
     _extrasGlobaisCache = data.extras_globais;
   } else {
-    // Fallback com os extras da foto
-    _extrasGlobaisCache = [
-      { nome: 'Shoyu', preco: 2000 },
-      { nome: 'Taré (Teriaki)', preco: 3000 },
-      { nome: 'Sunomono', preco: 2000 },
-      { nome: 'Jengibre', preco: 2000 },
-      { nome: 'Wasabi', preco: 2000 },
-    ];
+    // Sem extras globais configurados
+    _extrasGlobaisCache = [];
   }
   return _extrasGlobaisCache;
 }
@@ -4411,9 +4901,10 @@ function _deveMostrarExtrasGlobais(produto) {
 }
 
 function adicionarItemPDV(p) {
-  // Verifica se produto tem variações
   const cfg = p.montagem_config;
-  const tipo = cfg && !Array.isArray(cfg) && cfg.__tipo ? cfg.__tipo : null;
+  const tipo =
+    cfg && !Array.isArray(cfg) && cfg.__tipo ? cfg.__tipo : p.e_montavel ? 'montavel' : null;
+
   if (tipo === 'variacoes' && cfg.variacoes && cfg.variacoes.length > 0) {
     const variacoesAtivas = cfg.variacoes.filter((v) => v.ativo !== false);
     if (variacoesAtivas.length === 0) {
@@ -4423,17 +4914,638 @@ function adicionarItemPDV(p) {
     _mostrarModalVariacaoPDV(p, variacoesAtivas);
     return;
   }
+  if (
+    tipo === 'pizza' ||
+    tipo === 'shake' ||
+    tipo === 'montavel' ||
+    tipo === 'acai' ||
+    tipo === 'suco' ||
+    tipo === 'almoco'
+  ) {
+    // Tipos acai e suco compartilham o render de montável
+    const tipoRender = tipo === 'acai' || tipo === 'suco' ? 'montavel' : tipo;
+    _mostrarModalComplexoPDV(p, tipoRender, cfg);
+    return;
+  }
   const existe = carrinhoPDV.find((i) => i.id === p.id && !i.variacao);
   if (existe) existe.qtd++;
   else carrinhoPDV.push({ ...p, qtd: 1 });
   atualizarCarrinhoPDV();
-
-  // Upsell de extras globais (exceto bebidas e extras)
   if (_deveMostrarExtrasGlobais(p)) {
     _getExtrasGlobais().then((extras) => {
       if (extras && extras.length > 0) _mostrarUpsellExtrasPDV(p, extras);
     });
   }
+}
+
+// ─── Modal completo PDV — Pizza / Shake / Montável / Almoço ───────────────────
+let _pdvModalState = {};
+
+function _mostrarModalComplexoPDV(produto, tipo, cfg) {
+  document.getElementById('pdv-complex-modal')?.remove();
+  const cacheKey = 'pdvc_' + (produto.id || Date.now());
+  window._pdvProdCache[cacheKey] = produto;
+  _pdvModalState = {
+    tipo,
+    cfg,
+    produto,
+    cacheKey,
+    pizza: { tamanhoSelecionado: null, numSabores: null, sabores: [], bordaConfig: null },
+    shake: { tamanhoSelecionado: null, saborSelecionado: null },
+    montavel: {},
+    almoco: null,
+    qtd: 1,
+  };
+
+  const overlay = document.createElement('div');
+  overlay.id = 'pdv-complex-modal';
+  overlay.style.cssText =
+    'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:12px';
+  overlay.onclick = (e) => {
+    if (e.target === overlay) overlay.remove();
+  };
+
+  const modal = document.createElement('div');
+  modal.style.cssText =
+    'background:#fff;border-radius:16px;width:100%;max-width:480px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden';
+
+  const header = document.createElement('div');
+  header.style.cssText =
+    'display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #f0f0f0;flex-shrink:0';
+  header.innerHTML = `<div><div style="font-weight:700;font-size:1rem;color:#222">${produto.nome}</div><div style="font-size:0.8rem;color:#888;margin-top:2px">${_pdvTipoLabel(tipo)}</div></div><button style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#aaa;padding:4px" onclick="document.getElementById('pdv-complex-modal')?.remove()">✕</button>`;
+  modal.appendChild(header);
+
+  const body = document.createElement('div');
+  body.id = 'pdv-complex-body';
+  body.style.cssText = 'overflow-y:auto;flex:1;padding:16px 20px';
+
+  if (tipo === 'pizza') _pdvRenderPizza(body);
+  else if (tipo === 'shake') _pdvRenderShake(body);
+  else if (tipo === 'montavel') _pdvRenderMontavel(body);
+  else if (tipo === 'almoco') _pdvRenderAlmoco(body);
+
+  // Adicionais do produto
+  const extrasProds = cfg && cfg.extras && cfg.extras.length > 0 ? cfg.extras : null;
+  if (extrasProds) _pdvRenderExtras(body, extrasProds);
+
+  // Adicionais globais
+  if (_deveMostrarExtrasGlobais(produto)) {
+    _getExtrasGlobais().then((globais) => {
+      if (globais && globais.length > 0) {
+        const bodyEl = document.getElementById('pdv-complex-body');
+        if (bodyEl) _pdvRenderExtrasGlobais(bodyEl, globais);
+      }
+    });
+  }
+
+  modal.appendChild(body);
+
+  const footer = document.createElement('div');
+  footer.style.cssText =
+    'padding:14px 20px;border-top:1px solid #f0f0f0;flex-shrink:0;background:#fafafa';
+  footer.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <label style="font-size:0.85rem;color:#666;font-weight:600">Quantidade:</label>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button type="button" onclick="_pdvModalQtd(-1)" style="width:30px;height:30px;border-radius:50%;border:1px solid #ddd;background:#fff;font-size:1.1rem;cursor:pointer;line-height:1">−</button>
+        <span id="pdv-modal-qty" style="font-weight:700;font-size:1rem;min-width:20px;text-align:center">1</span>
+        <button type="button" onclick="_pdvModalQtd(1)" style="width:30px;height:30px;border-radius:50%;border:1px solid #ddd;background:#fff;font-size:1.1rem;cursor:pointer;line-height:1">+</button>
+      </div>
+      <span id="pdv-modal-preco" style="margin-left:auto;font-weight:700;font-size:1.05rem;color:var(--primary)">Gs ${(produto.preco || 0).toLocaleString('es-PY')}</span>
+    </div>
+    <div style="margin-bottom:8px">
+      <input id="pdv-modal-obs" type="text" placeholder="Observação (opcional)" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:0.85rem;box-sizing:border-box">
+    </div>
+    <button type="button" onclick="_pdvModalConfirmar()" style="width:100%;padding:13px;background:var(--primary);color:#fff;border:none;border-radius:10px;font-weight:700;font-size:0.95rem;cursor:pointer">
+      ✅ Adicionar ao Carrinho
+    </button>`;
+  modal.appendChild(footer);
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+}
+
+function _pdvTipoLabel(tipo) {
+  const labels = {
+    pizza: '🍕 Escolha tamanho e sabores',
+    shake: '🥤 Escolha tamanho e sabor',
+    montavel: '🛠️ Monte seu pedido',
+    acai: '🍇 Monte seu Açaí',
+    suco: '🍊 Monte seu Suco',
+    almoco: '🍽️ Escolha o prato',
+  };
+  return labels[tipo] || '';
+}
+
+function _pdvModalQtd(delta) {
+  _pdvModalState.qtd = Math.max(1, (_pdvModalState.qtd || 1) + delta);
+  document.getElementById('pdv-modal-qty').textContent = _pdvModalState.qtd;
+  _pdvModalAtualizarPreco();
+}
+
+function _precoPizzaPorTipo(tam, tipo) {
+  const t = (tipo || 'Tradicional').toLowerCase();
+  if (t === 'premium' && tam.preco_premium > 0) return tam.preco_premium;
+  if (t === 'especial' && tam.preco_especial > 0) return tam.preco_especial;
+  if (t === 'doce' && tam.preco_doce > 0) return tam.preco_doce;
+  return tam.preco_tradicional || tam.preco || 0;
+}
+
+// Retorna o maior preço entre os sabores selecionados
+function _calcularBasePizza(tam, saboresOk) {
+  if (!tam || saboresOk.length === 0) return tam ? _precoPizzaPorTipo(tam, 'Tradicional') : 0;
+  return Math.max(...saboresOk.map((s) => _precoPizzaPorTipo(tam, s.tipo || 'Tradicional')));
+}
+
+function _pdvModalAtualizarPreco() {
+  const st = _pdvModalState;
+  let preco = 0;
+  if (st.tipo === 'pizza') {
+    const tam = st.pizza.tamanhoSelecionado;
+    const saboresOk = (st.pizza.sabores || []).filter(Boolean);
+    preco = _calcularBasePizza(tam, saboresOk) + (st.pizza.bordaConfig?.preco || 0);
+  } else if (st.tipo === 'shake') {
+    preco = (st.shake.tamanhoSelecionado?.preco || 0) + (st.shake.saborSelecionado?.preco || 0);
+  } else if (st.tipo === 'almoco') {
+    preco = st.almoco?.preco || st.produto.preco || 0;
+  } else {
+    preco = st.produto.preco || 0;
+  }
+  if (preco === 0) preco = st.produto.preco || 0;
+  document.querySelectorAll('#pdv-complex-modal .pdvc-extra-check:checked').forEach((cb) => {
+    preco += parseInt(cb.dataset.preco || 0);
+  });
+  const el = document.getElementById('pdv-modal-preco');
+  if (el) el.textContent = 'Gs ' + (preco * (st.qtd || 1)).toLocaleString('es-PY');
+  st._precoAtual = preco;
+}
+
+// ── Pizza ──────────────────────────────────────────────────────────────────────
+function _pdvRenderPizza(container) {
+  const cfg = _pdvModalState.cfg;
+  if (!cfg || !cfg.pizza) {
+    container.innerHTML = '<p style="color:#aaa">Configuração de pizza não encontrada.</p>';
+    return;
+  }
+  const p = cfg.pizza;
+  _pdvModalState.pizza = {
+    p,
+    tamanhoSelecionado: null,
+    numSabores: null,
+    sabores: [],
+    bordaConfig: null,
+  };
+
+  const sec1 = document.createElement('div');
+  sec1.className = 'pdvc-step';
+  sec1.innerHTML = `<div class="pdvc-step-title"><span class="pdvc-step-num">1</span> Escolha o tamanho</div><div class="pdvc-size-grid" id="pdvc-size-grid"></div>`;
+  container.appendChild(sec1);
+  const sizeGrid = sec1.querySelector('#pdvc-size-grid');
+  (p.tamanhos || []).forEach((tam) => {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'pdvc-size-card';
+    card.innerHTML = `<div class="pdvc-size-name">${tam.nome}</div><div class="pdvc-size-info">${tam.fatias || ''} fatias · ⌀${tam.cm || ''}cm</div><div class="pdvc-size-price">Gs ${(tam.preco || 0).toLocaleString('es-PY')}</div>`;
+    card.onclick = () => {
+      sizeGrid.querySelectorAll('.pdvc-size-card').forEach((c) => c.classList.remove('selected'));
+      card.classList.add('selected');
+      _pdvModalState.pizza.tamanhoSelecionado = tam;
+      _pdvModalState.pizza.numSabores = null;
+      _pdvModalState.pizza.sabores = [];
+      _pdvModalState.pizza.bordaConfig = null;
+      _pdvPizzaPasso2(p);
+      _pdvModalAtualizarPreco();
+    };
+    sizeGrid.appendChild(card);
+  });
+  const p2 = document.createElement('div');
+  p2.id = 'pdvc-passo2';
+  p2.style.display = 'none';
+  container.appendChild(p2);
+  const p3 = document.createElement('div');
+  p3.id = 'pdvc-passo3';
+  p3.style.display = 'none';
+  container.appendChild(p3);
+  const p4 = document.createElement('div');
+  p4.id = 'pdvc-passo4';
+  p4.style.display = 'none';
+  container.appendChild(p4);
+}
+
+function _pdvPizzaPasso2(p) {
+  const passo2 = document.getElementById('pdvc-passo2');
+  const passo3 = document.getElementById('pdvc-passo3');
+  const passo4 = document.getElementById('pdvc-passo4');
+  if (!passo2) return;
+  if (passo3) {
+    passo3.innerHTML = '';
+    passo3.style.display = 'none';
+  }
+  if (passo4) {
+    passo4.innerHTML = '';
+    passo4.style.display = 'none';
+  }
+  const maxLoja = _pdvModalState.pizza.tamanhoSelecionado?.max_sabores || p.max_sabores || 1;
+  const labels = { 1: '🍕 Inteira', 2: '½ a ½', 3: '3 Sabores', 4: '4 Sabores' };
+  passo2.innerHTML = `<div class="pdvc-step"><div class="pdvc-step-title"><span class="pdvc-step-num">2</span> Quantos sabores?</div><div class="pdvc-divisao-grid">${Array.from(
+    { length: maxLoja },
+    (_, i) => i + 1,
+  )
+    .map(
+      (n) =>
+        `<button type="button" class="pdvc-divisao-btn" onclick="_pdvPizzaSelecionarDivisao(${n}, this)">${labels[n] || n + ' Sabores'}</button>`,
+    )
+    .join('')}</div></div>`;
+  passo2.style.display = 'block';
+  setTimeout(() => passo2.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 80);
+}
+
+function _pdvPizzaSelecionarDivisao(n, el) {
+  document
+    .querySelectorAll('#pdvc-passo2 .pdvc-divisao-btn')
+    .forEach((b) => b.classList.remove('selected'));
+  el.classList.add('selected');
+  _pdvModalState.pizza.numSabores = n;
+  _pdvModalState.pizza.sabores = new Array(n).fill(null);
+  _pdvPizzaPasso3(n);
+  // Scroll direto para os sabores
+  setTimeout(() => {
+    const p3 = document.getElementById('pdvc-passo3');
+    const scrollEl = document.getElementById('pdv-complex-body');
+    if (p3 && scrollEl) scrollEl.scrollTo({ top: p3.offsetTop - 12, behavior: 'smooth' });
+  }, 80);
+}
+
+function _pdvPizzaPasso3(n) {
+  const passo3 = document.getElementById('pdvc-passo3');
+  const passo4 = document.getElementById('pdvc-passo4');
+  if (!passo3) return;
+  if (passo4) {
+    passo4.innerHTML = '';
+    passo4.style.display = 'none';
+  }
+  const p = _pdvModalState.pizza.p;
+  let html = `<div class="pdvc-step"><div class="pdvc-step-title"><span class="pdvc-step-num">3</span> Escolha ${n === 1 ? 'o sabor' : `os ${n} sabores`}</div>`;
+  for (let slot = 0; slot < n; slot++) {
+    html += n > 1 ? `<div class="pdvc-slot-header">${slot + 1}º sabor</div>` : '';
+    html += `<div class="pdvc-sabores-grid" id="pdvc-slot-${slot}">`;
+    (p.sabores || []).forEach((s) => {
+      const sfEsc = (s.nome || '').replace(/'/g, "\\'");
+      const tipoLower = (s.tipo || 'Tradicional').toLowerCase();
+      let badge = '';
+      if (tipoLower === 'especial')
+        badge = `<span style="background:#f59e0b;color:#fff;font-size:0.68rem;font-weight:700;border-radius:10px;padding:2px 6px;white-space:nowrap">⭐ Especial</span>`;
+      else if (tipoLower === 'premium')
+        badge = `<span style="background:#7c3aed;color:#fff;font-size:0.68rem;font-weight:700;border-radius:10px;padding:2px 6px;white-space:nowrap">🏆 Premium</span>`;
+      else if (tipoLower === 'doce')
+        badge = `<span style="background:#ec4899;color:#fff;font-size:0.68rem;font-weight:700;border-radius:10px;padding:2px 6px;white-space:nowrap">🍫 Doce</span>`;
+      const tam = _pdvModalState.pizza.tamanhoSelecionado;
+      const precoTipo = tam ? _precoPizzaPorTipo(tam, s.tipo) : 0;
+      const precoDiff = tam ? precoTipo - _precoPizzaPorTipo(tam, 'Tradicional') : 0;
+      const imgHtml = s.img
+        ? `<img src="${s.img}" class="pdvc-sabor-img" onerror="this.style.display='none'">`
+        : `<span style="font-size:1.5rem">🍕</span>`;
+      html += `<button type="button" class="pdvc-sabor-btn" data-slot="${slot}" onclick="_pdvPizzaSelecionarSabor(${slot},'${sfEsc}',0,'${s.tipo || 'Tradicional'}',this)">
+    ${imgHtml}
+    <div style="flex:1">
+      <div class="pdvc-sabor-nome">${s.nome}</div>
+      ${s.desc ? `<div class="pdvc-sabor-desc">${s.desc}</div>` : ''}
+      ${precoDiff > 0 ? `<div class="pdvc-sabor-preco">+ Gs ${precoDiff.toLocaleString('es-PY')}</div>` : ''}
+    </div>
+    ${badge}
+  </button>`;
+    });
+    html += `</div>`;
+  }
+  html += `</div>`;
+  passo3.innerHTML = html;
+  passo3.style.display = 'block';
+  setTimeout(() => passo3.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 80);
+}
+
+function _pdvPizzaSelecionarSabor(slot, nome, preco, tipo, el) {
+  const lista = document.getElementById(`pdvc-slot-${slot}`);
+  if (lista)
+    lista.querySelectorAll('.pdvc-sabor-btn').forEach((b) => b.classList.remove('selected'));
+  el.classList.add('selected');
+
+  el.querySelectorAll('.pdvc-fracao-tag').forEach((t) => t.remove());
+  const tag = document.createElement('span');
+  tag.className = 'pdvc-fracao-tag';
+  const n = _pdvModalState.pizza.numSabores || 1;
+  tag.textContent = n > 1 ? `${slot + 1}/${n}` : '✓';
+  tag.style.cssText =
+    'position:absolute;top:6px;right:6px;background:var(--primary);color:#fff;font-size:0.68rem;font-weight:700;border-radius:10px;padding:2px 6px';
+  el.style.position = 'relative';
+  el.appendChild(tag);
+
+  _pdvModalState.pizza.sabores[slot] = { nome, tipo: tipo || 'Tradicional' };
+  _pdvModalAtualizarPreco();
+
+  const cheios = (_pdvModalState.pizza.sabores || []).filter(Boolean).length;
+  const scrollEl = document.getElementById('pdv-complex-body');
+  if (cheios >= n) {
+    _pdvPizzaPasso4();
+    setTimeout(() => {
+      const p4 = document.getElementById('pdvc-passo4');
+      if (p4 && scrollEl) scrollEl.scrollTo({ top: p4.offsetTop - 12, behavior: 'smooth' });
+    }, 80);
+  } else {
+    setTimeout(() => {
+      const proxLista = document.getElementById(`pdvc-slot-${slot + 1}`);
+      if (proxLista && scrollEl) {
+        const header = proxLista.previousElementSibling;
+        scrollEl.scrollTo({ top: (header || proxLista).offsetTop - 12, behavior: 'smooth' });
+      }
+    }, 80);
+  }
+}
+
+function _pdvPizzaPasso4() {
+  const passo4 = document.getElementById('pdvc-passo4');
+  if (!passo4) return;
+  const p = _pdvModalState.pizza.p;
+  const tam = _pdvModalState.pizza.tamanhoSelecionado || {};
+  function precoBordaPorTipo(tipo) {
+    const t = (tipo || 'Tradicional').toLowerCase();
+    if (t === 'especial' && tam.borda_preco_especial > 0) return tam.borda_preco_especial;
+    if (t === 'doce' && tam.borda_preco_doce > 0) return tam.borda_preco_doce;
+    return tam.borda_preco || 0;
+  }
+  const bordasOpcoes =
+    p.bordas && p.bordas.length > 0
+      ? p.bordas.map((b) => ({
+          nome: b.nome,
+          tipo: b.tipo || 'Tradicional',
+          preco: precoBordaPorTipo(b.tipo),
+        }))
+      : p.tem_borda
+        ? [
+            {
+              nome: 'Borda Recheada',
+              tipo: 'Tradicional',
+              preco: tam.borda_preco || p.borda_preco || 0,
+            },
+          ]
+        : [];
+  if (bordasOpcoes.length === 0) return;
+  passo4.innerHTML = `<div class="pdvc-step"><div class="pdvc-step-title"><span class="pdvc-step-num">4</span> Borda recheada?</div><div class="pdvc-borda-grid"><button type="button" class="pdvc-borda-btn selected" id="pdvc-borda-nao" onclick="_pdvPizzaSelecionarBorda(null,0,this)">Sem borda</button>${bordasOpcoes.map((b) => `<button type="button" class="pdvc-borda-btn" onclick="_pdvPizzaSelecionarBorda('${b.nome.replace(/'/g, "\\'")}',${b.preco || 0},this)">🧀 ${b.nome} <span style="font-size:0.75rem;opacity:0.8">+Gs ${(b.preco || 0).toLocaleString('es-PY')}</span></button>`).join('')}</div></div>`;
+  passo4.style.display = 'block';
+  setTimeout(() => passo4.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 80);
+}
+
+function _pdvPizzaSelecionarBorda(nome, preco, el) {
+  document
+    .querySelectorAll('#pdvc-passo4 .pdvc-borda-btn')
+    .forEach((c) => c.classList.remove('selected'));
+  el.classList.add('selected');
+  _pdvModalState.pizza.bordaConfig = nome ? { nome, preco } : null;
+  _pdvModalAtualizarPreco();
+}
+
+// ── Shake ──────────────────────────────────────────────────────────────────────
+function _pdvRenderShake(container) {
+  const cfg = _pdvModalState.cfg;
+  const shk = cfg && cfg.shake ? cfg.shake : cfg || {};
+  const sec1 = document.createElement('div');
+  sec1.className = 'pdvc-step';
+  sec1.innerHTML = `<div class="pdvc-step-title"><span class="pdvc-step-num">1</span> Escolha o tamanho</div><div class="pdvc-size-grid" id="pdvc-shk-size"></div>`;
+  container.appendChild(sec1);
+  const sg = sec1.querySelector('#pdvc-shk-size');
+  (shk.tamanhos || []).forEach((tam) => {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'pdvc-size-card';
+    card.innerHTML = `<div class="pdvc-size-name">${tam.nome}</div>${tam.ml ? `<div class="pdvc-size-info">${tam.ml}ml</div>` : ''}<div class="pdvc-size-price">Gs ${(tam.preco || 0).toLocaleString('es-PY')}</div>`;
+    card.onclick = () => {
+      sg.querySelectorAll('.pdvc-size-card').forEach((c) => c.classList.remove('selected'));
+      card.classList.add('selected');
+      _pdvModalState.shake.tamanhoSelecionado = tam;
+      _pdvModalAtualizarPreco();
+    };
+    sg.appendChild(card);
+  });
+  const sec2 = document.createElement('div');
+  sec2.className = 'pdvc-step';
+  sec2.innerHTML = `<div class="pdvc-step-title"><span class="pdvc-step-num">2</span> Escolha o sabor</div><div class="pdvc-sabores-grid" id="pdvc-shk-sabores"></div>`;
+  container.appendChild(sec2);
+  const saborGrid = sec2.querySelector('#pdvc-shk-sabores');
+  (shk.sabores || []).forEach((s) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pdvc-sabor-btn';
+    const imgHtml = s.img
+      ? `<img src="${s.img}" class="pdvc-sabor-img" onerror="this.style.display='none'">`
+      : `<span style="font-size:1.5rem">🥤</span>`;
+    btn.innerHTML = `${imgHtml}<div><div class="pdvc-sabor-nome">${s.nome}</div>${s.preco ? `<div class="pdvc-sabor-preco">+ Gs ${s.preco.toLocaleString('es-PY')}</div>` : ''}</div>`;
+    btn.onclick = () => {
+      saborGrid.querySelectorAll('.pdvc-sabor-btn').forEach((b) => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      _pdvModalState.shake.saborSelecionado = { nome: s.nome, preco: s.preco || 0 };
+      _pdvModalAtualizarPreco();
+    };
+    saborGrid.appendChild(btn);
+  });
+}
+
+// ── Montável ───────────────────────────────────────────────────────────────────
+function _pdvRenderMontavel(container) {
+  const cfg = _pdvModalState.cfg;
+  const etapas = Array.isArray(cfg) ? cfg : cfg && cfg.etapas ? cfg.etapas : [];
+  _pdvModalState.montavel = {};
+  if (etapas.length === 0) {
+    container.innerHTML =
+      '<p style="color:#aaa;font-size:0.9rem">Este produto não tem etapas configuradas.</p>';
+    return;
+  }
+  etapas.forEach((etapa, idx) => {
+    _pdvModalState.montavel[idx] = [];
+    const sec = document.createElement('div');
+    sec.className = 'pdvc-step';
+    const title = document.createElement('div');
+    title.className = 'pdvc-step-title';
+    title.innerHTML = `<span class="pdvc-step-num">${idx + 1}</span> ${etapa.titulo} <span style="font-size:0.78rem;color:#aaa;font-weight:400">(máx ${etapa.max})</span>`;
+    sec.appendChild(title);
+    (etapa.itens || []).forEach((ingrediente) => {
+      const label = document.createElement('label');
+      label.className = 'pdvc-check-item';
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.value = ingrediente;
+      input.style.cssText =
+        'width:16px;height:16px;accent-color:var(--primary);cursor:pointer;flex-shrink:0';
+      input.onchange = () => {
+        const arr = _pdvModalState.montavel[idx];
+        if (input.checked) {
+          if (arr.length < etapa.max) arr.push(ingrediente);
+          else {
+            alert(`Máximo ${etapa.max} item(ns) em "${etapa.titulo}"`);
+            input.checked = false;
+          }
+        } else {
+          const i = arr.indexOf(ingrediente);
+          if (i > -1) arr.splice(i, 1);
+        }
+      };
+      label.appendChild(input);
+      label.appendChild(document.createTextNode(' ' + ingrediente));
+      sec.appendChild(label);
+    });
+    container.appendChild(sec);
+  });
+}
+
+// ── Almoço ─────────────────────────────────────────────────────────────────────
+function _pdvRenderAlmoco(container) {
+  const cfg = _pdvModalState.cfg;
+  const pratos = cfg && cfg.pratos ? cfg.pratos : [];
+  const sec = document.createElement('div');
+  sec.className = 'pdvc-step';
+  sec.innerHTML = `<div class="pdvc-step-title"><span class="pdvc-step-num">1</span> Escolha o prato</div>`;
+  pratos.forEach((prato) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pdvc-prato-btn';
+    const imgHtml = prato.img
+      ? `<img src="${prato.img}" class="pdvc-sabor-img" onerror="this.style.display='none'">`
+      : `<span style="font-size:1.5rem">🍽️</span>`;
+    btn.innerHTML = `${imgHtml}<div><div class="pdvc-sabor-nome">${prato.nome}</div>${prato.desc ? `<div class="pdvc-sabor-desc">${prato.desc}</div>` : ''}<div class="pdvc-sabor-preco">Gs ${(prato.preco || _pdvModalState.produto.preco || 0).toLocaleString('es-PY')}</div></div>`;
+    btn.onclick = () => {
+      container.querySelectorAll('.pdvc-prato-btn').forEach((b) => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      _pdvModalState.almoco = prato;
+      _pdvModalAtualizarPreco();
+    };
+    sec.appendChild(btn);
+  });
+  container.appendChild(sec);
+}
+
+// ── Extras do produto ──────────────────────────────────────────────────────────
+function _pdvRenderExtras(container, extras) {
+  const sec = document.createElement('div');
+  sec.className = 'pdvc-step';
+  sec.id = 'pdvc-extras-prod';
+  sec.innerHTML = `<div class="pdvc-step-title">➕ Adicionais</div>`;
+  extras.forEach((ex) => {
+    const label = document.createElement('label');
+    label.className = 'pdvc-check-item';
+    label.innerHTML = `<input type="checkbox" class="pdvc-extra-check" data-nome="${(ex.nome || '').replace(/"/g, '&quot;')}" data-preco="${ex.preco || 0}" style="width:16px;height:16px;accent-color:var(--primary);cursor:pointer;flex-shrink:0" onchange="_pdvModalAtualizarPreco()"><span style="flex:1;font-size:0.88rem;color:#333">${ex.nome}</span>${ex.preco > 0 ? `<span style="font-size:0.82rem;color:var(--primary);font-weight:600">+ Gs ${ex.preco.toLocaleString('es-PY')}</span>` : '<span style="font-size:0.78rem;color:#aaa">Grátis</span>'}`;
+    sec.appendChild(label);
+  });
+  container.appendChild(sec);
+}
+
+// ── Extras globais ─────────────────────────────────────────────────────────────
+function _pdvRenderExtrasGlobais(container, globais) {
+  if (container.querySelector('#pdvc-extras-globais')) return;
+  const sec = document.createElement('div');
+  sec.className = 'pdvc-step';
+  sec.id = 'pdvc-extras-globais';
+  sec.innerHTML = `<div class="pdvc-step-title">🧂 Adicionais (opcionais)</div>`;
+  globais.forEach((ex) => {
+    const label = document.createElement('label');
+    label.className = 'pdvc-check-item';
+    label.innerHTML = `<input type="checkbox" class="pdvc-extra-check" data-nome="${(ex.nome || '').replace(/"/g, '&quot;')}" data-preco="${ex.preco || 0}" style="width:16px;height:16px;accent-color:var(--primary);cursor:pointer;flex-shrink:0" onchange="_pdvModalAtualizarPreco()"><span style="flex:1;font-size:0.88rem;color:#333">${ex.nome}</span>${ex.preco > 0 ? `<span style="font-size:0.82rem;color:var(--primary);font-weight:600">+ Gs ${ex.preco.toLocaleString('es-PY')}</span>` : '<span style="font-size:0.78rem;color:#aaa">Grátis</span>'}`;
+    sec.appendChild(label);
+  });
+  container.appendChild(sec);
+}
+
+// ── Confirmar ──────────────────────────────────────────────────────────────────
+function _pdvModalConfirmar() {
+  const st = _pdvModalState;
+  const p = window._pdvProdCache[st.cacheKey];
+  if (!p) return;
+  let variacao = '',
+    montagem = [],
+    preco = p.preco || 0;
+
+  if (st.tipo === 'pizza') {
+    if (!st.pizza.tamanhoSelecionado) {
+      alert('Selecione o tamanho da pizza!');
+      return;
+    }
+    const saboresOk = (st.pizza.sabores || []).filter(Boolean);
+    if (saboresOk.length === 0) {
+      alert('Selecione ao menos 1 sabor!');
+      return;
+    }
+    if (st.pizza.numSabores && saboresOk.length < st.pizza.numSabores) {
+      alert(`Selecione ${st.pizza.numSabores} sabores (selecionado: ${saboresOk.length}).`);
+      return;
+    }
+    const tam = st.pizza.tamanhoSelecionado;
+    preco = _calcularBasePizza(tam, saboresOk) + (st.pizza.bordaConfig?.preco || 0);
+    variacao = st.pizza.tamanhoSelecionado.nome;
+    const n = st.pizza.numSabores || 1;
+    montagem = [
+      saboresOk.map((s, i) => (n > 1 ? `${i + 1}/${n} ${s.nome}` : s.nome)).join(' | '),
+    ].filter(Boolean);
+    if (st.pizza.bordaConfig) montagem.push(`Borda: ${st.pizza.bordaConfig.nome}`);
+  } else if (st.tipo === 'shake') {
+    if (!st.shake.tamanhoSelecionado) {
+      alert('Escolha um tamanho para o Shake!');
+      return;
+    }
+    if (!st.shake.saborSelecionado) {
+      alert('Escolha um sabor para o Shake!');
+      return;
+    }
+    preco = (st.shake.tamanhoSelecionado.preco || 0) + (st.shake.saborSelecionado.preco || 0);
+    variacao = [st.shake.tamanhoSelecionado.nome, st.shake.saborSelecionado.nome]
+      .filter(Boolean)
+      .join(' – ');
+    montagem = [variacao];
+  } else if (st.tipo === 'montavel') {
+    const cfgEtapas = Array.isArray(st.cfg) ? st.cfg : st.cfg && st.cfg.etapas ? st.cfg.etapas : [];
+    for (let k in st.montavel) {
+      if (st.montavel[k]?.length > 0) {
+        const t = cfgEtapas[k] ? cfgEtapas[k].titulo : `Etapa ${parseInt(k) + 1}`;
+        montagem.push(`${t}: ${st.montavel[k].join(', ')}`);
+      }
+    }
+    preco = p.preco || 0;
+  } else if (st.tipo === 'almoco') {
+    if (!st.almoco) {
+      alert('Selecione o prato!');
+      return;
+    }
+    variacao = st.almoco.nome;
+    preco = st.almoco.preco || p.preco || 0;
+    if (st.almoco.desc) montagem.push(st.almoco.desc);
+  }
+
+  // Extras marcados
+  const extrasEscolhidos = [];
+  document.querySelectorAll('#pdv-complex-modal .pdvc-extra-check:checked').forEach((cb) => {
+    const nome = cb.dataset.nome || '';
+    const ePreco = parseInt(cb.dataset.preco || 0);
+    if (nome) {
+      extrasEscolhidos.push({ nome, preco: ePreco });
+      preco += ePreco;
+    }
+  });
+  if (extrasEscolhidos.length > 0)
+    montagem.push('Extras: ' + extrasEscolhidos.map((e) => e.nome).join(', '));
+
+  const obs = document.getElementById('pdv-modal-obs')?.value || '';
+  const qtd = st.qtd || 1;
+  const itemId = `${p.id}_${variacao || st.tipo}_${Date.now()}`;
+  for (let i = 0; i < qtd; i++) {
+    carrinhoPDV.push({
+      id: p.id,
+      _itemId: itemId + '_' + i,
+      nome: p.nome,
+      img: p.imagem_url,
+      preco,
+      qtd: 1,
+      variacao,
+      montagem: montagem.filter(Boolean),
+      obs,
+    });
+  }
+  atualizarCarrinhoPDV();
+  document.getElementById('pdv-complex-modal')?.remove();
 }
 
 // Cache seguro de produto — evita JSON.stringify em onclick (causava crash com montagem_config)
@@ -4450,14 +5562,17 @@ function _mostrarModalVariacaoPDV(produto, variacoes) {
   overlay.id = 'pdv-var-modal';
   overlay.style.cssText =
     'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
-  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+  overlay.onclick = (e) => {
+    if (e.target === overlay) overlay.remove();
+  };
 
   const modal = document.createElement('div');
   modal.style.cssText =
     'background:#fff;border-radius:16px;padding:20px;max-width:420px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)';
 
   const header = document.createElement('div');
-  header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:16px';
+  header.style.cssText =
+    'display:flex;justify-content:space-between;align-items:center;margin-bottom:16px';
   header.innerHTML = `
     <h4 style="margin:0;font-size:1rem;color:#333">🎨 Escolha a variação</h4>
     <button id="_pdv-var-close" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#999">✕</button>`;
@@ -4477,8 +5592,12 @@ function _mostrarModalVariacaoPDV(produto, variacoes) {
     btn.type = 'button';
     btn.style.cssText =
       'display:flex;align-items:center;gap:12px;background:#f9f9f9;border:2px solid #e5e7eb;border-radius:10px;padding:10px 14px;cursor:pointer;text-align:left;transition:border-color 0.15s;width:100%';
-    btn.onmouseover = () => { btn.style.borderColor = 'var(--primary)'; };
-    btn.onmouseout  = () => { btn.style.borderColor = '#e5e7eb'; };
+    btn.onmouseover = () => {
+      btn.style.borderColor = 'var(--primary)';
+    };
+    btn.onmouseout = () => {
+      btn.style.borderColor = '#e5e7eb';
+    };
 
     const imgSrc = v.img || produto.imagem_url;
     btn.innerHTML = `
@@ -4491,14 +5610,19 @@ function _mostrarModalVariacaoPDV(produto, variacoes) {
     btn.onclick = () => {
       const p = window._pdvProdCache[cacheKey];
       if (!p) return;
-      const existe = carrinhoPDV.find(i => i.id === p.id && i.variacao === v.nome);
+      const existe = carrinhoPDV.find((i) => i.id === p.id && i.variacao === v.nome);
       if (existe) {
         existe.qtd++;
       } else {
         carrinhoPDV.push({
-          id: p.id, nome: p.nome, img: p.imagem_url,
+          id: p.id,
+          nome: p.nome,
+          img: p.imagem_url,
           preco: v.preco || p.preco || 0,
-          qtd: 1, variacao: v.nome, montagem: [], obs: ''
+          qtd: 1,
+          variacao: v.nome,
+          montagem: [],
+          obs: '',
         });
       }
       atualizarCarrinhoPDV();
@@ -4743,7 +5867,9 @@ function voltarPagamentoPDVUnico() {
   document.getElementById('multi-partes-pdv').innerHTML = '';
   document.getElementById('balcao-pag').style.display = '';
   _multiContadorPDV = 0;
-  atualizarInfoPagPDV(parseInt(document.getElementById('balcao-total').innerText.replace(/\D/g, '')) || 0);
+  atualizarInfoPagPDV(
+    parseInt(document.getElementById('balcao-total').innerText.replace(/\D/g, '')) || 0,
+  );
 }
 
 function adicionarPartePagamentoPDV() {
@@ -4753,13 +5879,18 @@ function adicionarPartePagamentoPDV() {
   const id = _multiContadorPDV;
   const ordinal = ['1ª', '2ª', '3ª', '4ª', '5ª'][id - 1] || `${id}ª`;
   const opts = [
-    { v:'Efetivo', l:'💵 Efectivo' }, { v:'Cartao', l:'💳 Tarjeta' },
-    { v:'Pix', l:'🟢 Pix' }, { v:'Transferencia', l:'🏦 Alias' }
-  ].map(m => `<option value="${m.v}">${m.l}</option>`).join('');
+    { v: 'Efetivo', l: '💵 Efectivo' },
+    { v: 'Cartao', l: '💳 Tarjeta' },
+    { v: 'Pix', l: '🟢 Pix' },
+    { v: 'Transferencia', l: '🏦 Alias' },
+  ]
+    .map((m) => `<option value="${m.v}">${m.l}</option>`)
+    .join('');
 
   const card = document.createElement('div');
   card.id = `multi-parte-pdv-${id}`;
-  card.style.cssText = 'background:white;border:1.5px solid #e0e0e0;border-radius:10px;padding:12px;margin-bottom:8px';
+  card.style.cssText =
+    'background:white;border:1.5px solid #e0e0e0;border-radius:10px;padding:12px;margin-bottom:8px';
   card.innerHTML = `
     <div style="font-size:0.72rem;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">${ordinal} FORMA</div>
     <div style="display:flex;gap:8px;align-items:center">
@@ -4773,8 +5904,12 @@ function adicionarPartePagamentoPDV() {
             oninput="atualizarRestanteMultiPDV()"
             style="width:100%;padding:8px 8px 8px 28px;border:1.5px solid #e0e0e0;border-radius:7px;font-size:0.9rem;font-weight:700;box-sizing:border-box">
       </div>
-      ${id > 2 ? `<button type="button" onclick="removerPartePDV(${id})"
-          style="background:#ffeaea;color:#e74c3c;border:none;padding:8px 10px;border-radius:7px;cursor:pointer;flex-shrink:0">✕</button>` : ''}
+      ${
+        id > 2
+          ? `<button type="button" onclick="removerPartePDV(${id})"
+          style="background:#ffeaea;color:#e74c3c;border:none;padding:8px 10px;border-radius:7px;cursor:pointer;flex-shrink:0">✕</button>`
+          : ''
+      }
     </div>`;
   container.appendChild(card);
   atualizarRestanteMultiPDV();
@@ -4786,13 +5921,17 @@ function removerPartePDV(id) {
 }
 
 function atualizarRestanteMultiPDV() {
-  const total = parseInt(document.getElementById('balcao-total')?.innerText.replace(/\D/g, '') || '0');
+  const total = parseInt(
+    document.getElementById('balcao-total')?.innerText.replace(/\D/g, '') || '0',
+  );
   const inputs = [...document.querySelectorAll('[id^="multi-valor-pdv-"]')];
   let soma = 0;
-  inputs.forEach(inp => { soma += parseFloat(inp.value) || 0; });
+  inputs.forEach((inp) => {
+    soma += parseFloat(inp.value) || 0;
+  });
 
   // Auto-fill: se exatamente 1 input vazio e sobra valor
-  const vazios = inputs.filter(inp => !inp.value || parseFloat(inp.value) === 0);
+  const vazios = inputs.filter((inp) => !inp.value || parseFloat(inp.value) === 0);
   if (vazios.length === 1 && total - soma > 0) {
     vazios[0].value = total - soma;
     soma = total;
@@ -4805,20 +5944,23 @@ function atualizarRestanteMultiPDV() {
 
   const diff = total - soma;
   if (Math.abs(diff) < 1) {
-    bar.style.background = '#eafaf1'; bar.style.borderColor = '#27ae60';
+    bar.style.background = '#eafaf1';
+    bar.style.borderColor = '#27ae60';
     el.innerHTML = `<span style="color:#27ae60">✅ Total coberto: Gs ${total.toLocaleString('es-PY')}</span>`;
   } else if (diff > 0) {
-    bar.style.background = '#fff8e6'; bar.style.borderColor = '#f0a500';
+    bar.style.background = '#fff8e6';
+    bar.style.borderColor = '#f0a500';
     el.innerHTML = `<span style="color:#e67e22">⚠️ Faltam: Gs ${diff.toLocaleString('es-PY')}</span>`;
   } else {
-    bar.style.background = '#fdf3f3'; bar.style.borderColor = '#e74c3c';
+    bar.style.background = '#fdf3f3';
+    bar.style.borderColor = '#e74c3c';
     el.innerHTML = `<span style="color:#e74c3c">❌ Excede: Gs ${Math.abs(diff).toLocaleString('es-PY')}</span>`;
   }
 }
 
 function _coletarMultiPagamentoPDV() {
   const partes = [];
-  document.querySelectorAll('[id^="multi-parte-pdv-"]').forEach(div => {
+  document.querySelectorAll('[id^="multi-parte-pdv-"]').forEach((div) => {
     const idStr = div.id.replace('multi-parte-pdv-', '');
     const metodo = document.getElementById(`multi-metodo-pdv-${idStr}`)?.value || '';
     const valor = parseFloat(document.getElementById(`multi-valor-pdv-${idStr}`)?.value) || 0;
@@ -4832,27 +5974,49 @@ async function salvarPedidoBalcao() {
   if (carrinhoPDV.length === 0 && window._mesaAbertaId)
     return alert('Adicione ao menos 1 novo item antes de lançar.');
 
+  const tipo = _pdvTipoEntrega || 'local';
   const mesa = document.getElementById('balcao-mesa').value.trim();
-  if (!mesa) {
+  const endereco = document.getElementById('balcao-endereco')?.value.trim() || '';
+
+  if (tipo === 'local' && !mesa) {
     alert('⚠️ Número de mesa é obrigatório!');
     document.getElementById('balcao-mesa').focus();
     return;
   }
+  if (tipo === 'delivery' && !endereco) {
+    alert('⚠️ Informe o endereço ou link para o Delivery!');
+    document.getElementById('balcao-endereco').focus();
+    return;
+  }
+
+  const tipoEntregaBanco =
+    tipo === 'delivery' ? 'delivery' : tipo === 'levar' ? 'retirada' : 'balcao';
+  let enderecoFinal = '';
+  if (tipo === 'local') enderecoFinal = `Mesa ${mesa}`;
+  else if (tipo === 'levar') enderecoFinal = 'Retirada no balcão';
+  else if (tipo === 'delivery') enderecoFinal = endereco;
 
   const cli = document.getElementById('balcao-cliente').value || 'Cliente';
   const tel = document.getElementById('balcao-telefone').value || '';
   let pag = document.getElementById('balcao-pag').value;
-  const nomeFinal = `MESA ${mesa} - ${cli}`;
+  const nomeFinal = tipo === 'local' ? `MESA ${mesa} - ${cli}` : cli;
 
   // ── Tratamento Multipagamento ────────────────────────────────
   let obsPagPDV = 'Pagamento no Balcão';
   if (pag === 'Multipagamento') {
     const partesPDV = _coletarMultiPagamentoPDV();
-    if (partesPDV.length === 0) { alert('Adicione ao menos 1 forma de pagamento!'); return; }
-    const totalPedido = parseInt(document.getElementById('balcao-total')?.innerText.replace(/\D/g, '') || '0');
+    if (partesPDV.length === 0) {
+      alert('Adicione ao menos 1 forma de pagamento!');
+      return;
+    }
+    const totalPedido = parseInt(
+      document.getElementById('balcao-total')?.innerText.replace(/\D/g, '') || '0',
+    );
     const somaPartes = partesPDV.reduce((a, p) => a + p.valor, 0);
     if (Math.abs(somaPartes - totalPedido) > 1) {
-      alert(`⚠️ Total das formas (Gs ${somaPartes.toLocaleString('es-PY')}) não bate com o total do pedido (Gs ${totalPedido.toLocaleString('es-PY')}).`);
+      alert(
+        `⚠️ Total das formas (Gs ${somaPartes.toLocaleString('es-PY')}) não bate com o total do pedido (Gs ${totalPedido.toLocaleString('es-PY')}).`,
+      );
       return;
     }
     obsPagPDV = JSON.stringify(partesPDV);
@@ -4860,15 +6024,17 @@ async function salvarPedidoBalcao() {
 
   // ── Novos itens ganham status_item: 'pendente' ─────────────────
   const novosItens = carrinhoPDV.map((i) => ({
-    id: i.id || Date.now() + Math.random(),
-    nome: i.nome,
-    preco: i.preco,
-    qtd: i.qtd,
-    montagem: i.montagem || [],
-    obs: i.obs || '',
-    status_item: 'pendente', // ← campo de status por item
-    lancado_em: new Date().toISOString(),
-  }));
+  id: i.id || Date.now() + Math.random(),
+  nome: i.nome,
+  preco: i.preco,
+  qtd: i.qtd,
+  variacao: i.variacao || '',   // ← variação/sabor (ex: "Misto", "Grande")
+  preparo: i.preparo || '',     // ← preparo (ex: "Flambado", "Cru")
+  montagem: i.montagem || [],   // ← etapas montável (ex: ["Base: Arroz", "Extras: Taré"])
+  obs: i.obs || '',
+  status_item: 'pendente',
+  lancado_em: new Date().toISOString(),
+}));
 
   if (window._mesaAbertaId) {
     // ── UPDATE: mantém itens existentes (com seus status_item atuais)
@@ -4911,6 +6077,7 @@ async function salvarPedidoBalcao() {
     atualizarCarrinhoPDV();
     atualizarBarraMesasAtivas();
     carregarMonitorMesas();
+    _imprimirPedidoLocal(pedidoInserido || pedido, novosItens);
     alert(`✅ ${novosItens.length} item(s) enviado(s) para a cozinha!`);
     return;
   }
@@ -4921,32 +6088,38 @@ async function salvarPedidoBalcao() {
   const pedido = {
     uid_temporal: `BALC-${Math.floor(Math.random() * 1000)}`,
     status: 'em_preparo',
-    tipo_entrega: 'balcao',
+    tipo_entrega: tipoEntregaBanco,
     total_geral: totalNovo,
     subtotal: totalNovo,
     frete_cobrado_cliente: 0,
     forma_pagamento: pag,
     itens: novosItens,
-    endereco_entrega: `Mesa ${mesa}`,
+    endereco_entrega: enderecoFinal,
     cliente_nome: nomeFinal,
     cliente_telefone: tel,
     obs_pagamento: obsPagPDV,
+    // ── Vínculo de caixa: identifica qual operador lançou o pedido ──
+    operador_id: window._operadorId || null,
+    operador_nome: window._operadorNome || null,
     // Timestamps automáticos para PDV (já entra direto em preparo)
     tempo_recebido: _agora,
     tempo_confirmado: _agora,
     tempo_preparo_iniciado: _agora,
   };
 
-  const { error } = await supa.from('pedidos').insert([pedido]);
-  if (error) {
-    alert('Erro: ' + error.message);
-    return;
-  }
+ const { data: pedidoInserido, error } = await supa.from('pedidos').insert([pedido]).select().single();
+if (error) {
+  alert('Erro: ' + error.message);
+  return;
+}
 
   carrinhoPDV = [];
   document.getElementById('balcao-cliente').value = '';
   document.getElementById('balcao-mesa').value = '';
   document.getElementById('balcao-telefone').value = '';
+  if (document.getElementById('balcao-endereco'))
+    document.getElementById('balcao-endereco').value = '';
+  pdvSelecionarTipo('local');
   // Reset multipagamento PDV
   const multiPartesPDV = document.getElementById('multi-partes-pdv');
   if (multiPartesPDV) multiPartesPDV.innerHTML = '';
@@ -4958,7 +6131,11 @@ async function salvarPedidoBalcao() {
   atualizarCarrinhoPDV();
   atualizarBarraMesasAtivas();
   carregarMonitorMesas();
-  alert('Pedido enviado para a Cozinha! 👨‍🍳');
+  _imprimirPedidoLocal(
+  { ...window._mesaAbertaPedido, cliente_nome: nomeFinal, cliente_telefone: tel, forma_pagamento: pag, obs_pagamento: obsPagPDV },
+  novosItens
+);
+return;
 }
 
 // ── Barra de Mesas Ativas no PDV ─────────────────────────────
@@ -5065,16 +6242,28 @@ async function carregarMonitorMesas() {
     let cardClass = 'mesa-monitor-card';
 
     // Lógica Visual do Status — usa classes CSS
+    // DEPOIS
     if (p.status === 'em_preparo') {
       cardClass += ' mesa-preparo';
       statusHtml =
         '<span class="mesa-monitor-status-cozinha"><i class="fas fa-fire"></i> Na Cozinha</span>';
-      acaoHtml = '<small class="mesa-monitor-status-cozinha">Aguardando cozinha...</small>';
+      acaoHtml = `
+    <small class="mesa-monitor-status-cozinha">Aguardando cozinha...</small>
+    <button class="btn btn-sm btn-info btn-block-pdv" style="margin-top:6px"
+      onclick="imprimirPedido(${p.id})">
+      <i class="fas fa-print"></i> Imprimir
+    </button>`;
     } else if (p.status === 'pronto_entrega') {
       cardClass += ' mesa-pronta';
       statusHtml =
         '<span class="mesa-monitor-status-pronto"><i class="fas fa-check-circle"></i> PRONTO!</span>';
-      acaoHtml = `<button class="btn btn-sm btn-success btn-block-pdv" onclick="finalizarMesa(${p.id})">Entregar / Baixar</button>`;
+      acaoHtml = `
+    <button class="btn btn-sm btn-success btn-block-pdv"
+      onclick="finalizarMesa(${p.id})">Entregar / Baixar</button>
+    <button class="btn btn-sm btn-info btn-block-pdv" style="margin-top:6px"
+      onclick="imprimirPedido(${p.id})">
+      <i class="fas fa-print"></i> Imprimir
+    </button>`;
     } else {
       statusHtml = `<span class="mesa-monitor-valor">${p.status}</span>`;
     }
@@ -5168,10 +6357,13 @@ async function baixarItemMesa(pedidoId, itemIdx) {
 // Função para dar baixa na mesa (Muda status para 'entregue' e sai da lista)
 async function finalizarMesa(id) {
   if (confirm('Confirmar entrega e pagamento desta mesa?')) {
-    await supa.from('pedidos').update({
-      status: 'entregue',
-      tempo_entregue: new Date().toISOString()   // ← registra hora de fechamento
-    }).eq('id', id);
+    await supa
+      .from('pedidos')
+      .update({
+        status: 'entregue',
+        tempo_entregue: new Date().toISOString(), // ← registra hora de fechamento
+      })
+      .eq('id', id);
     carregarMonitorMesas();
     if (typeof calcularFinanceiro === 'function') calcularFinanceiro();
   }
@@ -5330,67 +6522,6 @@ async function cadastrarUsuario() {
       btn.innerHTML = '<i class="fas fa-user-plus"></i> Criar';
     }
   }
-}
-
-function addBuilderStep(titulo = '', max = 1, itens = []) {
-  const container = document.getElementById('builder-steps');
-  const index = container.children.length;
-
-  const stepDiv = document.createElement('div');
-  stepDiv.className = 'builder-step-card';
-  stepDiv.innerHTML = `
-        <div class="builder-step-header">
-            <h4>Etapa ${index + 1}</h4>
-            <button type="button" class="btn-remove-step" onclick="removerEtapa(${index})">
-                <i class="fas fa-trash"></i>
-            </button>
-        </div>
-        
-        <div class="builder-step-body">
-            <!-- NOME DA ETAPA -->
-            <div class="form-group">
-                <label>Nome da Etapa</label>
-                <input type="text" class="etapa-titulo input-modern" 
-                       value="${titulo}" 
-                       placeholder="Ex: Base, Proteína, Molho...">
-            </div>
-            
-            <!-- QUANTIDADE MÁXIMA -->
-            <div class="form-group">
-                <label>Quantidade Máxima de Itens</label>
-                <input type="number" class="etapa-max input-modern" 
-                       value="${max}" min="1" 
-                       placeholder="Ex: 1">
-                <small>Cliente poderá escolher até este número de itens</small>
-            </div>
-            
-            <!-- LISTA DE ITENS -->
-            <div class="form-group">
-                <label>Itens Disponíveis</label>
-                <div class="itens-list" id="itens-list-${index}">
-                    ${itens
-                      .map(
-                        (item, i) => `
-                        <div class="item-row">
-                            <input type="text" class="input-modern" value="${item}" 
-                                   placeholder="Nome do item">
-                            <button type="button" class="btn-remove-item" 
-                                    onclick="removerItem(${index}, ${i})">
-                                <i class="fas fa-times"></i>
-                            </button>
-                        </div>
-                    `,
-                      )
-                      .join('')}
-                </div>
-                <button type="button" class="btn-add-item" onclick="adicionarItem(${index})">
-                    <i class="fas fa-plus"></i> Adicionar Item
-                </button>
-            </div>
-        </div>
-    `;
-
-  container.appendChild(stepDiv);
 }
 
 function adicionarItem(etapaIndex) {
@@ -5745,6 +6876,7 @@ function renderizarGrafico(labels, data, cores) {
         },
       },
     },
+    E,
   });
 }
 
