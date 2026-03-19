@@ -347,25 +347,18 @@
               <div class="pdv-total-box">
 
                 <!-- Desconto PDV -->
-                <div style="background:#fdf3f3;border:1px solid #e0b0b0;border-radius:8px;padding:8px 10px;margin-bottom:8px">
-                  <div style="font-size:0.78rem;font-weight:700;color:#721c24;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.4px">🏷️ Desconto</div>
-                  <div style="display:flex;gap:6px;align-items:center">
-                    <select id="pdv-desc-tipo" style="padding:6px 8px;border:1.5px solid #ddd;border-radius:7px;font-size:0.82rem;background:white;font-weight:600;flex-shrink:0">
-                      <option value="valor">Gs (valor)</option>
-                      <option value="pct">% (porcentagem)</option>
+                <div class="pdv-desconto-box">
+                  <div class="pdv-desconto-titulo">🏷️ Desconto</div>
+                  <div class="pdv-desconto-row">
+                    <select id="pdv-desc-tipo">
+                      <option value="valor">Gs</option>
+                      <option value="pct">%</option>
                     </select>
-                    <input type="number" id="pdv-desc-valor" min="0" placeholder="0"
-                      style="flex:1;padding:6px 8px;border:1.5px solid #ddd;border-radius:7px;font-size:0.9rem;font-weight:700" />
-                    <button type="button" onclick="aplicarDescontoPDV()"
-                      style="background:#e74c3c;color:#fff;border:none;border-radius:7px;padding:6px 10px;font-size:0.82rem;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">
-                      Aplicar
-                    </button>
-                    <button type="button" onclick="removerDescontoPDV()" title="Remover desconto"
-                      style="background:#f8f9fa;color:#555;border:1.5px solid #ddd;border-radius:7px;padding:6px 8px;font-size:0.82rem;cursor:pointer;flex-shrink:0">
-                      ✕
-                    </button>
+                    <input type="number" id="pdv-desc-valor" min="0" placeholder="0" />
+                    <button type="button" class="pdv-desconto-btn-aplicar" onclick="aplicarDescontoPDV()">Aplicar</button>
+                    <button type="button" class="pdv-desconto-btn-remover" onclick="removerDescontoPDV()" title="Remover">✕</button>
                   </div>
-                  <div id="pdv-desconto-linha" style="display:none;justify-content:space-between;align-items:center;margin-top:6px;padding:4px 6px;background:#ffeaea;border-radius:6px;font-size:0.82rem;color:#c0392b;font-weight:700">
+                  <div class="pdv-desconto-linha" id="pdv-desconto-linha">
                     <span>Desconto:</span>
                     <span id="pdv-desconto-valor">- Gs 0</span>
                   </div>

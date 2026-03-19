@@ -5968,16 +5968,13 @@ function atualizarCarrinhoPDV() {
     lista.innerHTML = '<p class="pdv-lista-vazio">Nenhum item adicionado.</p>';
   }
 
-  if (totalEl) totalEl.innerText = total.toLocaleString('es-PY');
-
-  // Atualiza barra inferior mobile
+  // Atualiza barra inferior mobile (quantidade de itens)
   const mobileQtd = document.getElementById('pdv-mobile-qtd');
-  const mobileTot = document.getElementById('pdv-mobile-total-val');
   const qtdTotal = carrinhoPDV.reduce((a, i) => a + i.qtd, 0);
   if (mobileQtd) mobileQtd.textContent = qtdTotal + (qtdTotal === 1 ? ' item' : ' itens');
-  if (mobileTot) mobileTot.textContent = total.toLocaleString('es-PY');
 
-  atualizarInfoPagPDV(total);
+  // Delega ao total final — inclui frete e desconto corretamente
+  atualizarTotalPDV();
 }
 
 function atualizarInfoPagPDV(total) {

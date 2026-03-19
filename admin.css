@@ -1986,7 +1986,87 @@ select.form-control, select.input-modern {
     background: #f8f9fa;
     padding: 10px;
     border-radius: 6px;
+    /* Garante que nada vaze para fora */
+    min-width: 0;
+    overflow: hidden;
 }
+
+/* ── Caixa de desconto PDV ─────────────────────────────────── */
+.pdv-desconto-box {
+    background: #fdf3f3;
+    border: 1px solid #e0b0b0;
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    min-width: 0;
+}
+.pdv-desconto-titulo {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #721c24;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+.pdv-desconto-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    gap: 5px;
+    align-items: center;
+    min-width: 0;
+}
+.pdv-desconto-row select {
+    padding: 6px 4px;
+    border: 1.5px solid #ddd;
+    border-radius: 7px;
+    font-size: 0.78rem;
+    background: white;
+    font-weight: 600;
+    min-width: 0;
+    max-width: 110px;
+}
+.pdv-desconto-row input[type="number"] {
+    padding: 6px 8px;
+    border: 1.5px solid #ddd;
+    border-radius: 7px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    min-width: 0;
+    width: 100%;
+}
+.pdv-desconto-btn-aplicar {
+    background: #e74c3c;
+    color: #fff;
+    border: none;
+    border-radius: 7px;
+    padding: 6px 10px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.pdv-desconto-btn-remover {
+    background: #f8f9fa;
+    color: #555;
+    border: 1.5px solid #ddd;
+    border-radius: 7px;
+    padding: 6px 8px;
+    font-size: 0.82rem;
+    cursor: pointer;
+}
+.pdv-desconto-linha {
+    display: none;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 6px;
+    padding: 4px 6px;
+    background: #ffeaea;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    color: #c0392b;
+    font-weight: 700;
+}
+
 
 .pdv-total-row {
     display: flex;
