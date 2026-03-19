@@ -1708,18 +1708,37 @@ select.form-control, select.input-modern {
     }
 }
 /* ── Mesas Ativas no PDV ─────────────────────────────────── */
-.pdv-mesas-bar {
+.pdv-mesas-bar-wrap {
     grid-column: 1 / -1;
+    border-bottom: 1px solid #e9ecef;
+    margin-bottom: 6px;
+}
+.pdv-mesas-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 6px 2px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    text-align: left;
+    transition: color 0.15s;
+}
+.pdv-mesas-toggle:hover { color: var(--primary, #FF441F); }
+.pdv-mesas-bar {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-    padding: 10px 0 8px;
-    border-bottom: 1px solid #e9ecef;
-    margin-bottom: 8px;
-    min-height: 48px;
+    padding: 4px 0 10px;
     align-items: center;
+    min-height: 42px;
 }
-
 .pdv-mesas-label {
     font-size: 0.78rem;
     font-weight: 700;
@@ -1728,6 +1747,25 @@ select.form-control, select.input-modern {
     letter-spacing: 0.5px;
     white-space: nowrap;
     margin-right: 4px;
+}
+.pdv-tipo-btn {
+    flex: 1;
+    padding: 8px 6px;
+    background: #f0f0f0;
+    color: #555;
+    border: 1.5px solid #ddd;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+}
+.pdv-tipo-btn:hover { background: #e0e0e0; }
+.pdv-tipo-ativo {
+    background: var(--primary, #FF441F) !important;
+    color: white !important;
+    border-color: var(--primary, #FF441F) !important;
 }
 
 .mesa-chip {
@@ -3600,6 +3638,10 @@ hr.modal-divisor {
 .btn-encerrar { background: #f8d7da; color: #721c24; }
 .btn-reabrir  { background: #d4edda; color: #155724; }
 .btn-relatorio { background: linear-gradient(135deg, #2563eb, #1a4fc0); color: white; }
+.btn-baixa-delivery { background: #fff3cd; color: #856404; border: 1.5px solid #ffc107; }
+.btn-baixa-mesas    { background: #e2d9f3; color: #4a1e8a; border: 1.5px solid #9b59b6; }
+.btn-baixa-delivery:hover { background: #ffc107; color: #000; }
+.btn-baixa-mesas:hover    { background: #9b59b6; color: #fff; }
 
 /* Mobile: botões menores, 2 por linha */
 @media (max-width: 768px) {

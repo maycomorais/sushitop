@@ -331,23 +331,37 @@ async function carregarPedidos(silencioso = false) {
   const cardsDiv = document.getElementById('lista-pedidos-cards');
   if (cardsDiv) cardsDiv.innerHTML = '';
 
-  // ── AUTO-CONFIRM: pedidos saiu_entrega há mais de 4h ──────────────────────
-  const _QUATRO_HORAS_MS = 4 * 60 * 60 * 1000;
+  // ── AUTO-CONFIRM delivery: saiu_entrega há mais de 3h → entregue ──────────
+  const _TRES_HORAS_MS = 3 * 60 * 60 * 1000;
   const _agora = Date.now();
   const pedidosParaAutoConfirmar = (pedidos || []).filter(
     (p) =>
       p.status === 'saiu_entrega' &&
+      p.tipo_entrega === 'delivery' &&
       p.tempo_saiu_entrega &&
-      _agora - new Date(p.tempo_saiu_entrega).getTime() > _QUATRO_HORAS_MS,
+      _agora - new Date(p.tempo_saiu_entrega).getTime() > _TRES_HORAS_MS,
   );
   for (const p of pedidosParaAutoConfirmar) {
-    console.log(`⏰ Auto-confirmando entrega do pedido #${p.id} (mais de 4h em saiu_entrega)`);
+    console.log(`⏰ Auto-confirmando delivery #${p.id} (mais de 3h em saiu_entrega)`);
     await supa
       .from('pedidos')
-      .update({
-        status: 'entregue',
-        tempo_entregue: new Date().toISOString(),
-      })
+      .update({ status: 'entregue', tempo_entregue: new Date().toISOString() })
+      .eq('id', p.id);
+  }
+
+  // ── AUTO-AVANÇO: só delivery — em_preparo há mais de 3h → pronto_entrega ──
+  const pedidosDeliveryAutoAvancar = (pedidos || []).filter(
+    (p) =>
+      p.status === 'em_preparo' &&
+      p.tipo_entrega === 'delivery' &&
+      p.tempo_preparo_iniciado &&
+      _agora - new Date(p.tempo_preparo_iniciado).getTime() > _TRES_HORAS_MS,
+  );
+  for (const p of pedidosDeliveryAutoAvancar) {
+    console.log(`⏰ Auto-avançando delivery #${p.id}: em_preparo → pronto_entrega (3h)`);
+    await supa
+      .from('pedidos')
+      .update({ status: 'pronto_entrega', tempo_pronto: new Date().toISOString() })
       .eq('id', p.id);
   }
   // ───────────────────────────────────────────────────────────────────────────
@@ -492,6 +506,17 @@ async function carregarPedidos(silencioso = false) {
           cardAcoes = `<button class="btn btn-success btn-sm" onclick="finalizarMesa(${p.id})"><i class="fas fa-check"></i> Entregar</button>
                         <button class="btn btn-info btn-sm" onclick="imprimirPedido(${p.id})"><i class="fas fa-print"></i> Imprimir</button>
                         ${_btnCancelBalcao}`;
+        } else if (p.status === 'pronto_entrega' && (p.tipo_entrega === 'retirada')) {
+          // Retirada: botão baixa manual + imprimir
+          const _btnCancelRet =
+            perfilUsuario === 'dono'
+              ? `<button class="btn btn-danger btn-sm" onclick="mudarStatus(${p.id}, 'cancelado')"><i class="fas fa-times"></i></button>`
+              : !temSolicitacaoCancelamento
+                ? `<button class="btn btn-warning btn-sm" onclick="solicitarCancelamento(${p.id})"><i class="fas fa-ban"></i></button>`
+                : '';
+          cardAcoes = `<button class="btn btn-success btn-sm" onclick="confirmarEntregaFuncionario(${p.id})"><i class="fas fa-check-circle"></i> Baixar</button>
+                        <button class="btn btn-info btn-sm" onclick="imprimirPedido(${p.id})"><i class="fas fa-print"></i> Imprimir</button>
+                        ${_btnCancelRet}`;
         } else if (p.status === 'pronto_entrega') {
           const _btnCancelPronto =
             perfilUsuario === 'dono'
@@ -502,6 +527,7 @@ async function carregarPedidos(silencioso = false) {
           cardAcoes = `<label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:#155724;font-weight:600;">
                         <input type="checkbox" class="check-pedido" value="${jsonSeguro}" style="width:18px;height:18px;"> Incluir na Rota
                     </label>
+                    <button class="btn btn-success btn-sm" onclick="confirmarEntregaFuncionario(${p.id})"><i class="fas fa-check-circle"></i> Baixar</button>
                     <button class="btn btn-info btn-sm" onclick="imprimirPedido(${p.id})"><i class="fas fa-print"></i> Imprimir</button>
                     ${_btnCancelPronto}`;
         }
@@ -4724,8 +4750,133 @@ function pdvSelecionarTipo(tipo) {
   }
 }
 let produtosCachePDV = [];
-// Cotação carregada das configurações (fallback 1100)
 let _cotacaoPDV = 1100;
+
+// ── PDV: estado frete delivery ──────────────────────────────
+let _pdvFreteCliente = 0;
+let _pdvFreteMotoboy = 0;
+let _pdvFreteCalcOk  = false;
+
+// ── PDV: estado desconto ─────────────────────────────────────
+let _pdvDesconto = 0;
+
+function resetFreteCalcPDV() {
+  _pdvFreteCliente = 0; _pdvFreteMotoboy = 0; _pdvFreteCalcOk = false;
+  const r = document.getElementById('pdv-frete-result');
+  if (r) r.style.display = 'none';
+  atualizarTotalPDV();
+}
+
+function _extrairCoordsGoogleMaps(url) {
+  if (!url) return null;
+  let m = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
+  m = url.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
+  m = url.match(/\/(-?\d{1,3}\.\d{4,}),(-?\d{1,3}\.\d{4,})/);
+  if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
+  m = url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+  if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
+  return null;
+}
+
+function _calcularDistanciaPDV(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = ((lat2-lat1)*Math.PI)/180, dLon = ((lon2-lon1)*Math.PI)/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos((lat1*Math.PI)/180)*Math.cos((lat2*Math.PI)/180)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+// Recalcula total (subtotal + frete - desconto)
+function atualizarTotalPDV() {
+  const el = document.getElementById('balcao-total');
+  const mob = document.getElementById('pdv-mobile-total-val');
+  if (!el) return;
+  let sub = 0;
+  if (window._mesaAbertaPedido?.itens) window._mesaAbertaPedido.itens.forEach(i => { sub += (i.preco||0)*(i.qtd||1); });
+  carrinhoPDV.forEach(i => { sub += i.preco*i.qtd; });
+  const total = Math.max(0, sub + (_pdvFreteCalcOk ? _pdvFreteCliente : 0) - (_pdvDesconto||0));
+  el.innerText = total.toLocaleString('es-PY');
+  if (mob) mob.textContent = total.toLocaleString('es-PY');
+  // Mostra linha de desconto
+  const ld = document.getElementById('pdv-desconto-linha');
+  if (ld) {
+    ld.style.display = _pdvDesconto > 0 ? 'flex' : 'none';
+    const sd = document.getElementById('pdv-desconto-valor');
+    if (sd) sd.textContent = '- Gs ' + (_pdvDesconto||0).toLocaleString('es-PY');
+  }
+  atualizarInfoPagPDV(total);
+}
+
+function aplicarDescontoPDV() {
+  const tipo = document.getElementById('pdv-desc-tipo')?.value || 'valor';
+  const raw  = parseFloat(document.getElementById('pdv-desc-valor')?.value||'0')||0;
+  let sub = 0;
+  if (window._mesaAbertaPedido?.itens) window._mesaAbertaPedido.itens.forEach(i => { sub += (i.preco||0)*(i.qtd||1); });
+  carrinhoPDV.forEach(i => { sub += i.preco*i.qtd; });
+  const base = sub + (_pdvFreteCalcOk ? _pdvFreteCliente : 0);
+  if (tipo === 'pct') {
+    if (raw < 0 || raw > 100) { alert('Percentual deve ser entre 0 e 100.'); return; }
+    _pdvDesconto = Math.round(base * raw / 100);
+  } else {
+    if (raw < 0 || raw > base) { alert('Valor de desconto maior que o total!'); return; }
+    _pdvDesconto = Math.round(raw);
+  }
+  atualizarTotalPDV();
+}
+
+function removerDescontoPDV() {
+  _pdvDesconto = 0;
+  const inp = document.getElementById('pdv-desc-valor');
+  if (inp) inp.value = '';
+  atualizarTotalPDV();
+}
+
+async function calcularRotaPDV() {
+  const linkInput = document.getElementById('balcao-endereco');
+  const resultBox  = document.getElementById('pdv-frete-result');
+  const btn        = document.getElementById('btn-calc-rota-pdv');
+  if (!linkInput || !resultBox) return;
+  const link = linkInput.value.trim();
+  if (!link) { alert('⚠️ Cole o link do Google Maps primeiro!'); linkInput.focus(); return; }
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+  const _style = (bg, border, color) => `display:block;background:${bg};border:1px solid ${border};color:${color};padding:8px 12px;border-radius:8px;font-size:0.85rem;font-weight:600;margin-top:6px`;
+  try {
+    let coords = _extrairCoordsGoogleMaps(link);
+    if (!coords && (link.includes('goo.gl') || link.includes('maps.app'))) {
+      resultBox.style.cssText = _style('#fff3cd','#ffc107','#856404');
+      resultBox.innerHTML = '⚠️ Link encurtado. Abra no Maps, copie a URL completa da barra de endereços.'; return;
+    }
+    if (!coords) {
+      resultBox.style.cssText = _style('#fdecea','#e74c3c','#c0392b');
+      resultBox.innerHTML = '❌ Não foi possível extrair coordenadas.<br><small>Use Google Maps → Compartilhar → Copiar link.</small>'; return;
+    }
+    const dist = _calcularDistanciaPDV(COORD_LOJA.lat, COORD_LOJA.lng, coords.lat, coords.lng);
+    const { data: cfg } = await supa.from('configuracoes').select('tabela_frete').single();
+    const TABELA = cfg?.tabela_frete;
+    const LIMITES = [1.9, 3.0, 4.0, 5.0, 7.0, 9.0, 99999];
+    let idx = LIMITES.findIndex(l => dist <= l); if (idx===-1) idx = LIMITES.length-1;
+    if (TABELA?.[idx]?.acombinar) {
+      _pdvFreteCalcOk=false; _pdvFreteCliente=0; _pdvFreteMotoboy=0;
+      resultBox.style.cssText = _style('#fff3cd','#ffc107','#856404');
+      resultBox.innerHTML = `📍 ${dist.toFixed(1)} km — Frete <strong>a combinar</strong> com o cliente.`;
+      atualizarTotalPDV(); return;
+    }
+    if (TABELA?.[idx]) { _pdvFreteCliente=TABELA[idx].loja||0; _pdvFreteMotoboy=TABELA[idx].motoboy||0; }
+    else {
+      const fb = [[1.9,5000,5000],[3,8000,8000],[4,12000,10000],[5,15000,12000],[7,20000,15000],[9,25000,18000],[99999,30000,20000]];
+      const f = fb.find(r => dist <= r[0]) || fb[fb.length-1];
+      _pdvFreteCliente=f[1]; _pdvFreteMotoboy=f[2];
+    }
+    _pdvFreteCalcOk = true;
+    resultBox.style.cssText = _style('#eafaf1','#27ae60','#155724');
+    resultBox.innerHTML = `✅ ${dist.toFixed(1)} km &nbsp;|&nbsp; 🛵 Frete cliente: <strong>Gs ${_pdvFreteCliente.toLocaleString('es-PY')}</strong> &nbsp;|&nbsp; Motoboy: <strong>Gs ${_pdvFreteMotoboy.toLocaleString('es-PY')}</strong>`;
+    atualizarTotalPDV();
+  } catch(e) {
+    resultBox.style.cssText = _style('#fdecea','#e74c3c','#c0392b');
+    resultBox.innerHTML = '❌ Erro: ' + e.message;
+  } finally { btn.disabled=false; btn.innerHTML='<i class="fas fa-route"></i> Calcular'; }
+}
 
 async function carregarPDV() {
   // PDV carrega TODOS os produtos ativos (incluindo somente_balcao e pausados não)
@@ -5841,7 +5992,8 @@ function atualizarInfoPagPDV(total) {
   if (selectPag) selectPag.style.display = '';
 
   if (pag === 'Pix' && total > 0) {
-    const valorReais = (total / _cotacaoPDV).toFixed(2);
+    // Sempre arredonda para CIMA
+    const valorReais = Math.ceil(total / _cotacaoPDV);
     infoBox.style.display = 'block';
     infoBox.innerHTML = `<i class="fas fa-qrcode"></i> <strong>Cobrar em Pix: R$ ${valorReais}</strong>`;
   } else if (pag === 'Multipagamento') {
@@ -5984,8 +6136,13 @@ async function salvarPedidoBalcao() {
     return;
   }
   if (tipo === 'delivery' && !endereco) {
-    alert('⚠️ Informe o endereço ou link para o Delivery!');
+    alert('⚠️ Informe o link do Google Maps para o Delivery!');
     document.getElementById('balcao-endereco').focus();
+    return;
+  }
+  if (tipo === 'delivery' && typeof _pdvFreteCalcOk !== 'undefined' && !_pdvFreteCalcOk) {
+    alert('⚠️ Clique em "Calcular" para calcular o frete antes de lançar!');
+    document.getElementById('btn-calc-rota-pdv')?.focus();
     return;
   }
 
@@ -6023,16 +6180,20 @@ async function salvarPedidoBalcao() {
   }
 
   // ── Novos itens ganham status_item: 'pendente' ─────────────────
+  // Bebidas (categoria_slug com 'bebida') já saem como entregues — pulam cozinha
+  const _isBebida = (i) => (i.categoria_slug || i.cat || '').toLowerCase().includes('bebida');
+
   const novosItens = carrinhoPDV.map((i) => ({
   id: i.id || Date.now() + Math.random(),
   nome: i.nome,
   preco: i.preco,
   qtd: i.qtd,
-  variacao: i.variacao || '',   // ← variação/sabor (ex: "Misto", "Grande")
-  preparo: i.preparo || '',     // ← preparo (ex: "Flambado", "Cru")
-  montagem: i.montagem || [],   // ← etapas montável (ex: ["Base: Arroz", "Extras: Taré"])
+  variacao: i.variacao || '',
+  preparo: i.preparo || '',
+  montagem: i.montagem || [],
   obs: i.obs || '',
-  status_item: 'pendente',
+  categoria_slug: i.categoria_slug || '',  // ← essencial para detectar bebidas na rota
+  status_item: _isBebida(i) ? 'entregue' : 'pendente',
   lancado_em: new Date().toISOString(),
 }));
 
@@ -6046,6 +6207,10 @@ async function salvarPedidoBalcao() {
     const itensMerged = [...itensExistentes, ...novosItens];
     const novoTotal = itensMerged.reduce((acc, i) => acc + (i.preco || 0) * (i.qtd || 1), 0);
 
+    // Se não restar nenhum item pendente → pronto direto (ex: só bebidas adicionadas)
+    const _temPendenteMerge = itensMerged.some(i => !i.status_item || i.status_item === 'pendente');
+    const _statusMerge = _temPendenteMerge ? 'em_preparo' : 'pronto_entrega';
+
     const { error } = await supa
       .from('pedidos')
       .update({
@@ -6056,7 +6221,7 @@ async function salvarPedidoBalcao() {
         obs_pagamento: obsPagPDV,
         cliente_nome: nomeFinal,
         cliente_telefone: tel,
-        status: 'em_preparo',
+        status: _statusMerge,
       })
       .eq('id', window._mesaAbertaId);
 
@@ -6083,25 +6248,31 @@ async function salvarPedidoBalcao() {
   }
 
   // ── INSERT: novo pedido de balcão ─────────────────────────────
-  const totalNovo = novosItens.reduce((acc, i) => acc + i.preco * i.qtd, 0);
+  const subtotalNovo = novosItens.reduce((acc, i) => acc + i.preco * i.qtd, 0);
+  const freteClientePDV = (tipoEntregaBanco === 'delivery' && typeof _pdvFreteCalcOk !== 'undefined' && _pdvFreteCalcOk) ? (_pdvFreteCliente || 0) : 0;
+  const freteMoboyPDV   = (tipoEntregaBanco === 'delivery' && typeof _pdvFreteCalcOk !== 'undefined' && _pdvFreteCalcOk) ? (_pdvFreteMotoboy || 0) : 0;
+  const descontoPDV     = (typeof _pdvDesconto !== 'undefined' && _pdvDesconto > 0) ? _pdvDesconto : 0;
+  const totalNovo = Math.max(0, subtotalNovo + freteClientePDV - descontoPDV);
   const _agora = new Date().toISOString();
+  // Se TODOS os itens são bebidas → pula cozinha, entra como pronto
+  const _todosBebidasInsert = novosItens.every(i => _isBebida(i));
   const pedido = {
     uid_temporal: `BALC-${Math.floor(Math.random() * 1000)}`,
-    status: 'em_preparo',
+    status: _todosBebidasInsert ? 'pronto_entrega' : 'em_preparo',
     tipo_entrega: tipoEntregaBanco,
     total_geral: totalNovo,
-    subtotal: totalNovo,
-    frete_cobrado_cliente: 0,
+    subtotal: subtotalNovo,
+    frete_cobrado_cliente: freteClientePDV,
+    frete_motoboy: freteMoboyPDV,
+    desconto_cupom: descontoPDV,
     forma_pagamento: pag,
     itens: novosItens,
     endereco_entrega: enderecoFinal,
     cliente_nome: nomeFinal,
     cliente_telefone: tel,
     obs_pagamento: obsPagPDV,
-    // ── Vínculo de caixa: identifica qual operador lançou o pedido ──
     operador_id: window._operadorId || null,
     operador_nome: window._operadorNome || null,
-    // Timestamps automáticos para PDV (já entra direto em preparo)
     tempo_recebido: _agora,
     tempo_confirmado: _agora,
     tempo_preparo_iniciado: _agora,
@@ -6119,6 +6290,13 @@ if (error) {
   document.getElementById('balcao-telefone').value = '';
   if (document.getElementById('balcao-endereco'))
     document.getElementById('balcao-endereco').value = '';
+  // Reset frete e desconto
+  if (typeof _pdvFreteCliente !== 'undefined') { _pdvFreteCliente = 0; _pdvFreteMotoboy = 0; _pdvFreteCalcOk = false; }
+  if (typeof _pdvDesconto !== 'undefined') _pdvDesconto = 0;
+  const _frRes = document.getElementById('pdv-frete-result');
+  if (_frRes) _frRes.style.display = 'none';
+  const _dcInp = document.getElementById('pdv-desc-valor');
+  if (_dcInp) _dcInp.value = '';
   pdvSelecionarTipo('local');
   // Reset multipagamento PDV
   const multiPartesPDV = document.getElementById('multi-partes-pdv');
@@ -6138,11 +6316,34 @@ if (error) {
 return;
 }
 
+// ── Toggle barra de mesas ─────────────────────────────────────
+let _mesasBarAberta = true;
+function toggleMesasBar() {
+  const bar   = document.getElementById('pdv-mesas-bar');
+  const arrow = document.getElementById('pdv-mesas-toggle-arrow');
+  if (!bar) return;
+  _mesasBarAberta = !_mesasBarAberta;
+  bar.style.display = _mesasBarAberta ? '' : 'none';
+  if (arrow) arrow.textContent = _mesasBarAberta ? '▼' : '▶';
+  try { localStorage.setItem('sushi_mesas_bar', _mesasBarAberta ? '1' : '0'); } catch(_) {}
+}
+
 // ── Barra de Mesas Ativas no PDV ─────────────────────────────
 async function atualizarBarraMesasAtivas() {
-  const bar = document.getElementById('pdv-mesas-bar');
+  const bar   = document.getElementById('pdv-mesas-bar');
   const vazio = document.getElementById('pdv-mesas-vazio');
   if (!bar) return;
+
+  // Restaura preferência de colapso
+  try {
+    const saved = localStorage.getItem('sushi_mesas_bar');
+    if (saved === '0' && _mesasBarAberta) {
+      _mesasBarAberta = false;
+      bar.style.display = 'none';
+      const arrow = document.getElementById('pdv-mesas-toggle-arrow');
+      if (arrow) arrow.textContent = '▶';
+    }
+  } catch(_) {}
 
   const { data } = await supa
     .from('pedidos')
@@ -6152,7 +6353,7 @@ async function atualizarBarraMesasAtivas() {
     .neq('status', 'cancelado')
     .order('id', { ascending: true });
 
-  // Limpar chips anteriores (manter apenas label e span vazio)
+  // Limpar chips anteriores
   bar.querySelectorAll('.mesa-chip').forEach((c) => c.remove());
   if (vazio) vazio.style.display = data && data.length > 0 ? 'none' : 'inline';
 
@@ -6888,4 +7089,97 @@ if (typeof fecharModal !== 'function') {
       modal.style.display = 'none';
     }
   }
+}
+
+// =========================================
+// BAIXA EM LOTE — DELIVERY / RETIRADA / MESAS
+// =========================================
+
+// Selecionar / desselecionar todos os check-pedido visíveis
+function toggleSelecionarTodosPedidos(chk) {
+  document.querySelectorAll('.check-pedido').forEach(c => { c.checked = chk.checked; });
+}
+
+// Baixa seletiva: fecha os pedidos com check marcado, ou todos delivery+retirada se nenhum marcado
+async function baixarPedidosSelecionados() {
+  const checks = Array.from(document.querySelectorAll('.check-pedido:checked'));
+
+  if (checks.length > 0) {
+    // Modo seletivo: fecha os marcados
+    const ids = checks.map(c => {
+      try { return JSON.parse(decodeURIComponent(c.value)).id; } catch(e) { return null; }
+    }).filter(Boolean);
+
+    if (!confirm(`⚠️ Dar baixa nos ${ids.length} pedido(s) selecionado(s)?\n\nSerão marcados como ENTREGUES.\n\nConfirmar?`)) return;
+
+    const agora = new Date().toISOString();
+    let erros = 0;
+    for (const id of ids) {
+      const { error } = await supa.from('pedidos')
+        .update({ status: 'entregue', tempo_entregue: agora })
+        .eq('id', id);
+      if (error) { console.error(`Erro pedido #${id}:`, error.message); erros++; }
+    }
+    alert(erros > 0 ? `⚠️ ${ids.length - erros} baixados, ${erros} falharam.` : `✅ ${ids.length} pedido(s) baixado(s)!`);
+  } else {
+    // Modo em lote: todos delivery + retirada ativos
+    const { data, error } = await supa
+      .from('pedidos')
+      .select('id, status, created_at, uid_temporal, tipo_entrega')
+      .in('tipo_entrega', ['delivery', 'retirada'])
+      .in('status', ['pendente', 'em_preparo', 'pronto_entrega', 'saiu_entrega']);
+    if (error) { alert('Erro: ' + error.message); return; }
+    if (!data || data.length === 0) { alert('✅ Nenhum pedido delivery/retirada ativo.'); return; }
+
+    const lista = data.map(p => `#${p.uid_temporal || p.id} (${p.tipo_entrega})`).join(', ');
+    if (!confirm(`⚠️ BAIXA EM LOTE — DELIVERY + RETIRADA\n\nSerão marcados como ENTREGUES:\n${lista}\n\n(${data.length} pedido(s))\n\nConfirmar?`)) return;
+
+    const agora = new Date().toISOString();
+    let erros = 0;
+    for (const p of data) {
+      const { error: err } = await supa.from('pedidos')
+        .update({ status: 'entregue', tempo_entregue: agora })
+        .eq('id', p.id);
+      if (err) { console.error(`Erro #${p.id}:`, err.message); erros++; }
+    }
+    alert(erros > 0 ? `⚠️ ${data.length - erros} baixados, ${erros} falharam.` : `✅ ${data.length} pedido(s) baixado(s)!`);
+  }
+
+  // Desmarca todos os checks
+  document.querySelectorAll('.check-pedido').forEach(c => { c.checked = false; });
+  const chkAll = document.getElementById('check-all-pedidos');
+  if (chkAll) chkAll.checked = false;
+  carregarPedidos();
+}
+
+// Fecha todas as mesas (balcão) ativas — sem confirmacao_tipo para evitar constraint
+async function baixarTodasMesas() {
+  const { data, error } = await supa
+    .from('pedidos')
+    .select('id, status, endereco_entrega, cliente_nome, uid_temporal')
+    .eq('tipo_entrega', 'balcao')
+    .in('status', ['pendente', 'em_preparo', 'pronto_entrega']);
+  if (error) { alert('Erro: ' + error.message); return; }
+  if (!data || data.length === 0) { alert('✅ Nenhuma mesa ativa no momento.'); return; }
+
+  const lista = data.map(p => {
+    const mesa = (p.endereco_entrega || '').replace('Mesa ', '') || (p.uid_temporal || p.id);
+    const nome = (p.cliente_nome || '').replace(/^MESA \d+ - /i, '') || '';
+    return `Mesa ${mesa}${nome ? ' — ' + nome : ''}`;
+  }).join('\n');
+
+  if (!confirm(`⚠️ BAIXA EM LOTE — MESAS\n\n${lista}\n\n(${data.length} mesa(s))\n\nConfirmar?`)) return;
+
+  const agora = new Date().toISOString();
+  let erros = 0;
+  for (const p of data) {
+    // Sem confirmacao_tipo para não violar constraint do banco
+    const { error: err } = await supa.from('pedidos')
+      .update({ status: 'entregue', tempo_entregue: agora, entrega_confirmada_em: agora })
+      .eq('id', p.id);
+    if (err) { console.error(`Erro mesa #${p.id}:`, err.message); erros++; }
+  }
+  alert(erros > 0 ? `⚠️ ${data.length - erros} mesas baixadas, ${erros} falharam.` : `✅ ${data.length} mesa(s) encerrada(s)!`);
+  carregarPedidos();
+  carregarMonitorMesas();
 }

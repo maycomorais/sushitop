@@ -200,6 +200,16 @@
               <i class="fas fa-clipboard-list"></i> <span>Relatório</span>
             </button>
           </div>
+
+          <!-- Linha 3: Baixa em lote + seleção -->
+          <div class="pedidos-topbar-row2" style="margin-top:6px">
+            <button class="topbar-btn btn-baixa-delivery" onclick="baixarPedidosSelecionados()" title="Dar baixa nos pedidos selecionados (ou todos delivery+retirada)">
+              <i class="fas fa-motorcycle"></i> <span>Baixa Delivery</span>
+            </button>
+            <button class="topbar-btn btn-baixa-mesas" onclick="baixarTodasMesas()" title="Encerrar todas as mesas ativas">
+              <i class="fas fa-utensils"></i> <span>Baixa Mesas</span>
+            </button>
+          </div>
         </div>
 
         <div class="card rota-card">
@@ -221,7 +231,11 @@
           <table class="table">
             <thead>
               <tr>
-                <th width="50">Rota</th>
+                <th width="50">
+                  <input type="checkbox" id="check-all-pedidos" title="Selecionar todos"
+                    onchange="toggleSelecionarTodosPedidos(this)"
+                    style="width:18px;height:18px;cursor:pointer;accent-color:#FF441F">
+                </th>
                 <th>ID</th>
                 <th>Cliente</th>
                 <th>Status</th>
@@ -274,10 +288,14 @@
                 </div>
                 <input type="text" id="pdv-busca" class="pdv-busca-input" placeholder="🔍 Buscar produto..." oninput="filtrarPDV(this.value)" />
               </div>
-              <!-- Mesas ativas (chips) -->
-              <div class="pdv-mesas-bar" id="pdv-mesas-bar">
-                <span class="pdv-mesas-label"><i class="fas fa-chair"></i> Mesas:</span>
-                <span class="mesa-monitor-vazio" id="pdv-mesas-vazio">Nenhuma mesa ativa</span>
+              <!-- Mesas ativas (chips) — clique para recolher/expandir -->
+              <div class="pdv-mesas-bar-wrap" id="pdv-mesas-bar-wrap">
+                <button class="pdv-mesas-toggle" id="pdv-mesas-toggle" onclick="toggleMesasBar()" title="Recolher / Expandir">
+                  <i class="fas fa-chair"></i> Mesas <span id="pdv-mesas-toggle-arrow">▼</span>
+                </button>
+                <div class="pdv-mesas-bar" id="pdv-mesas-bar">
+                  <span class="mesa-monitor-vazio" id="pdv-mesas-vazio">Nenhuma mesa ativa</span>
+                </div>
               </div>
               <!-- Grid de produtos -->
               <div id="pdv-grid"></div>
@@ -287,8 +305,15 @@
             <div class="pdv-carrinho pdv-tab-active">
               <h4 class="pdv-carrinho-titulo">🛒 Novo Pedido</h4>
 
+              <!-- Tipo de atendimento -->
+              <div style="display:flex;gap:6px;margin-bottom:10px">
+                <button type="button" class="pdv-tipo-btn pdv-tipo-ativo" id="pdv-tipo-local" onclick="pdvSelecionarTipo('local')">🍽️ Local</button>
+                <button type="button" class="pdv-tipo-btn" id="pdv-tipo-levar" onclick="pdvSelecionarTipo('levar')">🥡 Levar</button>
+                <button type="button" class="pdv-tipo-btn" id="pdv-tipo-delivery" onclick="pdvSelecionarTipo('delivery')">🛵 Delivery</button>
+              </div>
+
               <div class="pdv-form-row">
-                <div class="pdv-mesa-col">
+                <div class="pdv-mesa-col" id="pdv-mesa-col">
                   <label class="pdv-label">Mesa <span class="obrig">*</span></label>
                   <input type="number" id="balcao-mesa" class="form-control" placeholder="Nº" min="1" required />
                 </div>
@@ -302,9 +327,50 @@
                 <input type="tel" id="balcao-telefone" class="form-control" placeholder="Ex: 0981234567" />
               </div>
 
+              <!-- Delivery: link Maps + calcular rota -->
+              <div id="pdv-delivery-row" style="display:none;margin-bottom:8px">
+                <label class="pdv-label">📍 Link do Google Maps (endereço do cliente)</label>
+                <div style="display:flex;gap:6px;align-items:stretch">
+                  <input type="text" id="balcao-endereco" class="form-control"
+                    placeholder="Cole o link do Google Maps aqui"
+                    style="flex:1" oninput="resetFreteCalcPDV()" />
+                  <button type="button" onclick="calcularRotaPDV()" id="btn-calc-rota-pdv"
+                    style="background:#2980b9;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:0.82rem;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">
+                    <i class="fas fa-route"></i> Calcular
+                  </button>
+                </div>
+                <div id="pdv-frete-result" style="display:none"></div>
+              </div>
+
               <div class="pdv-lista-itens" id="pdv-lista"></div>
 
               <div class="pdv-total-box">
+
+                <!-- Desconto PDV -->
+                <div style="background:#fdf3f3;border:1px solid #e0b0b0;border-radius:8px;padding:8px 10px;margin-bottom:8px">
+                  <div style="font-size:0.78rem;font-weight:700;color:#721c24;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.4px">🏷️ Desconto</div>
+                  <div style="display:flex;gap:6px;align-items:center">
+                    <select id="pdv-desc-tipo" style="padding:6px 8px;border:1.5px solid #ddd;border-radius:7px;font-size:0.82rem;background:white;font-weight:600;flex-shrink:0">
+                      <option value="valor">Gs (valor)</option>
+                      <option value="pct">% (porcentagem)</option>
+                    </select>
+                    <input type="number" id="pdv-desc-valor" min="0" placeholder="0"
+                      style="flex:1;padding:6px 8px;border:1.5px solid #ddd;border-radius:7px;font-size:0.9rem;font-weight:700" />
+                    <button type="button" onclick="aplicarDescontoPDV()"
+                      style="background:#e74c3c;color:#fff;border:none;border-radius:7px;padding:6px 10px;font-size:0.82rem;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">
+                      Aplicar
+                    </button>
+                    <button type="button" onclick="removerDescontoPDV()" title="Remover desconto"
+                      style="background:#f8f9fa;color:#555;border:1.5px solid #ddd;border-radius:7px;padding:6px 8px;font-size:0.82rem;cursor:pointer;flex-shrink:0">
+                      ✕
+                    </button>
+                  </div>
+                  <div id="pdv-desconto-linha" style="display:none;justify-content:space-between;align-items:center;margin-top:6px;padding:4px 6px;background:#ffeaea;border-radius:6px;font-size:0.82rem;color:#c0392b;font-weight:700">
+                    <span>Desconto:</span>
+                    <span id="pdv-desconto-valor">- Gs 0</span>
+                  </div>
+                </div>
+
                 <div class="pdv-total-row">
                   <span>Total:</span>
                   <span>Gs <span id="balcao-total">0</span></span>
@@ -319,7 +385,6 @@
                 </select>
                 <div id="balcao-pag-info" style="display:none; background:#e8f5e9; border:1px solid #4caf50; border-radius:6px; padding:8px 12px; font-size:0.9rem; color:#1b5e20; margin-bottom:8px"></div>
 
-                <!-- Painel Multipagamento PDV -->
                 <div id="box-multi-pdv" style="display:none; margin-top:8px">
                   <button type="button" onclick="voltarPagamentoPDVUnico()"
                     style="width:100%;padding:9px;background:#eef4ff;color:#2980b9;border:1.5px solid #2980b9;border-radius:8px;font-weight:700;cursor:pointer;font-size:0.82rem;margin-bottom:8px;">
