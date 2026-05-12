@@ -6,6 +6,15 @@ let AJUDA_COMBUSTIVEL = 20000; // Carregado do banco em carregarConfiguracoes()
 const COORD_LOJA = { lat: -25.2365803, lng: -57.5380816 };
 
 let perfilUsuario = null;
+
+// Helper: adminMaster tem todos os privilégios de dono + pode gerenciar donos
+function _isDono() {
+  return perfilUsuario === 'dono' || perfilUsuario === 'adminMaster';
+}
+// Helper: pode gerenciar usuários dono (só adminMaster)
+function _isAdminMaster() {
+  return perfilUsuario === 'adminMaster';
+}
 // Dados do operador logado — preenchidos no DOMContentLoaded
 window._operadorId = null; // UUID do auth.users
 window._operadorNome = null; // email ou nome para exibição
@@ -50,13 +59,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     window._operadorNome = session.user.email;
 
     const elCargo = document.getElementById('user-cargo');
-    if (elCargo) elCargo.innerText = perfilUsuario.toUpperCase();
+    if (elCargo) {
+      const labels = { adminMaster: '🕹️ ADMINMASTER', dono: '🔑 DONO', gerente: '👔 GERENTE', funcionario: '👷 FUNCIONÁRIO' };
+      elCargo.innerText = labels[perfilUsuario] || perfilUsuario.toUpperCase();
+    }
 
     // Email no topo do sidebar
     const elEmail = document.getElementById('user-email');
     if (elEmail) elEmail.innerText = window._operadorNome;
 
-    if (perfilUsuario === 'dono') {
+    if (_isDono()) {
       const menuFin = document.getElementById('menu-financeiro');
       if (menuFin) menuFin.style.display = 'flex';
     }
@@ -191,7 +203,7 @@ function showTab(tabId, event) {
     // Mostra o filtro de caixa/operador apenas para o dono
     const filtroCaixaGrupo = document.getElementById('filtro-caixa-grupo');
     if (filtroCaixaGrupo) {
-      filtroCaixaGrupo.style.display = perfilUsuario === 'dono' ? '' : 'none';
+      filtroCaixaGrupo.style.display = _isDono() ? '' : 'none';
     }
     calcularFinanceiro();
   }
@@ -200,7 +212,7 @@ function showTab(tabId, event) {
   if (realTabId === 'equipe') carregarEquipe();
   if (realTabId === 'configuracoes') {
     carregarConfiguracoes();
-    if (perfilUsuario === 'dono' || perfilUsuario === 'gerente') {
+    if (_isDono() || perfilUsuario === 'gerente') {
       carregarCupons();
     }
   }
@@ -368,7 +380,7 @@ async function carregarPedidos(silencioso = false) {
 
   // Badge de cancelamento pendente para o dono
   const badgeCancelPendente =
-    perfilUsuario === 'dono'
+    _isDono()
       ? `<span style="background:#e74c3c;color:white;font-size:0.7rem;padding:2px 7px;border-radius:10px;margin-left:6px;vertical-align:middle;">CANC. PENDENTE</span>`
       : '';
 
@@ -383,7 +395,7 @@ async function carregarPedidos(silencioso = false) {
 
       // Badge cancelamento (só dono vê)
       const badgeCancelRow =
-        temSolicitacaoCancelamento && perfilUsuario === 'dono'
+        temSolicitacaoCancelamento && _isDono()
           ? `<div style="background:#fff0f0;border:1px solid #e74c3c;border-radius:6px;padding:4px 8px;font-size:0.75rem;margin-top:4px;color:#c0392b">
                      🚫 <strong>Cancelamento solicitado:</strong> ${p.cancelamento_motivo || '-'}
                      <br><button class="btn btn-danger btn-sm" onclick="aprovarCancelamento(${p.id})" style="margin-top:4px;font-size:0.7rem">✅ Aprovar</button>
@@ -398,7 +410,7 @@ async function carregarPedidos(silencioso = false) {
                     ${btnPrint}
                     <button class="btn btn-success btn-sm" onclick="mudarStatus(${p.id}, 'em_preparo')"><i class="fas fa-fire"></i> Cozinha</button>
                     ${
-                      perfilUsuario === 'dono'
+                      _isDono()
                         ? `<button class="btn btn-danger btn-sm" onclick="mudarStatus(${p.id}, 'cancelado')"><i class="fas fa-times"></i></button>`
                         : `<button class="btn btn-warning btn-sm" onclick="solicitarCancelamento(${p.id})"><i class="fas fa-ban"></i> Solicitar Cancelamento</button>`
                     }
@@ -408,7 +420,7 @@ async function carregarPedidos(silencioso = false) {
       if (p.status === 'saiu_entrega') {
         linhaCor = 'background-color: #ddf0ff;';
         const _btnCancelSaiu =
-          perfilUsuario === 'dono'
+          _isDono()
             ? `<button class="btn btn-danger btn-sm" onclick="mudarStatus(${p.id}, 'cancelado')" title="Cancelar"><i class="fas fa-times"></i></button>`
             : !temSolicitacaoCancelamento
               ? `<button class="btn btn-warning btn-sm" onclick="solicitarCancelamento(${p.id})" title="Solicitar cancelamento"><i class="fas fa-ban"></i> Cancelar</button>`
@@ -421,7 +433,7 @@ async function carregarPedidos(silencioso = false) {
 
         // Botão cancelamento para pronto_entrega
         const btnCancelar =
-          perfilUsuario === 'dono'
+          _isDono()
             ? `<button class="btn btn-danger btn-sm" onclick="mudarStatus(${p.id}, 'cancelado')" title="Cancelar"><i class="fas fa-times"></i></button>`
             : !temSolicitacaoCancelamento
               ? `<button class="btn btn-warning btn-sm" onclick="solicitarCancelamento(${p.id})"><i class="fas fa-ban"></i></button>`
@@ -450,7 +462,7 @@ async function carregarPedidos(silencioso = false) {
                         ${badgeCancelRow}
                     </td>
                     <td><span class="status-badge st-${p.status}">${p.status.toUpperCase().replace('_', ' ')}</span>
-                    ${temSolicitacaoCancelamento && perfilUsuario === 'dono' ? badgeCancelPendente : ''}</td>
+                    ${temSolicitacaoCancelamento && _isDono() ? badgeCancelPendente : ''}</td>
                     <td>Gs ${(p.total_geral || 0).toLocaleString('es-PY')}</td>
                     <td class="actions-cell">${acoes}</td>
                 </tr>`;
@@ -478,7 +490,7 @@ async function carregarPedidos(silencioso = false) {
         const cardBgSaiu = p.status === 'saiu_entrega' ? '#ddf0ff' : '';
         if (p.status === 'saiu_entrega') {
           const _btnCancelSaiuCard =
-            perfilUsuario === 'dono'
+            _isDono()
               ? `<button class="btn btn-danger btn-sm" onclick="mudarStatus(${p.id}, 'cancelado')"><i class="fas fa-times"></i></button>`
               : !temSolicitacaoCancelamento
                 ? `<button class="btn btn-warning btn-sm" onclick="solicitarCancelamento(${p.id})"><i class="fas fa-ban"></i> Cancelar</button>`
@@ -492,13 +504,13 @@ async function carregarPedidos(silencioso = false) {
                         <button class="btn btn-success btn-sm" onclick="mudarStatus(${p.id}, 'em_preparo')"><i class="fas fa-fire"></i> Cozinha</button>
                         <button class="btn btn-info btn-sm" onclick="imprimirPedido(${p.id})"><i class="fas fa-print"></i> Imprimir</button>
                         ${
-                          perfilUsuario === 'dono'
+                          _isDono()
                             ? `<button class="btn btn-danger btn-sm" onclick="mudarStatus(${p.id}, 'cancelado')"><i class="fas fa-times"></i></button>`
                             : `<button class="btn btn-warning btn-sm" onclick="solicitarCancelamento(${p.id})"><i class="fas fa-ban"></i> Cancelar</button>`
                         }`;
         } else if (p.status === 'pronto_entrega' && p.tipo_entrega === 'balcao') {
           const _btnCancelBalcao =
-            perfilUsuario === 'dono'
+            _isDono()
               ? `<button class="btn btn-danger btn-sm" onclick="mudarStatus(${p.id}, 'cancelado')"><i class="fas fa-times"></i></button>`
               : !temSolicitacaoCancelamento
                 ? `<button class="btn btn-warning btn-sm" onclick="solicitarCancelamento(${p.id})"><i class="fas fa-ban"></i> Cancelar</button>`
@@ -509,7 +521,7 @@ async function carregarPedidos(silencioso = false) {
         } else if (p.status === 'pronto_entrega' && (p.tipo_entrega === 'retirada')) {
           // Retirada: botão baixa manual + imprimir
           const _btnCancelRet =
-            perfilUsuario === 'dono'
+            _isDono()
               ? `<button class="btn btn-danger btn-sm" onclick="mudarStatus(${p.id}, 'cancelado')"><i class="fas fa-times"></i></button>`
               : !temSolicitacaoCancelamento
                 ? `<button class="btn btn-warning btn-sm" onclick="solicitarCancelamento(${p.id})"><i class="fas fa-ban"></i></button>`
@@ -519,7 +531,7 @@ async function carregarPedidos(silencioso = false) {
                         ${_btnCancelRet}`;
         } else if (p.status === 'pronto_entrega') {
           const _btnCancelPronto =
-            perfilUsuario === 'dono'
+            _isDono()
               ? `<button class="btn btn-danger btn-sm" onclick="mudarStatus(${p.id}, 'cancelado')"><i class="fas fa-times"></i></button>`
               : !temSolicitacaoCancelamento
                 ? `<button class="btn btn-warning btn-sm" onclick="solicitarCancelamento(${p.id})"><i class="fas fa-ban"></i></button>`
@@ -533,7 +545,7 @@ async function carregarPedidos(silencioso = false) {
         }
 
         const badgeCancelCard =
-          temSolicitacaoCancelamento && perfilUsuario === 'dono'
+          temSolicitacaoCancelamento && _isDono()
             ? `
                     <div style="background:#fff0f0;border:1px solid #e74c3c;border-radius:6px;padding:6px 8px;font-size:0.75rem;color:#c0392b;margin-top:6px">
                         🚫 Cancel. solicitado: ${p.cancelamento_motivo || '-'}
@@ -899,7 +911,7 @@ async function calcularFinanceiro() {
   console.log('💰 Calculando Financeiro...');
 
   // Inicializa dropdown de operadores se dono
-  if (perfilUsuario === 'dono') {
+  if (_isDono()) {
     await _garantirDropdownOperadores();
   }
 
@@ -922,7 +934,7 @@ async function calcularFinanceiro() {
   // dono com operador específico → filtra pelo selecionado
   // funcionário → sempre apenas o seu próprio ID
   let filtroOperadorId = null;
-  if (perfilUsuario === 'dono') {
+  if (_isDono()) {
     const selVal = elCaixa ? elCaixa.value : 'todos';
     filtroOperadorId = selVal && selVal !== 'todos' ? selVal : null;
   } else if (perfilUsuario === 'gerente') {
@@ -936,7 +948,7 @@ async function calcularFinanceiro() {
   // ── Atualiza cabeçalho do caixa ──────────────────────────────────
   const elCaixaTitulo = document.getElementById('caixa-titulo-operador');
   if (elCaixaTitulo) {
-    if (perfilUsuario === 'dono') {
+    if (_isDono()) {
       if (filtroOperadorId) {
         const nomeOp = elCaixa?.options[elCaixa.selectedIndex]?.text || filtroOperadorId;
         elCaixaTitulo.textContent = `🖥️ Caixa: ${nomeOp}`;
@@ -1040,7 +1052,7 @@ async function calcularFinanceiro() {
   // Para dono com "todos": inclui todos (pedidos do app + PDV)
   if (filtroOperadorId) {
     query = query.eq('operador_id', filtroOperadorId);
-  } else if (perfilUsuario !== 'dono') {
+  } else if (!_isDono()) {
     // Segurança extra: jamais mostra tudo para não-donos
     query = query.eq('operador_id', window._operadorId);
   }
@@ -1078,7 +1090,7 @@ async function calcularFinanceiro() {
 
   if (filtroOperadorId) {
     qCaixa = qCaixa.eq('operador_id', filtroOperadorId);
-  } else if (perfilUsuario !== 'dono') {
+  } else if (!_isDono()) {
     qCaixa = qCaixa.eq('operador_id', window._operadorId);
   }
 
@@ -1255,7 +1267,7 @@ function _renderizarMovimentacoes(movs) {
       timeZone: 'America/Asuncion',
     });
 
-  const podeFechamento = perfilUsuario === 'dono' || perfilUsuario === 'gerente';
+  const podeFechamento = _isDono() || perfilUsuario === 'gerente';
 
   if (movs.length === 0) {
     container.innerHTML =
@@ -1410,7 +1422,7 @@ async function exportarFinanceiro() {
 
   // Mesma lógica de filtro de operador usada em calcularFinanceiro
   let filtroOperadorId = null;
-  if (perfilUsuario === 'dono') {
+  if (_isDono()) {
     const selVal = elCaixa ? elCaixa.value : 'todos';
     filtroOperadorId = selVal && selVal !== 'todos' ? selVal : null;
   } else {
@@ -1445,7 +1457,7 @@ async function exportarFinanceiro() {
   }
   if (filtroOperadorId) {
     query = query.eq('operador_id', filtroOperadorId);
-  } else if (perfilUsuario !== 'dono') {
+  } else if (!_isDono()) {
     query = query.eq('operador_id', window._operadorId);
   }
 
@@ -4305,7 +4317,7 @@ async function carregarConfiguracoes() {
   const _cardCupons = document.getElementById('card-cupons-cfg');
   if (_cardCupons)
     _cardCupons.style.display =
-      perfilUsuario === 'dono' || perfilUsuario === 'gerente' ? '' : 'none';
+      _isDono() || perfilUsuario === 'gerente' ? '' : 'none';
 
   const { data } = await supa.from('configuracoes').select('*').single();
   if (!data) return;
@@ -6824,6 +6836,20 @@ document.addEventListener('keydown', function (event) {
 // 10. GESTÃO DE EQUIPE
 // =========================================
 async function carregarEquipe() {
+  // Injeta opções de cargo conforme nível do usuário logado
+  const selCargo = document.getElementById('novo-user-cargo');
+  if (selCargo) {
+    // Limpa e reconstrói para evitar duplicatas
+    selCargo.innerHTML = `
+      <option value="funcionario">👷 Funcionário</option>
+      <option value="gerente">👔 Gerente</option>
+    `;
+    if (_isAdminMaster()) {
+      selCargo.innerHTML += `<option value="dono">🔑 Dono</option>`;
+      selCargo.innerHTML += `<option value="adminMaster">🕹️ AdminMaster</option>`;
+    }
+  }
+
   const { data } = await supa.from('perfis_acesso').select('*').order('cargo');
 
   const tbody = document.getElementById('lista-equipe');
@@ -6833,22 +6859,39 @@ async function carregarEquipe() {
   if (data) {
     data.forEach((u) => {
       const dataCriacao = u.created_at ? new Date(u.created_at).toLocaleDateString('pt-BR') : '-';
-      const ehDono = u.cargo === 'dono';
-      const ehGerente = u.cargo === 'gerente';
+      const ehAdminMaster = u.cargo === 'adminMaster';
+      const ehDono        = u.cargo === 'dono';
+      const ehGerente     = u.cargo === 'gerente';
       const ehFuncionario = u.cargo === 'funcionario';
 
-      // Botão de promoção/rebaixamento (só dono pode gerenciar)
+      // adminMaster não pode ser gerenciado por ninguém via UI
+      // dono só pode ser gerenciado por adminMaster
+      const euSouAdminMaster = _isAdminMaster();
+      const possoGerenciar =
+        (!ehAdminMaster) &&                         // nunca toca adminMaster
+        (ehDono ? euSouAdminMaster : _isDono());    // dono: só adminMaster; outros: dono/adminMaster
+
       let acaoCargo = '';
-      if (!ehDono && perfilUsuario === 'dono') {
+      if (possoGerenciar) {
         if (ehFuncionario) {
           acaoCargo = `<button class="btn btn-sm btn-success" onclick="promoverUsuario('${u.id}', 'gerente')" title="Promover a Gerente"><i class="fas fa-arrow-up"></i> Gerente</button>`;
         } else if (ehGerente) {
-          acaoCargo = `<button class="btn btn-sm btn-warning" onclick="promoverUsuario('${u.id}', 'funcionario')" title="Rebaixar a Funcionário"><i class="fas fa-arrow-down"></i> Funcionário</button>`;
+          acaoCargo = `
+            <button class="btn btn-sm btn-success" onclick="promoverUsuario('${u.id}', 'funcionario')" title="Rebaixar a Funcionário"><i class="fas fa-arrow-down"></i> Funcionário</button>`;
+          if (euSouAdminMaster) {
+            acaoCargo += ` <button class="btn btn-sm" style="background:#9b59b6;color:#fff;border:none" onclick="promoverUsuario('${u.id}', 'dono')" title="Promover a Dono"><i class="fas fa-crown"></i> Dono</button>`;
+          }
+        } else if (ehDono && euSouAdminMaster) {
+          acaoCargo = `<button class="btn btn-sm btn-warning" onclick="promoverUsuario('${u.id}', 'gerente')" title="Rebaixar a Gerente"><i class="fas fa-arrow-down"></i> Gerente</button>`;
         }
         acaoCargo += ` <button class="btn btn-sm btn-danger" onclick="excluirUsuario('${u.id}', '${u.email}')" title="Excluir"><i class="fas fa-trash"></i></button>`;
       }
 
-      const cargoBadge = ehDono ? '🔑 Dono' : ehGerente ? '👔 Gerente' : '👷 Funcionário';
+      const cargoBadge =
+        ehAdminMaster ? '🕹️ AdminMaster' :
+        ehDono        ? '🔑 Dono'        :
+        ehGerente     ? '👔 Gerente'     : '👷 Funcionário';
+
       tbody.innerHTML += `<tr>
                 <td>${u.email}</td>
                 <td>${cargoBadge}</td>
@@ -6860,17 +6903,20 @@ async function carregarEquipe() {
 }
 
 async function promoverUsuario(id, novoCargo) {
-  const msg =
-    novoCargo === 'gerente'
-      ? 'Promover este usuário a Gerente?'
-      : 'Rebaixar este usuário a Funcionário?';
-  if (!confirm(msg)) return;
+  const labels = {
+    dono:        '🔑 Dono',
+    gerente:     '👔 Gerente',
+    funcionario: '👷 Funcionário',
+    adminMaster: '🕹️ AdminMaster',
+  };
+  const label = labels[novoCargo] || novoCargo;
+  if (!confirm(`Alterar cargo para ${label}?`)) return;
 
   const { error } = await supa.from('perfis_acesso').update({ cargo: novoCargo }).eq('id', id);
   if (error) {
     alert('❌ Erro: ' + error.message);
   } else {
-    alert(`✅ Cargo alterado para ${novoCargo}!`);
+    alert(`✅ Cargo alterado para ${label}!`);
     carregarEquipe();
   }
 }
@@ -6945,8 +6991,8 @@ async function cadastrarUsuario() {
 // ── Alteração de senha própria (qualquer usuário logado) ───────────────────
 function abrirModalAlterarSenha() {
   const html = `
-    <div id="modal-alterar-senha" class="modal-overlay" style="display:flex;z-index:9999">
-      <div class="modal-box" style="max-width:400px;width:100%">
+    <div id="modal-alterar-senha" class="modal-overlay" style="display:flex;z-index:9999;">
+      <div class="modal-box" style="max-width:400px;width:100%;background-color:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);">
         <div class="modal-header">
           <h3 class="modal-title">🔐 Alterar Minha Senha</h3>
           <button class="modal-close" onclick="document.getElementById('modal-alterar-senha').remove()">✕</button>
@@ -6965,8 +7011,8 @@ function abrirModalAlterarSenha() {
           <div id="msg-alterar-senha" style="color:#e74c3c;font-size:0.85rem;display:none;margin-top:4px"></div>
         </div>
         <div class="modal-footer" style="padding:15px 20px;display:flex;gap:10px;justify-content:flex-end">
-          <button class="btn btn-secondary" onclick="document.getElementById('modal-alterar-senha').remove()">Cancelar</button>
-          <button class="btn btn-primary" onclick="salvarNovaSenha()">🔒 Salvar Senha</button>
+          <button style="background-color:#e74c3c;color:#fff;border:none;padding:10px 20px;border-radius:4px;cursor:pointer" onclick="document.getElementById('modal-alterar-senha').remove()">Cancelar</button>
+          <button style="background-color:#22c55e;color:#fff;border:none;padding:10px 20px;border-radius:4px;cursor:pointer" onclick="salvarNovaSenha()">🔒 Salvar Senha</button>
         </div>
       </div>
     </div>`;
