@@ -918,13 +918,19 @@ async function calcularFinanceiro() {
   const facturaFiltro = elFactura ? elFactura.value : 'todos';
 
   // Qual operador filtrar?
-  // dono com "todos" → sem filtro | dono com operador específico → filtra | gerente/func → próprio ID
+  // dono/gerente com "todos" → sem filtro (somatório geral)
+  // dono com operador específico → filtra pelo selecionado
+  // funcionário → sempre apenas o seu próprio ID
   let filtroOperadorId = null;
   if (perfilUsuario === 'dono') {
     const selVal = elCaixa ? elCaixa.value : 'todos';
     filtroOperadorId = selVal && selVal !== 'todos' ? selVal : null;
+  } else if (perfilUsuario === 'gerente') {
+    // Gerente vê o somatório de todos, sem filtro de operador
+    filtroOperadorId = null;
   } else {
-    filtroOperadorId = window._operadorId; // funcionário/gerente vê só o seu
+    // funcionário vê apenas o seu próprio caixa
+    filtroOperadorId = window._operadorId;
   }
 
   // ── Atualiza cabeçalho do caixa ──────────────────────────────────
@@ -937,6 +943,8 @@ async function calcularFinanceiro() {
       } else {
         elCaixaTitulo.textContent = '🏦 Caixa Geral (Todos os Operadores)';
       }
+    } else if (perfilUsuario === 'gerente') {
+      elCaixaTitulo.textContent = '🏦 Caixa Geral (Somatório de todos)';
     } else {
       elCaixaTitulo.textContent = `🖥️ Meu Caixa — ${window._operadorNome || ''}`;
     }
@@ -949,30 +957,71 @@ async function calcularFinanceiro() {
   const mes = String(hoje.getMonth() + 1).padStart(2, '0');
   const dia = String(hoje.getDate()).padStart(2, '0');
 
+  // ── Busca horários configurados da loja para resolver virada de meia-noite ──
+  // Ex: loja abre às 19h e fecha às 02h → o "dia 12" vai de 19:00/12 até 02:00/13
+  let _horaAbertura = '00:00';
+  let _horaFechamento = '23:59';
+  try {
+    const { data: _cfg } = await supa
+      .from('configuracoes')
+      .select('hora_abertura, hora_fechamento')
+      .eq('id', 1)
+      .single();
+    if (_cfg) {
+      _horaAbertura  = _cfg.hora_abertura  || '00:00';
+      _horaFechamento = _cfg.hora_fechamento || '23:59';
+    }
+  } catch (_e) { /* silencioso */ }
+
+  // Verifica se o fechamento é após a meia-noite
+  // (hora_fechamento < hora_abertura indica turno que atravessa a meia-noite)
+  const _cruzaMeiaNoite = _horaFechamento < _horaAbertura;
+
+  // Constrói UTC a partir de uma data local + horário configurado da loja
+  // offset PY = UTC-4 → soma 4h para converter local→UTC
+  const _TZ_OFFSET_MS = 4 * 60 * 60 * 1000;
+  const _localHoraToUTC = (dateStr, horaStr) => {
+    return new Date(new Date(`${dateStr}T${horaStr}:00`).getTime() + _TZ_OFFSET_MS).toISOString();
+  };
+
   // Define período
   if (inicio && fim) {
-    dataInicio = inicio + ' 00:00:00';
-    dataFim = fim + ' 23:59:59';
+    // Quando o usuário escolhe datas manualmente
+    if (_cruzaMeiaNoite) {
+      // Turno overnight: inicia no horário de abertura da data início
+      // e termina no horário de fechamento do DIA SEGUINTE à data fim
+      const _fimDate   = new Date(fim + 'T12:00:00');
+      const _fimMais1  = new Date(_fimDate.getTime() + 86400000);
+      const _fimMais1Str = _fimMais1.toISOString().split('T')[0];
+      dataInicio = _localHoraToUTC(inicio, _horaAbertura);
+      dataFim    = _localHoraToUTC(_fimMais1Str, _horaFechamento);
+    } else {
+      dataInicio = _localHoraToUTC(inicio, _horaAbertura);
+      dataFim    = _localHoraToUTC(fim,    _horaFechamento);
+    }
   } else {
-    if (!inicio) elInicio.value = `${ano}-${mes}-${dia}`;
-    if (!fim) elFim.value = `${ano}-${mes}-${dia}`;
+    const _hoje = `${ano}-${mes}-${dia}`;
+    if (!inicio) elInicio.value = _hoje;
+    if (!fim)    elFim.value    = _hoje;
 
-    dataInicio = `${ano}-${mes}-${dia} 00:00:00`;
-    dataFim = `${ano}-${mes}-${dia} 23:59:59`;
+    if (_cruzaMeiaNoite) {
+      // Turno overnight: de hora_abertura de hoje até hora_fechamento de AMANHÃ
+      const _amanha = new Date(new Date(_hoje + 'T12:00:00').getTime() + 86400000)
+        .toISOString().split('T')[0];
+      dataInicio = _localHoraToUTC(_hoje,  _horaAbertura);
+      dataFim    = _localHoraToUTC(_amanha, _horaFechamento);
+    } else {
+      dataInicio = _localHoraToUTC(_hoje, _horaAbertura);
+      dataFim    = _localHoraToUTC(_hoje, _horaFechamento);
+    }
   }
 
   // ========================================
   // 1. BUSCA PEDIDOS
   // ========================================
-  const _tzOffsetMs = 4 * 60 * 60 * 1000;
-  const _localToUTC = (localDateStr, isEnd) => {
-    const d = new Date(localDateStr + (isEnd ? 'T23:59:59' : 'T00:00:00'));
-    return new Date(d.getTime() + _tzOffsetMs).toISOString();
-  };
-  const utcInicio = dataInicio.includes('T')
-    ? dataInicio
-    : _localToUTC(dataInicio.split(' ')[0], false);
-  const utcFim = dataFim.includes('T') ? dataFim : _localToUTC(dataFim.split(' ')[0], true);
+  // dataInicio e dataFim já são strings ISO UTC; usar diretamente
+  const utcInicio = dataInicio;
+  const utcFim    = dataFim;
 
   let query = supa
     .from('pedidos')
@@ -1023,8 +1072,9 @@ async function calcularFinanceiro() {
   let qCaixa = supa
     .from('movimentacoes_caixa')
     .select('*')
-    .gte('created_at', dataInicio)
-    .lte('created_at', dataFim);
+    .order('created_at', { ascending: true })
+    .gte('created_at', utcInicio)
+    .lte('created_at', utcFim);
 
   if (filtroOperadorId) {
     qCaixa = qCaixa.eq('operador_id', filtroOperadorId);
@@ -1160,6 +1210,11 @@ async function calcularFinanceiro() {
     faturamento: fmt(faturamento),
     lucro: fmt(lucro),
   });
+
+  // ========================================
+  // 7. TABELA DE MOVIMENTAÇÕES DO CAIXA
+  // ========================================
+  _renderizarMovimentacoes(caixa || []);
 }
 
 // ── Preenche o dropdown de operadores (apenas para o dono) ──────────────────
@@ -1179,6 +1234,165 @@ async function _garantirDropdownOperadores() {
     opt.textContent = `${u.email} (${u.cargo})`;
     el.appendChild(opt);
   });
+}
+
+// ── Renderiza tabela de movimentações do caixa com edição ──────────────────
+function _renderizarMovimentacoes(movs) {
+  const container = document.getElementById('lista-movimentacoes-caixa');
+  if (!container) return;
+
+  const tipoLabel = {
+    abertura:   { icon: '🟢', label: 'Abertura',   cor: '#28a745' },
+    suprimento: { icon: '➕', label: 'Suprimento', cor: '#17a2b8' },
+    sangria:    { icon: '💸', label: 'Sangria',    cor: '#e67e22' },
+    despesa:    { icon: '🧾', label: 'Despesa',    cor: '#e74c3c' },
+    fechamento: { icon: '🔒', label: 'Fechamento', cor: '#6c757d' },
+  };
+
+  const fmtHora = (ts) =>
+    new Date(ts).toLocaleTimeString('pt-BR', {
+      hour: '2-digit', minute: '2-digit',
+      timeZone: 'America/Asuncion',
+    });
+
+  const podeFechamento = perfilUsuario === 'dono' || perfilUsuario === 'gerente';
+
+  if (movs.length === 0) {
+    container.innerHTML =
+      '<p style="text-align:center;color:#bbb;padding:16px 0">Nenhuma movimentação no período.</p>';
+    return;
+  }
+
+  let html = `<table class="table" style="font-size:0.85rem">
+    <thead><tr>
+      <th>Hora</th><th>Tipo</th><th>Descrição</th><th>Valor</th>
+      ${podeFechamento ? '<th style="text-align:right">Ações</th>' : ''}
+    </tr></thead><tbody>`;
+
+  movs.forEach((m) => {
+    if (m.tipo === 'fechamento') return; // Oculta fechamentos automáticos
+    const t = tipoLabel[m.tipo] || { icon: '•', label: m.tipo, cor: '#333' };
+    const isSaida = m.tipo === 'despesa' || m.tipo === 'sangria';
+    const sinal = isSaida ? '-' : '+';
+    const corValor = isSaida ? '#e74c3c' : '#28a745';
+
+    // Detecta histórico de edição no final da descrição
+    const sepIdx = (m.descricao || '').lastIndexOf('【EDITADO');
+    const descExib = sepIdx > -1
+      ? m.descricao.slice(0, sepIdx).trim()
+      : (m.descricao || '—');
+    const hasHistorico = sepIdx > -1;
+
+    const acoesHtml = podeFechamento ? `
+      <td style="text-align:right;white-space:nowrap">
+        <button class="btn btn-sm" style="background:#fff3cd;color:#856404;border:1px solid #ffc107;margin-right:4px"
+          onclick="abrirEditarMovimentacao(${m.id},'${(m.tipo)}',${m.valor},'${(m.descricao||'').replace(/'/g,"\\'")}')">
+          ✏️ Editar
+        </button>
+        <button class="btn btn-sm" style="background:#f8d7da;color:#721c24;border:1px solid #f5c6cb"
+          onclick="deletarMovimentacao(${m.id})">
+          🗑️
+        </button>
+        ${hasHistorico ? `<button class="btn btn-sm" style="background:#e7f3ff;color:#0066cc;border:1px solid #b8d4f0;margin-left:4px"
+          onclick="_verHistoricoMov('${(m.descricao||'').replace(/'/g,"\\'")}')" title="Ver histórico de edições">📋</button>` : ''}
+      </td>` : '';
+
+    html += `<tr>
+      <td style="white-space:nowrap;color:#888">${fmtHora(m.created_at)}</td>
+      <td><span style="color:${t.cor};font-weight:600">${t.icon} ${t.label}</span></td>
+      <td style="max-width:180px;word-break:break-word">${descExib}</td>
+      <td style="font-weight:700;color:${corValor};white-space:nowrap">
+        ${sinal} Gs ${Number(m.valor).toLocaleString('es-PY')}
+      </td>
+      ${acoesHtml}
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+// Abre modal de edição de movimentação
+function abrirEditarMovimentacao(id, tipo, valorAtual, descAtual) {
+  // Remove histórico de edições da descrição exibida
+  const sepIdx = descAtual.lastIndexOf('【EDITADO');
+  const descLimpa = sepIdx > -1 ? descAtual.slice(0, sepIdx).trim() : descAtual;
+
+  const modalHtml = `
+    <div id="modal-editar-mov" class="modal-overlay" style="display:flex;z-index:9999">
+      <div class="modal-box" style="max-width:420px;width:100%">
+        <div class="modal-header">
+          <h3 class="modal-title">✏️ Editar Movimentação #${id}</h3>
+          <button class="modal-close" onclick="document.getElementById('modal-editar-mov').remove()">✕</button>
+        </div>
+        <div class="modal-body" style="padding:20px">
+          <div class="form-group">
+            <label>Valor (Gs)</label>
+            <input type="number" id="edit-mov-valor" class="form-control" value="${valorAtual}" min="0" />
+          </div>
+          <div class="form-group">
+            <label>Descrição</label>
+            <input type="text" id="edit-mov-desc" class="form-control" value="${descLimpa}" />
+          </div>
+          <div class="form-group">
+            <label>Motivo da edição <small style="color:#888">(obrigatório)</small></label>
+            <input type="text" id="edit-mov-motivo" class="form-control" placeholder="Ex: valor digitado errado" />
+          </div>
+        </div>
+        <div class="modal-footer" style="padding:15px 20px;display:flex;gap:10px;justify-content:flex-end">
+          <button class="btn btn-secondary" onclick="document.getElementById('modal-editar-mov').remove()">Cancelar</button>
+          <button class="btn btn-primary" onclick="salvarEdicaoMovimentacao(${id},'${tipo}','${descAtual.replace(/'/g,"\\'")}')">Salvar</button>
+        </div>
+      </div>
+    </div>`;
+  const oldModal = document.getElementById('modal-editar-mov');
+  if (oldModal) oldModal.remove();
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+async function salvarEdicaoMovimentacao(id, tipo, descAnteriorCompleta) {
+  const novoValor  = parseFloat(document.getElementById('edit-mov-valor').value);
+  const novaDesc   = document.getElementById('edit-mov-desc').value.trim();
+  const motivo     = document.getElementById('edit-mov-motivo').value.trim();
+
+  if (!novaDesc)    return alert('Preencha a descrição.');
+  if (!motivo)      return alert('Informe o motivo da edição.');
+  if (novoValor <= 0) return alert('Valor deve ser maior que zero.');
+
+  // Recupera histórico anterior que estava embutido na descrição
+  const sepIdx = descAnteriorCompleta.lastIndexOf('【EDITADO');
+  const historicoAnterior = sepIdx > -1 ? descAnteriorCompleta.slice(sepIdx) : '';
+
+  const agora = new Date().toLocaleString('pt-BR', { timeZone: 'America/Asuncion' });
+  const editor = window._operadorNome || 'admin';
+  const novaEntradaHistorico = `【EDITADO ${agora} por ${editor}: ${motivo}】`;
+  const descFinal = `${novaDesc} ${historicoAnterior} ${novaEntradaHistorico}`.trim();
+
+  const { error } = await supa
+    .from('movimentacoes_caixa')
+    .update({ valor: novoValor, descricao: descFinal })
+    .eq('id', id);
+
+  if (error) return alert('Erro ao editar: ' + error.message);
+
+  document.getElementById('modal-editar-mov').remove();
+  alert('✅ Movimentação editada com sucesso!');
+  calcularFinanceiro();
+}
+
+async function deletarMovimentacao(id) {
+  if (!confirm(`🗑️ Deletar a movimentação #${id}?\n\nEsta ação não pode ser desfeita.`)) return;
+  const { error } = await supa.from('movimentacoes_caixa').delete().eq('id', id);
+  if (error) return alert('Erro ao deletar: ' + error.message);
+  alert('✅ Movimentação removida.');
+  calcularFinanceiro();
+}
+
+function _verHistoricoMov(descCompleta) {
+  const partes = descCompleta.split(/(?=【EDITADO)/g);
+  const desc = partes[0].trim();
+  const historico = partes.slice(1).join('\n');
+  alert(`📋 Histórico de Edições\n\nDescrição atual:\n${desc}\n\nEdições:\n${historico || 'Nenhuma'}`);
 }
 
 async function exportarFinanceiro() {
@@ -1701,9 +1915,9 @@ function enviarRotaZap() {
       msg += `👤 ${p.cliente_nome} | 📞 ${p.cliente_telefone || ''}\n`;
 
       if (p.itens && Array.isArray(p.itens)) {
-        // Bebidas: categoria_slug === 'bebidas' (campo salvo a partir de agora)
-        // Fallback: campos abreviados n/q para pedidos antigos
+        // Detecta bebidas usando flag is_bebida (novo) com fallback por categoria_slug
         const bebidas = p.itens.filter((i) => {
+          if (i.is_bebida === true) return true; // flag direto no item
           const cat = (i.categoria_slug || i.cat || '').toLowerCase();
           return cat === 'bebidas' || cat.includes('bebida');
         });
@@ -2123,6 +2337,7 @@ async function salvarProduto() {
       montagem_config: configFinal, // salva config completo sempre (etapas + extras + preparo + __tipo)
       ativo: true,
       somente_balcao: document.getElementById('prod-somente-balcao')?.checked || false,
+      is_bebida: document.getElementById('prod-is-bebida')?.checked || false,
     };
 
     if (id) await supa.from('produtos').update(dados).eq('id', id);
@@ -2150,6 +2365,8 @@ async function abrirModalProduto(produto = null, tipoInicial = null) {
   document.getElementById('prod-img').value = '';
   document.getElementById('box-preview').style.display = 'none';
   document.getElementById('prod-somente-balcao').checked = false;
+  const _isBebidaEl = document.getElementById('prod-is-bebida');
+  if (_isBebidaEl) _isBebidaEl.checked = false;
   document.getElementById('prod-tem-extras').checked = false;
   document.getElementById('extras-area').style.display = 'none';
   document.getElementById('extras-lista').innerHTML = '';
@@ -2178,6 +2395,8 @@ async function abrirModalProduto(produto = null, tipoInicial = null) {
     document.getElementById('prod-preco').value = produto.preco;
     document.getElementById('prod-img').value = produto.imagem_url || '';
     document.getElementById('prod-somente-balcao').checked = produto.somente_balcao || false;
+    const _isBebidaElEdit = document.getElementById('prod-is-bebida');
+    if (_isBebidaElEdit) _isBebidaElEdit.checked = produto.is_bebida || false;
 
     if (produto.imagem_url) {
       document.getElementById('img-preview').src = produto.imagem_url;
@@ -6190,6 +6409,7 @@ async function salvarPedidoBalcao() {
   montagem: i.montagem || [],
   obs: i.obs || '',
   categoria_slug: i.categoria_slug || '',  // ← essencial para detectar bebidas na rota
+  is_bebida: i.is_bebida || false,         // ← flag explícito para motoboy
   status_item: _isBebida(i) ? 'entregue' : 'pendente',
   lancado_em: new Date().toISOString(),
 }));
@@ -6721,6 +6941,67 @@ async function cadastrarUsuario() {
     }
   }
 }
+
+// ── Alteração de senha própria (qualquer usuário logado) ───────────────────
+function abrirModalAlterarSenha() {
+  const html = `
+    <div id="modal-alterar-senha" class="modal-overlay" style="display:flex;z-index:9999">
+      <div class="modal-box" style="max-width:400px;width:100%">
+        <div class="modal-header">
+          <h3 class="modal-title">🔐 Alterar Minha Senha</h3>
+          <button class="modal-close" onclick="document.getElementById('modal-alterar-senha').remove()">✕</button>
+        </div>
+        <div class="modal-body" style="padding:20px">
+          <div class="form-group">
+            <label>Nova senha <small style="color:#888">(mín. 6 caracteres)</small></label>
+            <input type="password" id="nova-senha-input" class="form-control"
+              placeholder="Digite a nova senha" autocomplete="new-password" />
+          </div>
+          <div class="form-group">
+            <label>Confirmar nova senha</label>
+            <input type="password" id="nova-senha-confirm" class="form-control"
+              placeholder="Repita a nova senha" autocomplete="new-password" />
+          </div>
+          <div id="msg-alterar-senha" style="color:#e74c3c;font-size:0.85rem;display:none;margin-top:4px"></div>
+        </div>
+        <div class="modal-footer" style="padding:15px 20px;display:flex;gap:10px;justify-content:flex-end">
+          <button class="btn btn-secondary" onclick="document.getElementById('modal-alterar-senha').remove()">Cancelar</button>
+          <button class="btn btn-primary" onclick="salvarNovaSenha()">🔒 Salvar Senha</button>
+        </div>
+      </div>
+    </div>`;
+  const old = document.getElementById('modal-alterar-senha');
+  if (old) old.remove();
+  document.body.insertAdjacentHTML('beforeend', html);
+  setTimeout(() => document.getElementById('nova-senha-input')?.focus(), 100);
+}
+
+async function salvarNovaSenha() {
+  const nova    = document.getElementById('nova-senha-input').value;
+  const confirm = document.getElementById('nova-senha-confirm').value;
+  const msgEl   = document.getElementById('msg-alterar-senha');
+
+  const showErr = (txt) => { msgEl.textContent = txt; msgEl.style.display = 'block'; };
+  msgEl.style.display = 'none';
+
+  if (!nova || nova.length < 6)    return showErr('A senha deve ter pelo menos 6 caracteres.');
+  if (nova !== confirm)            return showErr('As senhas não coincidem.');
+
+  const btn = document.querySelector('#modal-alterar-senha .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
+
+  const { error } = await supa.auth.updateUser({ password: nova });
+
+  if (btn) { btn.disabled = false; btn.textContent = '🔒 Salvar Senha'; }
+
+  if (error) {
+    showErr('Erro: ' + error.message);
+  } else {
+    document.getElementById('modal-alterar-senha').remove();
+    alert('✅ Senha alterada com sucesso!\n\nUse a nova senha no próximo login.');
+  }
+}
+
 
 function adicionarItem(etapaIndex) {
   const lista = document.getElementById(`itens-list-${etapaIndex}`);

@@ -209,6 +209,7 @@ let carrinho = [];
 let freteCalculado = 0;
 let freteMotoboy = 0; // Valor pago ao motoboy (da tabela de frete)
 let localCliente = null;
+let freteMinimoPorErroGPS = false; // true quando GPS bloqueado — usa frete mínimo de 7.000 Gs
 let modoEntrega = 'delivery';
 let prodAtual = null, optAtual = null, qtd = 1;
 let itensMontagem = {};
@@ -1863,16 +1864,21 @@ async function calcularFrete() {
   btn.disabled = true;
 
   if (!navigator.geolocation) {
-    msg.innerHTML = '<span style="color:#e74c3c">GPS não disponível neste dispositivo</span>';
-    boxErro.style.display = 'block';
-    btn.innerText = '📍 Calcular Frete';
-    btn.disabled = false;
+    freteCalculado = 7000;
+    freteMotoboy   = 5000;
+    freteMinimoPorErroGPS = true;
+    msg.innerHTML  = '<span style="color:#e67e22">⚠️ GPS não disponível neste dispositivo. Frete mínimo de <strong>Gs 7.000</strong> aplicado — pode ser maior se a distância for superior a 2km.</span>';
+    boxErro.style.display = 'none';
+    btn.innerText  = '📍 Calcular Frete';
+    btn.disabled   = false;
+    atualizarTotalCheckout();
     return;
   }
 
   navigator.geolocation.getCurrentPosition(
     (position) => {
       localCliente = { lat: position.coords.latitude, lng: position.coords.longitude };
+      freteMinimoPorErroGPS = false; // GPS obtido com sucesso — cancela modo frete mínimo
       const dist = calcularDistancia(COORD_LOJA.lat, COORD_LOJA.lng, localCliente.lat, localCliente.lng);
       
       // === TABELA DE FRETE DINÂMICA (configurada no admin) ===
@@ -1917,10 +1923,14 @@ async function calcularFrete() {
       atualizarTotalCheckout();
     },
     (error) => {
-      msg.innerHTML = '<span style="color:#e74c3c">Não foi possível obter sua localização</span>';
-      boxErro.style.display = 'block';
-      btn.innerText = '📍 Tentar Novamente';
-      btn.disabled = false;
+      freteCalculado = 7000;
+      freteMotoboy   = 7000;
+      freteMinimoPorErroGPS = true;
+      msg.innerHTML  = `<span style="color:#e67e22">⚠️ Não foi possível obter sua localização. Frete mínimo de <strong>Gs 7.000</strong> aplicado — pode ser maior se a distância for superior a 2km.</span>`;
+      boxErro.style.display = 'none';
+      btn.innerText  = '📍 Tentar Novamente';
+      btn.disabled   = false;
+      atualizarTotalCheckout();
     }
   );
 }
@@ -1939,7 +1949,30 @@ function calcularDistancia(lat1, lon1, lat2, lon2) {
 // ==========================================
 // 8. ENVIO DO PEDIDO
 // ==========================================
+// Mutex global para evitar envios simultâneos (pedidos duplicados)
+let _enviandoPedido = false;
+
 async function enviarZap() {
+  // ── MUTEX: bloqueia cliques duplos / reenvios rápidos ──────────────────
+  if (_enviandoPedido) {
+    alert('⏳ Seu pedido está sendo processado. Aguarde...');
+    return;
+  }
+  _enviandoPedido = true;
+
+  // Desabilita botão visualmente durante o processamento
+  const _btnsEnviar = document.querySelectorAll('[onclick*="enviarZap"], .btn-finalizar');
+  _btnsEnviar.forEach(b => { b.disabled = true; });
+
+  try {
+    await _enviarZapInterno();
+  } finally {
+    _enviandoPedido = false;
+    _btnsEnviar.forEach(b => { b.disabled = false; });
+  }
+}
+
+async function _enviarZapInterno() {
   const nome = document.getElementById('cli-nome').value.trim();
   const ddi = document.getElementById('cli-ddi').value;
   const tel = document.getElementById('cli-tel').value.trim();
@@ -1973,13 +2006,54 @@ async function enviarZap() {
     return alert('⚠️ Produtos da "Promoção do Dia" não aceitam pagamento com Cartão.');
   }
 
-  // Pedido duplo: bloqueia se mesmo carrinho enviado no último 1h
+  // ── Anti-duplicata: verifica hash local (+ telefone) ───────────────────
   const _agora = Date.now();
+  const _telAtual = (document.getElementById('cli-tel')?.value || '').replace(/\D/g,'');
+  const _hashAtual = [_telAtual, ...carrinho.map(i => i.nome + (i.qtd||1)).sort()].join('|');
   const _ultimoHash = localStorage.getItem('sushi_last_hash');
   const _ultimoTs   = parseInt(localStorage.getItem('sushi_last_ts') || '0');
-  const _hashAtual  = carrinho.map(i => i.nome + i.qtd).sort().join('|');
-  if (_ultimoHash === _hashAtual && (_agora - _ultimoTs) < 3600000) {
-    return alert('🚫 Seu pedido anterior foi computado, estamos bloqueando esta segunda tentativa.');
+
+  if (_ultimoHash === _hashAtual && (_agora - _ultimoTs) < 1800000) { // 30 min
+    const minutosAtras = Math.round((_agora - _ultimoTs) / 60000);
+    const confirmar = confirm(
+      `⚠️ Detectamos um pedido idêntico enviado há ${minutosAtras} min.\n\n` +
+      `Se já enviou no WhatsApp, NÃO reenvie — o pedido já está registrado.\n\n` +
+      `Deseja enviar mesmo assim?`
+    );
+    if (!confirmar) return;
+  }
+
+  // Salva hash IMEDIATAMENTE (antes de qualquer ação assíncrona)
+  // para bloquear segundas tentativas mesmo se a página for recarregada
+  localStorage.setItem('sushi_last_hash', _hashAtual);
+  localStorage.setItem('sushi_last_ts',   _agora.toString());
+
+  // ── Verificação no servidor: pedido recente com mesmo telefone ─────────
+  // (captura casos em que localStorage foi limpo)
+  if (typeof supa !== 'undefined' && _telAtual.length >= 8) {
+    try {
+      const _cincoMinAtras = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      const { data: _pedidosRecentes } = await supa
+        .from('pedidos')
+        .select('id, created_at')
+        .eq('cliente_telefone', _telAtual)
+        .gte('created_at', _cincoMinAtras)
+        .limit(3);
+
+      if (_pedidosRecentes && _pedidosRecentes.length > 0) {
+        const _ids = _pedidosRecentes.map(p => '#' + p.id).join(', ');
+        const _ok = confirm(
+          `⚠️ Encontramos pedido(s) recente(s) do seu número nos últimos 5 min: ${_ids}\n\n` +
+          `Se já enviou no WhatsApp, NÃO reenvie.\n\nDeseja continuar mesmo assim?`
+        );
+        if (!_ok) {
+          // Desfaz o hash salvo se o usuário cancelar
+          localStorage.removeItem('sushi_last_hash');
+          localStorage.removeItem('sushi_last_ts');
+          return;
+        }
+      }
+    } catch (_e) { /* silencioso — não bloqueia se a consulta falhar */ }
   }
 
   // Valida multipagamento
@@ -1995,7 +2069,7 @@ async function enviarZap() {
     }
   }
 
-  if (modoEntrega === 'delivery' && !localCliente && !document.getElementById('check-sem-gps')?.checked) {
+   if (modoEntrega === 'delivery' && !localCliente && !freteMinimoPorErroGPS && !document.getElementById('check-sem-gps')?.checked) {
     alert('Por favor, calcule o frete ou marque a opção de enviar localização pelo WhatsApp');
     return;
   }
@@ -2183,12 +2257,7 @@ async function enviarZap() {
       msg += `\n📄 RUC: ${document.getElementById('cli-ruc').value}\nRazão: ${document.getElementById('cli-zao').value}\n`;
   }
 
-  // Salva hash anti-duplicata ANTES de enviar
-  const _hashFinal = carrinho.map(i => i.nome + i.qtd).sort().join('|');
-  localStorage.setItem('sushi_last_hash', _hashFinal);
-  localStorage.setItem('sushi_last_ts',   Date.now().toString());
-
-  // Modal de confirmação 5s antes de abrir WhatsApp
+  // Hash já salvo no início; vai direto ao modal de envio
   await _mostrarModalEnvio(msg, numeroPedido);
 }
 

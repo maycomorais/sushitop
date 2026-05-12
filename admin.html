@@ -71,7 +71,10 @@
         </div>
       </div>
 
-      <div class="menu-item" onclick="logout()" style="margin-top: auto; background: #c0392b">
+      <div class="menu-item" onclick="abrirModalAlterarSenha()" style="background:#856404;color:#fff3cd" title="Alterar minha senha">
+        <i class="fas fa-key"></i><span class="mobile-hide"> Senha</span>
+      </div>
+      <div class="menu-item" onclick="logout()" style="background: #c0392b">
         <i class="fas fa-sign-out-alt"></i><span class="mobile-hide "> Sair</span>
       </div>
     </div>
@@ -585,10 +588,27 @@
       <tbody id="lista-financeiro-motoboys"></tbody>
     </table>
   </div>
+
+  <!-- ===== MOVIMENTAÇÕES DO CAIXA ===== -->
+  <div class="card" style="margin-top:20px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <h3 style="margin:0">💰 Movimentações do Caixa</h3>
+      <small style="color:#aaa">Receitas e despesas registradas no período selecionado</small>
+    </div>
+    <div id="lista-movimentacoes-caixa">
+      <p style="text-align:center;color:#bbb;padding:16px 0">Clique em "Calcular" para carregar as movimentações.</p>
+    </div>
+  </div>
 </div>
 
       <div id="equipe" class="tab-content">
-        <h2 class="section-title">Gestão de Equipe</h2>
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:8px">
+          <h2 class="section-title" style="margin:0">Gestão de Equipe</h2>
+          <button class="btn" style="background:#fff3cd;color:#856404;border:1px solid #ffc107;font-weight:600"
+            onclick="abrirModalAlterarSenha()">
+            🔐 Alterar Minha Senha
+          </button>
+        </div>
         <div class="card">
           <div style="margin-bottom: 20px">
             <h4 style="margin-bottom:12px">Cadastrar Usuário</h4>
@@ -978,6 +998,15 @@
           <label for="prod-somente-balcao" style="font-weight:bold; cursor:pointer;">
             🏪 Somente Balcão (PDV)
             <small style="display:block; font-weight:normal; color:#888;">Não aparece no cardápio online</small>
+          </label>
+        </div>
+
+        <!-- Checkbox is_bebida -->
+        <div class="form-group" style="display:flex; align-items:center; gap:10px; background:#e8f4fd; padding:10px; border-radius:8px; margin-top:8px;">
+          <input type="checkbox" id="prod-is-bebida" style="width:20px; height:20px;">
+          <label for="prod-is-bebida" style="font-weight:bold; cursor:pointer;">
+            🥤 É uma bebida
+            <small style="display:block; font-weight:normal; color:#888;">O motoboy receberá aviso explícito para levar este item</small>
           </label>
         </div>
 

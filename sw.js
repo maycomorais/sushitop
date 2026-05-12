@@ -1,5 +1,5 @@
 // sw.js — Service Worker da Sushiteria Delivery
-const CACHE_NAME = 'sushiteria-v3';
+const CACHE_NAME = 'sushiteria-v4';
 const ASSETS_TO_CACHE = [
     '/index.html',
     '/style.css',
