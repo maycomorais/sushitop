@@ -73,6 +73,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (menuFin) menuFin.style.display = 'flex';
     }
 
+    // Exibe o menu de Assinatura apenas para adminMaster
+    document.querySelectorAll('.restrito-adminmaster').forEach(el => {
+      el.style.display = _isAdminMaster() ? 'flex' : 'none';
+    });
+
+    // ── Inicializa controle de assinatura (barra de aviso / bloqueio) ──
+    if (typeof SubscriptionUI !== 'undefined') {
+      SubscriptionUI.inicializar({
+        supabaseUrl:  _SUPABASE_URL,
+        supabaseKey:  _SUPABASE_KEY,
+        contatoFone:  '595981234567',   // ← troque pelo WhatsApp do suporte
+        contatoNome:  'Suporte Sushi Top',
+      });
+    }
+
     carregarDashboard();
     carregarMotoboysSelect();
   }
@@ -210,6 +225,7 @@ function showTab(tabId, event) {
   if (realTabId === 'dashboard') carregarDashboard();
   if (realTabId === 'pdv') carregarPDV();
   if (realTabId === 'equipe') carregarEquipe();
+  if (realTabId === 'assinatura') carregarPainelAssinatura();
   if (realTabId === 'configuracoes') {
     carregarConfiguracoes();
     if (_isDono() || perfilUsuario === 'gerente') {
@@ -6991,35 +7007,191 @@ async function cadastrarUsuario() {
 // ── Alteração de senha própria (qualquer usuário logado) ───────────────────
 function abrirModalAlterarSenha() {
   const html = `
-    <div id="modal-alterar-senha" class="modal-overlay" style="display:flex;z-index:9999;">
-      <div class="modal-box" style="max-width:400px;width:100%;background-color:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);">
-        <div class="modal-header">
-          <h3 class="modal-title">🔐 Alterar Minha Senha</h3>
-          <button class="modal-close" onclick="document.getElementById('modal-alterar-senha').remove()">✕</button>
-        </div>
-        <div class="modal-body" style="padding:20px">
-          <div class="form-group">
-            <label>Nova senha <small style="color:#888">(mín. 6 caracteres)</small></label>
-            <input type="password" id="nova-senha-input" class="form-control"
-              placeholder="Digite a nova senha" autocomplete="new-password" />
+    <div id="modal-alterar-senha" class="modal-overlay" style="display:flex;z-index:9999;backdrop-filter:blur(4px)">
+      <div style="
+        background:#fff;
+        border-radius:20px;
+        width:100%;
+        max-width:420px;
+        box-shadow:0 24px 60px rgba(0,0,0,0.18);
+        overflow:hidden;
+        font-family:'Rubik',sans-serif;
+      ">
+
+        <!-- Header gradiente -->
+        <div style="
+          background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);
+          padding:28px 28px 22px;
+          position:relative;
+        ">
+          <button onclick="document.getElementById('modal-alterar-senha').remove()"
+            style="position:absolute;top:14px;right:16px;background:rgba(255,255,255,0.12);
+            border:none;color:#fff;width:30px;height:30px;border-radius:50%;
+            font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+            transition:background .2s" onmouseover="this.style.background='rgba(255,255,255,0.25)'"
+            onmouseout="this.style.background='rgba(255,255,255,0.12)'">✕</button>
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="
+              background:rgba(255,255,255,0.12);
+              border-radius:12px;padding:10px;
+              font-size:22px;line-height:1
+            ">🔐</div>
+            <div>
+              <div style="color:#fff;font-size:1.15rem;font-weight:700;letter-spacing:-.2px">Alterar Senha</div>
+              <div style="color:rgba(255,255,255,0.55);font-size:0.78rem;margin-top:2px">Escolha uma senha forte</div>
+            </div>
           </div>
-          <div class="form-group">
-            <label>Confirmar nova senha</label>
-            <input type="password" id="nova-senha-confirm" class="form-control"
-              placeholder="Repita a nova senha" autocomplete="new-password" />
-          </div>
-          <div id="msg-alterar-senha" style="color:#e74c3c;font-size:0.85rem;display:none;margin-top:4px"></div>
         </div>
-        <div class="modal-footer" style="padding:15px 20px;display:flex;gap:10px;justify-content:flex-end">
-          <button style="background-color:#e74c3c;color:#fff;border:none;padding:10px 20px;border-radius:4px;cursor:pointer" onclick="document.getElementById('modal-alterar-senha').remove()">Cancelar</button>
-          <button style="background-color:#22c55e;color:#fff;border:none;padding:10px 20px;border-radius:4px;cursor:pointer" onclick="salvarNovaSenha()">🔒 Salvar Senha</button>
+
+        <!-- Body -->
+        <div style="padding:24px 28px 20px">
+
+          <!-- Campo nova senha -->
+          <div style="margin-bottom:18px">
+            <label style="font-size:0.78rem;font-weight:600;color:#555;letter-spacing:.4px;text-transform:uppercase;display:block;margin-bottom:6px">Nova senha</label>
+            <div style="position:relative">
+              <input type="password" id="nova-senha-input"
+                placeholder="Digite a nova senha"
+                autocomplete="new-password"
+                oninput="_avaliarSenha(this.value)"
+                style="width:100%;padding:12px 44px 12px 14px;border:2px solid #e8e8e8;
+                border-radius:10px;font-size:0.95rem;outline:none;transition:border .2s;box-sizing:border-box"
+                onfocus="this.style.borderColor='#0f3460'"
+                onblur="this.style.borderColor='#e8e8e8'" />
+              <span id="toggle-nova" onclick="_toggleSenha('nova-senha-input','toggle-nova')"
+                style="position:absolute;right:12px;top:50%;transform:translateY(-50%);
+                cursor:pointer;font-size:17px;user-select:none">👁</span>
+            </div>
+
+            <!-- Barra de força -->
+            <div style="margin-top:8px">
+              <div style="display:flex;gap:4px;height:4px;border-radius:4px;overflow:hidden">
+                <div id="bar1" style="flex:1;background:#e8e8e8;border-radius:4px;transition:background .3s"></div>
+                <div id="bar2" style="flex:1;background:#e8e8e8;border-radius:4px;transition:background .3s"></div>
+                <div id="bar3" style="flex:1;background:#e8e8e8;border-radius:4px;transition:background .3s"></div>
+                <div id="bar4" style="flex:1;background:#e8e8e8;border-radius:4px;transition:background .3s"></div>
+              </div>
+              <div id="forca-label" style="font-size:0.72rem;color:#aaa;margin-top:4px;height:14px;transition:color .3s"></div>
+            </div>
+
+            <!-- Critérios visuais -->
+            <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:4px 12px">
+              <div id="crit-len"  class="_crit">✗ Mínimo 8 caracteres</div>
+              <div id="crit-num"  class="_crit">✗ Número</div>
+              <div id="crit-mai"  class="_crit">✗ Letra maiúscula</div>
+              <div id="crit-esp"  class="_crit">✗ Caractere especial</div>
+            </div>
+          </div>
+
+          <!-- Campo confirmar -->
+          <div style="margin-bottom:6px">
+            <label style="font-size:0.78rem;font-weight:600;color:#555;letter-spacing:.4px;text-transform:uppercase;display:block;margin-bottom:6px">Confirmar senha</label>
+            <div style="position:relative">
+              <input type="password" id="nova-senha-confirm"
+                placeholder="Repita a nova senha"
+                autocomplete="new-password"
+                oninput="_verificarMatch()"
+                style="width:100%;padding:12px 44px 12px 14px;border:2px solid #e8e8e8;
+                border-radius:10px;font-size:0.95rem;outline:none;transition:border .2s;box-sizing:border-box"
+                onfocus="this.style.borderColor='#0f3460'"
+                onblur="this.style.borderColor='#e8e8e8'" />
+              <span id="toggle-conf" onclick="_toggleSenha('nova-senha-confirm','toggle-conf')"
+                style="position:absolute;right:12px;top:50%;transform:translateY(-50%);
+                cursor:pointer;font-size:17px;user-select:none">👁</span>
+            </div>
+            <div id="match-label" style="font-size:0.78rem;margin-top:5px;height:16px;transition:color .2s"></div>
+          </div>
+
+          <div id="msg-alterar-senha" style="color:#e74c3c;font-size:0.82rem;display:none;
+            background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 12px;margin-top:10px"></div>
+        </div>
+
+        <!-- Footer -->
+        <div style="padding:0 28px 24px;display:flex;gap:10px">
+          <button onclick="document.getElementById('modal-alterar-senha').remove()"
+            style="flex:1;padding:12px;background:#f5f5f5;color:#666;border:none;
+            border-radius:10px;font-size:0.9rem;font-weight:600;cursor:pointer;
+            transition:background .2s" onmouseover="this.style.background='#e8e8e8'"
+            onmouseout="this.style.background='#f5f5f5'">Cancelar</button>
+          <button id="btn-salvar-senha" onclick="salvarNovaSenha()"
+            style="flex:2;padding:12px;background:linear-gradient(135deg,#0f3460,#533483);
+            color:#fff;border:none;border-radius:10px;font-size:0.9rem;font-weight:700;
+            cursor:pointer;transition:opacity .2s;letter-spacing:.3px">
+            🔒 Salvar Nova Senha
+          </button>
         </div>
       </div>
     </div>`;
+
   const old = document.getElementById('modal-alterar-senha');
   if (old) old.remove();
   document.body.insertAdjacentHTML('beforeend', html);
-  setTimeout(() => document.getElementById('nova-senha-input')?.focus(), 100);
+
+  // Injeta estilos dos critérios
+  if (!document.getElementById('_crit-style')) {
+    const s = document.createElement('style');
+    s.id = '_crit-style';
+    s.textContent = `
+      ._crit { font-size:.72rem; color:#bbb; transition:color .25s; }
+      ._crit.ok { color:#22c55e; }
+    `;
+    document.head.appendChild(s);
+  }
+
+  setTimeout(() => document.getElementById('nova-senha-input')?.focus(), 120);
+}
+
+function _toggleSenha(inputId, spanId) {
+  const inp = document.getElementById(inputId);
+  const span = document.getElementById(spanId);
+  if (!inp) return;
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+  span.textContent = inp.type === 'password' ? '👁' : '🙈';
+}
+
+function _avaliarSenha(val) {
+  const len = val.length >= 8;
+  const num = /\d/.test(val);
+  const mai = /[A-Z]/.test(val);
+  const esp = /[^A-Za-z0-9]/.test(val);
+
+  // Atualiza critérios
+  const set = (id, ok) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = (ok ? '✓ ' : '✗ ') + el.textContent.slice(2);
+    el.classList.toggle('ok', ok);
+  };
+  set('crit-len', len);
+  set('crit-num', num);
+  set('crit-mai', mai);
+  set('crit-esp', esp);
+
+  // Score 0-4
+  const score = [len, num, mai, esp].filter(Boolean).length;
+  const cores  = ['#e8e8e8','#ef4444','#f97316','#eab308','#22c55e'];
+  const labels = ['','Fraca 😬','Razoável 😐','Boa 👍','Forte 💪'];
+  const lbl = document.getElementById('forca-label');
+  if (lbl) { lbl.textContent = labels[score]; lbl.style.color = cores[score]; }
+
+  for (let i = 1; i <= 4; i++) {
+    const b = document.getElementById('bar' + i);
+    if (b) b.style.background = i <= score ? cores[score] : '#e8e8e8';
+  }
+
+  _verificarMatch();
+}
+
+function _verificarMatch() {
+  const a = document.getElementById('nova-senha-input')?.value || '';
+  const b = document.getElementById('nova-senha-confirm')?.value || '';
+  const lbl = document.getElementById('match-label');
+  const inp = document.getElementById('nova-senha-confirm');
+  if (!lbl || !b) return;
+  const ok = a === b && b.length > 0;
+  lbl.textContent  = ok ? '✓ Senhas coincidem' : '✗ Senhas não coincidem';
+  lbl.style.color  = ok ? '#22c55e' : '#ef4444';
+  if (inp) inp.style.borderColor = b.length > 0 ? (ok ? '#22c55e' : '#ef4444') : '#e8e8e8';
 }
 
 async function salvarNovaSenha() {
@@ -7033,18 +7205,32 @@ async function salvarNovaSenha() {
   if (!nova || nova.length < 6)    return showErr('A senha deve ter pelo menos 6 caracteres.');
   if (nova !== confirm)            return showErr('As senhas não coincidem.');
 
-  const btn = document.querySelector('#modal-alterar-senha .btn-primary');
-  if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
+  const btn = document.getElementById('btn-salvar-senha');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Salvando...'; btn.style.opacity = '.7'; }
 
   const { error } = await supa.auth.updateUser({ password: nova });
 
-  if (btn) { btn.disabled = false; btn.textContent = '🔒 Salvar Senha'; }
+  if (btn) { btn.disabled = false; btn.textContent = '🔒 Salvar Nova Senha'; btn.style.opacity = '1'; }
 
   if (error) {
     showErr('Erro: ' + error.message);
   } else {
     document.getElementById('modal-alterar-senha').remove();
-    alert('✅ Senha alterada com sucesso!\n\nUse a nova senha no próximo login.');
+    // Toast de sucesso
+    const toast = document.createElement('div');
+    toast.textContent = '✅ Senha alterada com sucesso!';
+    toast.style.cssText = `position:fixed;bottom:28px;left:50%;transform:translateX(-50%);
+      background:#0f3460;color:#fff;padding:12px 24px;border-radius:12px;
+      font-weight:600;font-size:0.9rem;z-index:99999;box-shadow:0 8px 24px rgba(0,0,0,0.2);
+      animation:_fadeUp .3s ease`;
+    if (!document.getElementById('_toast-anim')) {
+      const s = document.createElement('style');
+      s.id = '_toast-anim';
+      s.textContent = `@keyframes _fadeUp{from{opacity:0;transform:translate(-50%,16px)}to{opacity:1;transform:translate(-50%,0)}}`;
+      document.head.appendChild(s);
+    }
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3200);
   }
 }
 
