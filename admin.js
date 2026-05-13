@@ -83,8 +83,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       SubscriptionUI.inicializar({
         supabaseUrl:  _SUPABASE_URL,
         supabaseKey:  _SUPABASE_KEY,
-        contatoFone:  '595981234567',   // ← troque pelo WhatsApp do suporte
-        contatoNome:  'Suporte Sushi Top',
+        contatoFone:  '595976771714', 
+        contatoNome:  'Suporte LinkPy',
       });
     }
 
