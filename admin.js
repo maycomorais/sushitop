@@ -1006,11 +1006,10 @@ async function calcularFinanceiro() {
   const _cruzaMeiaNoite = _horaFechamento < _horaAbertura;
 
   // Constrói UTC a partir de uma data local + horário configurado da loja
-  // offset PY = UTC-4 → soma 4h para converter local→UTC
-  const _TZ_OFFSET_MS = 4 * 60 * 60 * 1000;
   const _localHoraToUTC = (dateStr, horaStr) => {
-    return new Date(new Date(`${dateStr}T${horaStr}:00`).getTime() + _TZ_OFFSET_MS).toISOString();
-  };
+    // -03:00 = America/Asuncion (GMT-3)
+    return new Date(`${dateStr}T${horaStr}:00-03:00`).toISOString();
+};
 
   // Define período
   if (inicio && fim) {
@@ -1147,16 +1146,19 @@ async function calcularFinanceiro() {
     else if (pag.includes('cartao') || pag.includes('cartão')) totalCartao += valorPedido;
     else if (pag.includes('efetivo') || pag.includes('dinheiro')) totalEfetivo += valorPedido;
 
-    if (p.tipo_entrega === 'delivery') {
-      custoEntregas += typeof TAXA_MOTOBOY !== 'undefined' ? TAXA_MOTOBOY : 5000;
-      const nomeMoto = p.motoboys?.nome || 'Sem Motoboy';
-      if (!motoMap[nomeMoto]) {
-        motoMap[nomeMoto] = 0;
-        // Adiciona combustível 1× por motoboy único no período
-        custoEntregas += typeof AJUDA_COMBUSTIVEL !== 'undefined' ? AJUDA_COMBUSTIVEL : 20000;
-      }
-      motoMap[nomeMoto]++;
+  if (p.tipo_entrega === 'delivery') {
+    // Respeita o valor real salvo no pedido; fallback para TAXA_MOTOBOY se não houver
+    const taxaEstePedido = p.frete_motoboy > 0 ? p.frete_motoboy : (TAXA_MOTOBOY || 5000);
+    custoEntregas += taxaEstePedido;
+
+    const nomeMoto = p.motoboys?.nome || 'Sem Motoboy';
+    if (!motoMap[nomeMoto]) {
+        motoMap[nomeMoto] = { qtd: 0, totalTaxa: 0 };
+        custoEntregas += AJUDA_COMBUSTIVEL || 20000;
     }
+    motoMap[nomeMoto].qtd++;
+    motoMap[nomeMoto].totalTaxa += taxaEstePedido;
+  }
   });
 
   // Movimentações de caixa (despesas e sangrias reduzem; suprimentos/abertura aumentam)
@@ -1217,21 +1219,19 @@ async function calcularFinanceiro() {
       tbodyMoto.innerHTML =
         '<tr><td colspan="4" style="text-align:center; color:#999">Nenhuma entrega no período</td></tr>';
     } else {
-      for (const [nome, qtd] of Object.entries(motoMap)) {
-        const taxaMoto = typeof TAXA_MOTOBOY !== 'undefined' ? TAXA_MOTOBOY : 5000;
-        const combustivel = typeof AJUDA_COMBUSTIVEL !== 'undefined' ? AJUDA_COMBUSTIVEL : 20000;
-        const totalEntregas = qtd * taxaMoto;
-        const totalMoto = totalEntregas + combustivel; // combustível: 1x por motoboy por dia
+      for (const [nome, dados] of Object.entries(motoMap)) {
+        const combustivel = AJUDA_COMBUSTIVEL || 20000;
+        const totalMoto = dados.totalTaxa + combustivel;
         tbodyMoto.innerHTML += `
-                    <tr>
-                        <td data-label="Nome">${nome}</td>
-                        <td data-label="Entregas">${qtd}</td>
-                        <td data-label="Taxa">Gs ${taxaMoto.toLocaleString('es-PY')} × ${qtd} + comb. Gs ${combustivel.toLocaleString('es-PY')}</td>
-                        <td data-label="Total a Pagar"><strong>Gs ${totalMoto.toLocaleString('es-PY')}</strong></td>
-                    </tr>`;
-      }
+            <tr>
+                <td data-label="Nome">${nome}</td>
+                <td data-label="Entregas">${dados.qtd}</td>
+                <td data-label="Taxa">Total entregas: Gs ${dados.totalTaxa.toLocaleString('es-PY')} + comb. Gs ${combustivel.toLocaleString('es-PY')}</td>
+                <td data-label="Total a Pagar"><strong>Gs ${totalMoto.toLocaleString('es-PY')}</strong></td>
+            </tr>`;
     }
-  }
+        }
+      }
 
   console.log('✅ Financeiro atualizado:', {
     pedidos: qtdPedidos,
@@ -1999,7 +1999,7 @@ function enviarRotaZap() {
       }
 
       msg += `-----------------\n`;
-      taxaTotal += typeof TAXA_MOTOBOY !== 'undefined' ? TAXA_MOTOBOY : 5000;
+      taxaTotal += (p.frete_motoboy > 0 ? p.frete_motoboy : (TAXA_MOTOBOY || 5000));
     } catch (e) {
       console.error('Erro ao processar pedido na rota:', e);
     }
@@ -7587,7 +7587,6 @@ function renderizarGrafico(labels, data, cores) {
         },
       },
     },
-    E,
   });
 }
 

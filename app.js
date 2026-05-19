@@ -1163,10 +1163,17 @@ function adicionarDoModal() {
     }
   }
   if (tipo === 'almoco' && !prodAtual._pratoselecionado) {
-    alert('Selecione o prato!'); return;
+    alert('¡Selecciona el plato!'); return;
   }
   if (tipo === 'variacoes' && !_variacaoSelecionada) {
-    alert('Escolha o sabor antes de adicionar!'); return;
+    alert('¡Elige el sabor antes de adicionar!'); return;
+  }
+
+    // Preparo obrigatório se o produto tem opções configuradas
+  const _preparoOpcoes = (cfg && cfg.preparo_opcoes) ? cfg.preparo_opcoes : [];
+  if (_preparoOpcoes.length > 0 && !document.querySelector('.preparo-radio-input:checked')) {
+    alert('🍳 Por favor,¡elige cómo quieres que lo preparen!');
+    return;
   }
 
   // Monta descrição para o carrinho
@@ -1863,26 +1870,29 @@ async function calcularFrete() {
   btn.innerText = 'Localizando...';
   btn.disabled = true;
 
+  // ── Sem suporte a geolocation no device ──
   if (!navigator.geolocation) {
-    freteCalculado = 7000;
-    freteMotoboy   = 5000;
+    const _fb = (TABELA_FRETE && TABELA_FRETE[0])
+        ? { loja: TABELA_FRETE[0].loja || 7000, motoboy: TABELA_FRETE[0].motoboy || 5000 }
+        : { loja: 7000, motoboy: 5000 };
+    freteCalculado = _fb.loja;
+    freteMotoboy   = _fb.motoboy;
     freteMinimoPorErroGPS = true;
-    msg.innerHTML  = '<span style="color:#e67e22">⚠️ GPS não disponível neste dispositivo. Frete mínimo de <strong>Gs 7.000</strong> aplicado — pode ser maior se a distância for superior a 2km.</span>';
+    msg.innerHTML = '<span style="color:#e67e22">⚠️ GPS não disponível neste dispositivo. Frete mínimo de <strong>Gs 7.000</strong> aplicado — pode ser maior dependendo da distância.</span>';
     boxErro.style.display = 'none';
-    btn.innerText  = '📍 Calcular Frete';
-    btn.disabled   = false;
+    btn.innerText = '📍 Calcular Frete';
+    btn.disabled  = false;
     atualizarTotalCheckout();
     return;
-  }
+  };
 
   navigator.geolocation.getCurrentPosition(
+    // ── Sucesso ──────────────────────────────────────────────────
     (position) => {
       localCliente = { lat: position.coords.latitude, lng: position.coords.longitude };
-      freteMinimoPorErroGPS = false; // GPS obtido com sucesso — cancela modo frete mínimo
+      freteMinimoPorErroGPS = false;
       const dist = calcularDistancia(COORD_LOJA.lat, COORD_LOJA.lng, localCliente.lat, localCliente.lng);
-      
-      // === TABELA DE FRETE DINÂMICA (configurada no admin) ===
-      // Faixas: [0-3], [3.1-4], [4.1-5], ..., [19.1-20], >20 = a combinar
+
       const LIMITES_KM = [3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20];
       let freteIndex = -1;
       for (let i = 0; i < LIMITES_KM.length; i++) {
@@ -1890,47 +1900,74 @@ async function calcularFrete() {
       }
 
       if (freteIndex === -1) {
-        // Acima de 20km
-        freteCalculado = -1; // sentinela: a combinar
+        freteCalculado = -1;
         msg.innerHTML = `<span style="color:#e67e22">⚠️ Distância: ${dist.toFixed(1)}km — Frete <strong>a combinar</strong> pelo WhatsApp.</span>`;
-        msg.style.color = '#e67e22';
         boxErro.style.display = 'none';
         btn.innerText = '✅ Localização OK';
-        btn.disabled = false;
+        btn.disabled  = false;
         atualizarTotalCheckout();
         return;
       }
 
       if (TABELA_FRETE && TABELA_FRETE[freteIndex] !== undefined) {
-        freteCalculado = TABELA_FRETE[freteIndex].loja || 0;
+        freteCalculado = TABELA_FRETE[freteIndex].loja   || 0;
         freteMotoboy   = TABELA_FRETE[freteIndex].motoboy || 0;
       } else {
-        // Fallback se tabela não configurada: faixas padrão antigas
-        if (dist <= 3.3)       freteCalculado = 6000;
-        else if (dist <= 4.2)  freteCalculado = 12000;
-        else if (dist <= 5.2)  freteCalculado = 18000;
-        else if (dist <= 6.2)  freteCalculado = 24000;
+        if      (dist <= 3.3) freteCalculado = 6000;
+        else if (dist <= 4.2) freteCalculado = 12000;
+        else if (dist <= 5.2) freteCalculado = 18000;
+        else if (dist <= 6.2) freteCalculado = 24000;
         else { const kmExtra = Math.ceil(dist - 6.2); freteCalculado = 24000 + (kmExtra * 3000); }
-        freteMotoboy = freteCalculado; // sem tabela, assume igual ao loja
+        freteMotoboy = freteCalculado;
       }
-      
-      msg.innerHTML = `<span style="color:#27ae60">✅ Distância: ${dist.toFixed(1)}km - Frete: Gs ${freteCalculado.toLocaleString('es-PY')}</span>`;
-      msg.style.color = '#27ae60';
+
+      msg.innerHTML = `<span style="color:#27ae60">✅ Distância: ${dist.toFixed(1)}km — Frete: Gs ${freteCalculado.toLocaleString('es-PY')}</span>`;
       boxErro.style.display = 'none';
-      
       btn.innerText = '✅ Localização OK';
-      btn.disabled = true;
+      btn.disabled  = true;
       atualizarTotalCheckout();
     },
+
+    // ── Erro ─────────────────────────────────────────────────────
     (error) => {
-      freteCalculado = 7000;
-      freteMotoboy   = 7000;
-      freteMinimoPorErroGPS = true;
-      msg.innerHTML  = `<span style="color:#e67e22">⚠️ Não foi possível obter sua localização. Frete mínimo de <strong>Gs 7.000</strong> aplicado — pode ser maior se a distância for superior a 2km.</span>`;
+      btn.innerText = '📍 Tentar Novamente';
+      btn.disabled  = false;
       boxErro.style.display = 'none';
-      btn.innerText  = '📍 Tentar Novamente';
-      btn.disabled   = false;
+
+      // PERMISSION_DENIED (código 1): usuário bloqueou o GPS
+      if (error.code === 1) {
+        // NÃO aplica frete automático — força o usuário a habilitar GPS
+        // ou usar a opção "sem GPS" (check-sem-gps)
+        freteCalculado = 0;
+        freteMotoboy   = 0;
+        freteMinimoPorErroGPS = false;
+        msg.innerHTML = `
+          <span style="color:#e74c3c">
+            🚫 <strong>Localização bloqueada.</strong><br>
+            Para calcular o frete automaticamente, habilite o GPS nas configurações do seu navegador/celular e tente novamente.<br>
+            <small>Ou marque a opção abaixo para informar o endereço pelo WhatsApp.</small>
+          </span>`;
+        atualizarTotalCheckout();
+        return;
+      }
+
+      // TIMEOUT (código 3) ou POSITION_UNAVAILABLE (código 2):
+      // Aplica frete mínimo como fallback operacional
+      const _fb = (TABELA_FRETE && TABELA_FRETE[0])
+          ? { loja: TABELA_FRETE[0].loja || 7000, motoboy: TABELA_FRETE[0].motoboy || 5000 }
+          : { loja: 7000, motoboy: 5000 };
+      freteCalculado        = _fb.loja;
+      freteMotoboy          = _fb.motoboy;
+      freteMinimoPorErroGPS = true;
+      msg.innerHTML = `<span style="color:#e67e22">⚠️ Não foi possível obter sua localização (erro ${error.code}). Frete mínimo de <strong>Gs 7.000</strong> aplicado — pode ser ajustado pelo atendente.</span>`;
       atualizarTotalCheckout();
+    },
+
+    // ── Opções ───────────────────────────────────────────────────
+    {
+      enableHighAccuracy: true,
+      timeout:            10000,  // 10s — não trava infinitamente
+      maximumAge:         300000, // aceita posição cached de até 5min
     }
   );
 }
@@ -2069,7 +2106,10 @@ async function _enviarZapInterno() {
     }
   }
 
-   if (modoEntrega === 'delivery' && !localCliente && !freteMinimoPorErroGPS && !document.getElementById('check-sem-gps')?.checked) {
+  if (modoEntrega === 'delivery' 
+    && !localCliente 
+    && !freteMinimoPorErroGPS 
+    && !document.getElementById('check-sem-gps')?.checked) {
     alert('Por favor, calcule o frete ou marque a opção de enviar localização pelo WhatsApp');
     return;
   }
