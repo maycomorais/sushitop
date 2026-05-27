@@ -325,6 +325,19 @@
 
   async function verificarContrato(session) {
     try {
+      // 1. Busca o cargo do usuário — só "dono" precisa assinar
+      const { data: perfil } = await supa
+        .from('perfis_acesso')
+        .select('cargo')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
+      const cargo = perfil?.cargo || 'funcionario';
+
+      // adminMaster e qualquer cargo que não seja "dono" passam direto
+      if (cargo !== 'dono') { window.location.href = 'admin.html'; return; }
+
+      // 2. Só chegou aqui se for "dono" — verifica se já assinou
       const { data, error } = await supa.from('contratos_aceites')
         .select('id').eq('usuario_id', session.user.id).eq('aceito', true).maybeSingle();
       if (error) throw new Error(error.message);

@@ -88,7 +88,10 @@ const SubscriptionService = (() => {
     if (errHist) return { ok: false, error: errHist.message };
 
     // 2. Atualiza ultimo_pagamento_em e desbloqueia
-    const hoje = competencia + '-01'; // data base da competência
+    // CORREÇÃO Bug 3: grava a data REAL da confirmação, não o dia 01 da competência.
+    // Usar '-01' fazia pagamentoConfirmadoNoMes() falhar para meses onde o pagamento
+    // era registrado ANTES do dia 01 do próximo mês (ou seja, sempre).
+    const hoje = new Date().toISOString().split('T')[0]; // YYYY-MM-DD real
     const { error: errAssin } = await supa
       .from('assinaturas')
       .update({

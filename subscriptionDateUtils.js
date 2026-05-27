@@ -186,13 +186,11 @@ function calcularStatusAssinatura(cfg, hoje) {
 
   const pagouEsteMes = pagamentoConfirmadoNoMes(cfg.ultimo_pagamento_em, ano, mes);
 
-  // ── Sistema nunca teve pagamento registrado (instalação nova) → não bloqueia ──
-  if (!cfg.ultimo_pagamento_em && !cfg.bloqueado) {
-    // Ainda mostra avisos de vencimento próximo, mas nunca bloqueia
-    if (diasParaVenc < 0 && diasParaBloc < 0) {
-      return { status: 'em_dia', diasParaVenc, diasParaBloc, dataVenc, dataLimite };
-    }
-  }
+  // Flag: sistema ainda não tem histórico de pagamento (instalação nova).
+  // Nunca bloqueia automaticamente, mas exibe alertas normais de vencimento.
+  // CORREÇÃO Bug 2: o bloco anterior tinha condição invertida
+  // (só entrava quando JÁ estava além da carência, retornando 'em_dia' silenciosamente).
+  const isInstalacaoNova = !cfg.ultimo_pagamento_em && !cfg.bloqueado;
 
   // ── Já foi bloqueado manualmente ──
   if (cfg.bloqueado && !pagouEsteMes) {
@@ -204,8 +202,8 @@ function calcularStatusAssinatura(cfg, hoje) {
     return { status: 'em_dia', diasParaVenc, diasParaBloc, dataVenc, dataLimite };
   }
 
-  // ── Ultrapassou vencimento + carência → bloqueio automático ──
-  if (diasParaBloc < 0) {
+  // ── Ultrapassou vencimento + carência → bloqueio automático (instalação nova: nunca bloqueia) ──
+  if (diasParaBloc < 0 && !isInstalacaoNova) {
     return { status: 'bloqueado', diasParaVenc, diasParaBloc, dataVenc, dataLimite };
   }
 

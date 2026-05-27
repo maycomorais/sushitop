@@ -284,12 +284,19 @@ const SubscriptionUI = (() => {
    * @param {string} [opts.contatoFone]   — WhatsApp do suporte
    * @param {string} [opts.contatoNome]   — Nome do suporte
    */
-  async function inicializar({ supabaseUrl, supabaseKey, contatoFone = '', contatoNome = 'Suporte' }) {
+  async function inicializar({ supabaseUrl, supabaseKey, contatoFone = '', contatoNome = 'Suporte', perfil = null }) {
     try {
       const { getServerDate, calcularStatusAssinatura } = window.SubscriptionDateUtils;
 
-      // ── Só adminMaster nunca é bloqueado ──
-      const isGestor = window.perfilUsuario === 'adminMaster';
+      // CORREÇÃO Bugs 1 + 4:
+      // Antes: `const isGestor = window.perfilUsuario === 'adminMaster'`
+      //   → leitura síncrona no momento do init (race condition: perfilUsuario ainda null)
+      //   → closure capturava o valor null para sempre no listener realtime
+      // Depois: getter lazy avaliado a cada chamada.
+      //   O parâmetro `perfil` permite o caller passar o valor já resolvido,
+      //   eliminando a corrida. O fallback para window.perfilUsuario cobre casos
+      //   onde inicializar() é chamado antes da autenticação completar.
+      const getIsGestor = () => (perfil ?? window.perfilUsuario) === 'adminMaster';
 
       // Paralelo: data do servidor + config da assinatura
       const [hoje, cfg] = await Promise.all([
@@ -305,7 +312,7 @@ const SubscriptionUI = (() => {
       const statusObj = calcularStatusAssinatura(cfg, hoje);
 
       if (statusObj.status === 'bloqueado') {
-        if (isGestor) {
+        if (getIsGestor()) {
           // Gestor vê apenas barra vermelha de aviso, nunca tela de bloqueio
           renderizarBarra({ ...statusObj, status: 'carencia' });
         } else {
@@ -316,11 +323,13 @@ const SubscriptionUI = (() => {
       }
 
       // Realtime: propaga mudanças em tempo real
+      // CORREÇÃO Bug 4: getIsGestor() é chamado dentro do callback (não capturado na closure),
+      // então sempre reflete o perfilUsuario atualizado no momento do evento.
       SubscriptionService.assinarMudancas(async (novoCfg) => {
         const novoHoje = await getServerDate(supabaseUrl, supabaseKey);
         const novoStatus = calcularStatusAssinatura(novoCfg, novoHoje);
         if (novoStatus.status === 'bloqueado') {
-          if (isGestor) {
+          if (getIsGestor()) {
             renderizarBarra({ ...novoStatus, status: 'carencia' });
           } else {
             exibirTelaBloqueio(contatoFone, contatoNome);
