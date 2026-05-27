@@ -160,7 +160,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const optDono = document.getElementById("opt-cargo-dono");
       if (optDono) optDono.style.display = "";
     }
-    if (perfilUsuario === "dono" || perfilUsuario === "adminMaster") {
+    if (perfilUsuario === "dono" || perfilUsuario === "adminMaster" || perfilUsuario === "gerente") {
       const menuFin = document.getElementById("menu-financeiro");
       if (menuFin) menuFin.style.display = "flex";
     }
