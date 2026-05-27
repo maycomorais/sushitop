@@ -28,15 +28,17 @@ const SubscriptionUI = (() => {
     const { formatarData } = window.SubscriptionDateUtils;
     const dataFmt = formatarData(dataVenc);
 
+    const translate = (key, fallback) => (typeof t !== 'undefined' ? t(key, fallback) : fallback);
+
     switch (status) {
       case 'alerta_verde':
-        return `O pagamento da mensalidade vence no dia <strong>${dataFmt}</strong>.`;
+        return translate('sub.barra_vence', `O pagamento da mensalidade vence no dia <strong>{data}</strong>.`).replace('{data}', dataFmt);
       case 'alerta_amarelo':
-        return `O vencimento da mensalidade é <strong>amanhã</strong>.`;
+        return translate('sub.barra_amanha', `O vencimento da mensalidade é <strong>amanhã</strong>.`);
       case 'alerta_laranja':
-        return `O vencimento da mensalidade é <strong>hoje</strong>.`;
+        return translate('sub.barra_hoje', `O vencimento da mensalidade é <strong>hoje</strong>.`);
       case 'carencia':
-        return `Atenção: Faltam <strong>${diasParaBloc}</strong> dia${diasParaBloc !== 1 ? 's' : ''} para o bloqueio do sistema por falta de pagamento.`;
+        return translate('sub.barra_carencia', `Atenção: Faltam <strong>{dias}</strong> dia(s) para o bloqueio do sistema por falta de pagamento.`).replace('{dias}', diasParaBloc);
       default:
         return '';
     }
@@ -224,8 +226,11 @@ const SubscriptionUI = (() => {
     const anterior = document.getElementById('subscription-block-screen');
     if (anterior) anterior.remove();
 
+    const translate = (key, fallback) => (typeof t !== 'undefined' ? t(key, fallback) : fallback);
+
+    const msgAjuda = translate('sub.mensagem_ajuda', 'Olá, preciso de ajuda com o bloqueio do sistema.');
     const zapLink = contatoFone
-      ? `https://wa.me/${contatoFone.replace(/\D/g,'')}?text=${encodeURIComponent('Olá, preciso de ajuda com o bloqueio do sistema.')}`
+      ? `https://wa.me/${contatoFone.replace(/\D/g,'')}?text=${encodeURIComponent(msgAjuda)}`
       : null;
 
     const screen = document.createElement('div');
@@ -233,17 +238,16 @@ const SubscriptionUI = (() => {
     screen.innerHTML = `
       <div class="block-card">
         <span class="block-icon">🔒</span>
-        <h2>Sistema Bloqueado</h2>
+        <h2>${translate('sub.bloqueado_titulo', 'Sistema Bloqueado')}</h2>
         <p>
-          O acesso foi suspenso por falta de pagamento da mensalidade.<br>
-          Entre em contato com o administrador para regularizar e reativar o sistema.
+          ${translate('sub.bloqueado_texto', 'O acesso foi suspenso por falta de pagamento da mensalidade.<br>Entre em contato com o administrador para regularizar e reativar o sistema.')}
         </p>
         <div class="block-contato">
-          <strong>📞 Contate o suporte:</strong>
+          <strong>${translate('sub.contate_suporte', '📞 Contate o suporte:')}</strong>
           ${contatoNome}
           ${zapLink
             ? `<br><a href="${zapLink}" target="_blank" class="block-tel">
-                <span>💬</span> Falar no WhatsApp
+                <span>💬</span> ${translate('sub.falar_whatsapp', 'Falar no WhatsApp')}
                </a>`
             : ''}
         </div>

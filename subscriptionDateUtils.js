@@ -234,11 +234,11 @@ function calcularStatusAssinatura(cfg, hoje) {
 }
 
 /**
- * Formata uma data para exibição amigável em pt-BR.
+ * Formatea una fecha para exhibición amigable en es-PY.
  * Ex: "13/05/2025"
  */
 function formatarData(date) {
-  return date.toLocaleDateString('pt-BR', {
+  return date.toLocaleDateString('es-PY', {
     day:   '2-digit',
     month: '2-digit',
     year:  'numeric',

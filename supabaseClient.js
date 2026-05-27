@@ -1,32 +1,36 @@
 // supabaseClient.js
+// ─────────────────────────────────────────────────────────────
+// Preencha com os dados do seu projeto no Supabase:
+//   supabase.com → Settings → API
+// ─────────────────────────────────────────────────────────────
 
-const _SUPABASE_URL = 'https://lkimzjshxyqctennjydk.supabase.co';
-const _SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxraW16anNoeHlxY3Rlbm5qeWRrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMDY0MDQsImV4cCI6MjA4NTc4MjQwNH0.vbVbOZ-93OF6vztnPkE6DruysNJnHfwgr5bOXLurCtE';
+const _SUPABASE_URL = 'https://tupfltdsxwkvjohzcfdv.supabase.co';
+const _SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR1cGZsdGRzeHdrdmpvaHpjZmR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4NDI5ODIsImV4cCI6MjA5NTQxODk4Mn0.CHNkp5wAK4ky034kPq4fLiCBwQPnL-dDg3gS6YsJbfQ';
 
 if (typeof window.supabase === 'undefined' || !window.supabase.createClient) {
-    console.error('ERRO CRÍTICO: A biblioteca do Supabase não carregou.');
-    alert('Erro de conexão. Por favor, recarregue a página.');
+    console.error('ERRO CRÍTICO: Biblioteca Supabase não carregou. Verifique sua conexão.');
+    // Não usa alert() — apenas loga. O checkUser() vai redirecionar para login se supa for null.
 } else {
-    // Guard: só cria o cliente UMA vez (evita lock contention no auth)
-    if (!window.supa) {
-        window.supa = window.supabase.createClient(_SUPABASE_URL, _SUPABASE_KEY, {
-            auth: {
-                // Evita refresh automático simultâneo que causa o lock error
-                autoRefreshToken: true,
-                persistSession: true,
-                detectSessionInUrl: false
-            }
-        });
-        console.log('Sushi Top — Banco iniciado com sucesso');
-    } else {
-        console.log('Sushi Top — Reusando cliente existente (guard ativo)');
-    }
+    window.supa = window.supabase.createClient(_SUPABASE_URL, _SUPABASE_KEY);
+    console.log('Banco iniciado.');
 }
 
 async function checkUser() {
-    const { data: { session } } = await window.supa.auth.getSession();
-    if (!session) {
+    try {
+        if (!window.supa) {
+            console.error('checkUser: cliente Supabase não inicializado.');
+            window.location.href = 'login.html';
+            return null;
+        }
+        const { data: { session } } = await window.supa.auth.getSession();
+        if (!session) {
+            window.location.href = 'login.html';
+            return null;
+        }
+        return session;
+    } catch(e) {
+        console.error('checkUser error:', e);
         window.location.href = 'login.html';
+        return null;
     }
-    return session;
 }
