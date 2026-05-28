@@ -488,7 +488,8 @@
                   onclick="pdvSelecionarTipo('delivery',this)">🛵 <span data-i18n="pdv.tipo_delivery">Delivery</span></button>
                 <button class="pdv-tipo-tab" data-tipo="retirada"
                   onclick="pdvSelecionarTipo('retirada',this)">🚶 <span data-i18n="pdv.tipo_retirada">Retirada</span></button>
-
+                <button class="pdv-tipo-tab" data-tipo="local"
+                  onclick="pdvSelecionarTipo('local',this)">🍽️ <span data-i18n="pdv.tipo_local">Local</span></button>
               </div>
               <input type="hidden" id="balcao-tipo-entrega" value="balcao">
 
@@ -565,12 +566,12 @@
 
               <!-- Tabela de itens -->
               <div class="pdv-dir-lista-wrap">
-<table class="pdv-dir-table">
+                <table class="pdv-dir-table">
                   <thead><tr>
                     <th data-i18n="prod.title">Produto</th>
-                    <th class="tc" style="width:34px">Qtde</th>
-                    <th class="tr" style="width:72px">Total</th>
-                    <th style="width:52px"></th>
+                    <th class="tc">Qtde</th>
+                    <th class="tr">Unit.</th>
+                    <th class="tr">Total</th>
                   </tr></thead>
                   <tbody id="pdv-lista" class="pdv-dir-tbody"></tbody>
                 </table>
@@ -605,21 +606,6 @@
                   <option value="Multipagamento">🔀 Dividir</option>
                 </select>
                 <div id="balcao-pag-info" style="display:none;background:#e8f5e9;border:1px solid #4caf50;border-radius:5px;padding:5px 8px;font-size:0.82rem;color:#1b5e20;margin-top:3px"></div>
-                <!-- Troco Efetivo -->
-                <div id="pdv-efetivo-box" style="display:none;margin-top:6px">
-                  <label style="font-size:0.75rem;font-weight:700;color:#555;display:block;margin-bottom:3px">💵 Valor recebido (Gs)</label>
-                  <input type="number" id="pdv-efetivo-recebido" class="pdv-dir-input" placeholder="0"
-                    min="0" step="1000" oninput="pdvCalcularTroco()"
-                    style="text-align:center;font-size:1rem;font-weight:700" />
-                  <div id="pdv-troco-box" style="display:none;margin-top:5px;padding:6px 10px;border-radius:6px;background:#fff3e0;border:1.5px solid #ff9800;text-align:center">
-                    <span style="font-size:0.75rem;color:#e65100;font-weight:600">Troco / Vuelta</span><br>
-                    <span id="pdv-troco-val" style="font-size:1.1rem;font-weight:900;color:#e65100">Gs 0</span>
-                  </div>
-                  <div id="pdv-troco-falta" style="display:none;margin-top:5px;padding:6px 10px;border-radius:6px;background:#fce4ec;border:1.5px solid #e91e63;text-align:center">
-                    <span style="font-size:0.75rem;color:#880e4f;font-weight:600">Falta / Falta</span><br>
-                    <span id="pdv-troco-falta-val" style="font-size:1.1rem;font-weight:900;color:#880e4f">Gs 0</span>
-                  </div>
-                </div>
               </div>
 
               <!-- Multipagamento -->
@@ -1745,54 +1731,6 @@
         </div>
       </div>
 
-<div id="mensalistas" class="tab-content">
-  <div style="padding:16px">
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px">
-      <div>
-        <h2 style="font-size:1.25rem;font-weight:800;color:#111" data-i18n="mens.title">📋 Planos Mensalistas</h2>
-        <p style="font-size:0.83rem;color:#6b7280;margin-top:2px" data-i18n="mens.sub">Gerencie clientes com planos de consumo mensal</p>
-      </div>
-      <button onclick="mensAbrirModalPlano()"
-        style="padding:10px 20px;background:#1a7a2e;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:0.9rem;cursor:pointer">
-        <span data-i18n="mens.novo_plano">＋ Novo Plano</span>
-      </button>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:20px">
-      <div style="background:#fff;border-radius:12px;padding:14px 16px;border:1px solid #e5e7eb">
-        <div style="font-size:0.72rem;color:#6b7280;text-transform:uppercase;font-weight:600;margin-bottom:4px" data-i18n="mens.total_planos">Total Planos</div>
-        <div id="mens-kpi-total" style="font-size:1.5rem;font-weight:800;color:#111">0</div>
-      </div>
-      <div style="background:#fff;border-radius:12px;padding:14px 16px;border:1px solid #e5e7eb">
-        <div style="font-size:0.72rem;color:#6b7280;text-transform:uppercase;font-weight:600;margin-bottom:4px" data-i18n="mens.ativos">Ativos</div>
-        <div id="mens-kpi-ativos" style="font-size:1.5rem;font-weight:800;color:#1a7a2e">0</div>
-      </div>
-      <div style="background:#fff;border-radius:12px;padding:14px 16px;border:1px solid #e5e7eb">
-        <div style="font-size:0.72rem;color:#6b7280;text-transform:uppercase;font-weight:600;margin-bottom:4px" data-i18n="mens.receita_planos">Receita Planos</div>
-        <div id="mens-kpi-receita" style="font-size:1.1rem;font-weight:800;color:#2980b9">—</div>
-      </div>
-      <div style="background:#fff;border-radius:12px;padding:14px 16px;border:1px solid #e5e7eb">
-        <div style="font-size:0.72rem;color:#6b7280;text-transform:uppercase;font-weight:600;margin-bottom:4px" data-i18n="mens.itens_restantes">Itens Restantes</div>
-        <div id="mens-kpi-itens" style="font-size:1.5rem;font-weight:800;color:#9b59b6">0</div>
-      </div>
-    </div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
-      <input id="mens-busca" type="search" placeholder="🔍 Buscar por cliente, produto..." data-i18n-ph="mens.buscar_placeholder"
-        oninput="mensFiltrar()"
-        style="flex:1;min-width:200px;padding:9px 13px;border:1.5px solid #e5e7eb;border-radius:9px;font-size:0.88rem;outline:none;font-family:Arial,sans-serif">
-      <select id="mens-filtro-status" onchange="mensFiltrar()"
-        style="padding:9px 13px;border:1.5px solid #e5e7eb;border-radius:9px;font-size:0.88rem;outline:none;background:#fff;font-family:Arial,sans-serif">
-        <option value="todos" data-i18n="mens.todos_planos">Todos os planos</option>
-        <option value="ativo" data-i18n="mens.apenas_ativos">Apenas ativos</option>
-        <option value="inativo" data-i18n="mens.apenas_inativos">Apenas inativos</option>
-      </select>
-    </div>
-    <div id="mens-loading" style="display:none;justify-content:center;padding:30px">
-      <div style="width:32px;height:32px;border:3px solid #e5e7eb;border-top-color:#1a7a2e;border-radius:50%;animation:spin 0.8s linear infinite"></div>
-    </div>
-    <div id="mens-lista-planos"></div>
-  </div>
-</div>
-
     </div><!-- /main-content -->
 
 
@@ -2406,6 +2344,54 @@
     <script src="mensalistas.js"></script>
 
 <!-- ═══════════════════ ABA MENSALISTAS ═══════════════════ -->
+<div id="mensalistas" class="tab-content">
+  <div style="padding:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px">
+      <div>
+        <h2 style="font-size:1.25rem;font-weight:800;color:#111" data-i18n="mens.title">📋 Planos Mensalistas</h2>
+        <p style="font-size:0.83rem;color:#6b7280;margin-top:2px" data-i18n="mens.sub">Gerencie clientes com planos de consumo mensal</p>
+      </div>
+      <button onclick="mensAbrirModalPlano()"
+        style="padding:10px 20px;background:#1a7a2e;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:0.9rem;cursor:pointer">
+        <span data-i18n="mens.novo_plano">＋ Novo Plano</span>
+      </button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:20px">
+      <div style="background:#fff;border-radius:12px;padding:14px 16px;border:1px solid #e5e7eb">
+        <div style="font-size:0.72rem;color:#6b7280;text-transform:uppercase;font-weight:600;margin-bottom:4px" data-i18n="mens.total_planos">Total Planos</div>
+        <div id="mens-kpi-total" style="font-size:1.5rem;font-weight:800;color:#111">0</div>
+      </div>
+      <div style="background:#fff;border-radius:12px;padding:14px 16px;border:1px solid #e5e7eb">
+        <div style="font-size:0.72rem;color:#6b7280;text-transform:uppercase;font-weight:600;margin-bottom:4px" data-i18n="mens.ativos">Ativos</div>
+        <div id="mens-kpi-ativos" style="font-size:1.5rem;font-weight:800;color:#1a7a2e">0</div>
+      </div>
+      <div style="background:#fff;border-radius:12px;padding:14px 16px;border:1px solid #e5e7eb">
+        <div style="font-size:0.72rem;color:#6b7280;text-transform:uppercase;font-weight:600;margin-bottom:4px" data-i18n="mens.receita_planos">Receita Planos</div>
+        <div id="mens-kpi-receita" style="font-size:1.1rem;font-weight:800;color:#2980b9">—</div>
+      </div>
+      <div style="background:#fff;border-radius:12px;padding:14px 16px;border:1px solid #e5e7eb">
+        <div style="font-size:0.72rem;color:#6b7280;text-transform:uppercase;font-weight:600;margin-bottom:4px" data-i18n="mens.itens_restantes">Itens Restantes</div>
+        <div id="mens-kpi-itens" style="font-size:1.5rem;font-weight:800;color:#9b59b6">0</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+      <input id="mens-busca" type="search" placeholder="🔍 Buscar por cliente, produto..." data-i18n-ph="mens.buscar_placeholder"
+        oninput="mensFiltrar()"
+        style="flex:1;min-width:200px;padding:9px 13px;border:1.5px solid #e5e7eb;border-radius:9px;font-size:0.88rem;outline:none;font-family:Arial,sans-serif">
+      <select id="mens-filtro-status" onchange="mensFiltrar()"
+        style="padding:9px 13px;border:1.5px solid #e5e7eb;border-radius:9px;font-size:0.88rem;outline:none;background:#fff;font-family:Arial,sans-serif">
+        <option value="todos" data-i18n="mens.todos_planos">Todos os planos</option>
+        <option value="ativo" data-i18n="mens.apenas_ativos">Apenas ativos</option>
+        <option value="inativo" data-i18n="mens.apenas_inativos">Apenas inativos</option>
+      </select>
+    </div>
+    <div id="mens-loading" style="display:none;justify-content:center;padding:30px">
+      <div style="width:32px;height:32px;border:3px solid #e5e7eb;border-top-color:#1a7a2e;border-radius:50%;animation:spin 0.8s linear infinite"></div>
+    </div>
+    <div id="mens-lista-planos"></div>
+  </div>
+</div>
+
 <!-- Modal: Novo/Editar Plano -->
 <div id="modal-mens-plano"
   style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;padding:16px">
@@ -2432,18 +2418,10 @@
         <input type="text" id="mens-plano-produto" data-i18n-ph="mens.ou_digite" placeholder="Ou digite manualmente..."
           style="width:100%;padding:9px 13px;border:1.5px solid #e5e7eb;border-radius:9px;font-size:0.9rem;outline:none">
       </div>
-      <div>
-        <label style="font-size:0.78rem;font-weight:600;color:#4b5563;display:block;margin-bottom:5px;text-transform:uppercase">Tipo de cota *</label>
-        <select id="mens-plano-tipo" onchange="mensToggleTipoPlano()"
-          style="width:100%;padding:10px 13px;border:1.5px solid #e5e7eb;border-radius:9px;font-size:0.9rem;outline:none;background:#fff">
-          <option value="un">🔢 Por unidade (refeições, porções…)</option>
-          <option value="kg">⚖️ Por peso (kg)</option>
-        </select>
-      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div>
-          <label id="mens-plano-qtd-label" style="font-size:0.78rem;font-weight:600;color:#4b5563;display:block;margin-bottom:5px;text-transform:uppercase">Qtd Total de Itens *</label>
-          <input type="number" id="mens-plano-qtd" placeholder="Ex: 22" min="0.1" step="1"
+          <label style="font-size:0.78rem;font-weight:600;color:#4b5563;display:block;margin-bottom:5px;text-transform:uppercase" data-i18n="mens.qtd_total">Qtd Total de Itens *</label>
+          <input type="number" id="mens-plano-qtd" placeholder="Ex: 22" min="1"
             style="width:100%;padding:10px 13px;border:1.5px solid #e5e7eb;border-radius:9px;font-size:0.9rem;outline:none">
         </div>
         <div>
@@ -2451,11 +2429,6 @@
           <input type="number" id="mens-plano-valor" placeholder="Ex: 330000" min="0"
             style="width:100%;padding:10px 13px;border:1.5px solid #e5e7eb;border-radius:9px;font-size:0.9rem;outline:none">
         </div>
-      </div>
-      <div>
-        <label style="font-size:0.78rem;font-weight:600;color:#4b5563;display:block;margin-bottom:5px;text-transform:uppercase">Observação do plano</label>
-        <input type="text" id="mens-plano-nota" placeholder="Opcional — ex: sem sal, entrega às terças…"
-          style="width:100%;padding:9px 13px;border:1.5px solid #e5e7eb;border-radius:9px;font-size:0.9rem;outline:none">
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div>
@@ -2499,8 +2472,8 @@
     </div>
     <div style="display:grid;gap:14px">
       <div>
-        <label id="mens-ent-qtd-label" style="font-size:0.78rem;font-weight:600;color:#4b5563;display:block;margin-bottom:5px;text-transform:uppercase" data-i18n="mens.qtd_entregue">Quantidade entregue *</label>
-        <input type="number" id="mens-ent-qtd" value="1" min="0.1" step="1"
+        <label style="font-size:0.78rem;font-weight:600;color:#4b5563;display:block;margin-bottom:5px;text-transform:uppercase" data-i18n="mens.qtd_entregue">Quantidade entregue *</label>
+        <input type="number" id="mens-ent-qtd" value="1" min="1"
           style="width:100%;padding:12px 14px;border:1.5px solid #e5e7eb;border-radius:9px;font-size:1.1rem;font-weight:700;outline:none;text-align:center">
       </div>
       <div>
