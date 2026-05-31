@@ -442,14 +442,36 @@ async function verificarHorario() {
   }
 
   // Atualiza Banner Promocional — Fix #48: atribui onclick nos imgs, não no container
-  if (data.banner_imagem && data.banner_produto_id) {
-    const img1 = document.getElementById('banner-img-1');
+  // Fix: IDs corrigidos para corresponder ao index.html (banner1-img / banner2-img)
+  if (data.banner_imagem) {
+    const img1 = document.getElementById('banner1-img');
     if (img1) {
       img1.src = data.banner_imagem;
-      img1.onclick = function () { clicarBanner(data.banner_produto_id); };
+      img1.style.display = 'block';
+      if (data.banner_produto_id) {
+        img1.onclick = function () { clicarBanner(data.banner_produto_id); };
+        img1.style.cursor = 'pointer';
+      } else {
+        img1.onclick = null;
+        img1.style.cursor = 'default';
+      }
     }
   }
-  // banner-img-2 mantém clique padrão desabilitado até ser configurado no admin
+  if (data.banner_imagem_2) {
+    const img2 = document.getElementById('banner2-img');
+    if (img2) {
+      img2.src = data.banner_imagem_2;
+      img2.style.display = 'block';
+      if (data.banner_produto_id_2) {
+        img2.onclick = function () { clicarBanner(data.banner_produto_id_2); };
+        img2.style.cursor = 'pointer';
+      } else {
+        img2.onclick = null;
+        img2.style.cursor = 'default';
+      }
+    }
+  }
+  // banner2-img permanece oculto se banner_imagem_2 não estiver configurado no admin
   
   // Aplica personalização visual se existir
   if (data.nome_loja) {
