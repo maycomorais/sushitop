@@ -1,7 +1,7 @@
 // ==========================================
 // 1. CONFIGURAÇÕES & DADOS GERAIS
 // ==========================================
-const FONE_LOJA = '595984692537'  
+let FONE_LOJA = ''; // fallback — sobrescrito pelo whatsapp_loja do banco
 const COORD_LOJA = { lat: -25.2345649, lng: -57.5378941}
 let COTACAO_REAL = 1100;
 let autoConfirmTimer = null;
@@ -480,6 +480,11 @@ async function verificarHorario() {
     
     // Atualiza o título da página também
     document.title = `${data.nome_loja} - Delivery`;
+  }
+
+  // Usa o WhatsApp da loja cadastrado no admin (sobrescreve o hardcoded)
+  if (data.whatsapp_loja) {
+    FONE_LOJA = data.whatsapp_loja.replace(/\D/g, '');
   }
   
   if (data.cor_primaria) {
