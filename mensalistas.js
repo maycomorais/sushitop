@@ -90,6 +90,7 @@ function _mensRenderKPIs() {
   const ativos  = _mens_planos.filter(p => p.ativo).length;
   const receita = _mens_planos.reduce((s, p) => s + (p.valor_plano || 0), 0);
 
+  // Itens restantes: soma de unidades + kg separados para exibição
   const itensPorTipo = _mens_planos.reduce((acc, p) => {
     const tipo = _mensGetTipo(p);
     if (tipo === 'kg') acc.kg += (p.quantidade_restante || 0);
@@ -155,17 +156,6 @@ function mensRenderPlanos() {
     const fmtTotal     = _mensFmtQtd(qtdTotal, tipo);
     const esgotado     = qtdRest <= 0 && p.ativo;
 
-    // Valor proporcional restante
-    const valorRestante = qtdTotal > 0
-      ? Math.round((p.valor_plano || 0) * (qtdRest / qtdTotal))
-      : 0;
-
-    // Telefone WhatsApp
-    const telClean = (p.clientes?.telefone || '').replace(/\D/g, '');
-    const whatsappUrl = telClean
-      ? `https://wa.me/595${telClean.replace(/^0/, '')}?text=${encodeURIComponent(`Olá ${p.clientes?.nome || ''}! Seu saldo no plano *${p.produto_nome}*: *${fmtRest}* restantes.`)}`
-      : null;
-
     return `
       <div style="background:#fff;border:1.5px solid ${p.ativo ? '#d1fae5' : '#e5e7eb'};border-radius:14px;padding:16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,0.05)">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
@@ -186,7 +176,6 @@ function mensRenderPlanos() {
             <div style="font-weight:700;color:#1a7a2e;font-size:0.95rem;margin-top:3px">
               Gs ${Math.round(p.valor_plano || 0).toLocaleString('es-PY')}
             </div>
-            ${qtdTotal > 0 ? `<div style="font-size:0.72rem;color:#6b7280;margin-top:1px">saldo ≈ Gs ${valorRestante.toLocaleString('es-PY')}</div>` : ''}
           </div>
         </div>
 
@@ -197,6 +186,14 @@ function mensRenderPlanos() {
           </div>
           <div style="background:#f0f0f0;border-radius:6px;height:9px;overflow:hidden">
             <div style="height:100%;width:${pct}%;background:${barColor};border-radius:6px;transition:width 0.4s"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:0.78rem;color:#6b7280">
+            <span>💰 Valor restante: <b style="color:#2980b9">Gs ${Math.round(
+              p.valor_restante != null
+                ? p.valor_restante
+                : (p.quantidade_total > 0 ? (p.valor_plano / p.quantidade_total) * qtdRest : 0)
+            ).toLocaleString('es-PY')}</b></span>
+            <span style="color:#bbb">de Gs ${Math.round(p.valor_plano || 0).toLocaleString('es-PY')}</span>
           </div>
         </div>
 
@@ -209,12 +206,6 @@ function mensRenderPlanos() {
           <div style="flex:2;padding:9px;background:#fef3c7;color:#92400e;border-radius:9px;font-size:0.82rem;font-weight:600;text-align:center;min-width:120px">
             ✅ ${t('mens.plano_esgotado', 'Plano esgotado')}
           </div>` : '')}
-          ${whatsappUrl ? `
-          <button onclick="window.open('${whatsappUrl}','_blank')"
-            style="flex:0 0 40px;padding:9px;background:#25D366;color:#fff;border:none;border-radius:9px;cursor:pointer;font-size:0.9rem;font-weight:700"
-            title="Enviar saldo via WhatsApp">
-            <i class="fab fa-whatsapp"></i>
-          </button>` : ''}
           <button onclick="mensAbrirModalPlano(${p.id})"
             style="flex:1;padding:9px;background:#3498db;color:#fff;border:none;border-radius:9px;cursor:pointer;font-size:0.83rem;font-weight:600;min-width:70px">
             ✏️
@@ -222,6 +213,11 @@ function mensRenderPlanos() {
           <button onclick="mensVerHistorico(${p.id})"
             style="flex:1;padding:9px;background:#9b59b6;color:#fff;border:none;border-radius:9px;cursor:pointer;font-size:0.83rem;font-weight:600;min-width:70px">
             📋
+          </button>
+          <button onclick="mensEnviarWhatsAppAviso(${p.id})"
+            style="flex:0 0 40px;padding:9px;background:#dcfce7;color:#25d366;border:none;border-radius:9px;cursor:pointer;font-size:0.9rem;font-weight:700"
+            title="${t('mens.whatsapp_aviso', 'Avisar cliente pelo WhatsApp')}">
+            💬
           </button>
           <button onclick="mensExcluirPlano(${p.id})"
             style="flex:0 0 40px;padding:9px;background:#fee2e2;color:#e74c3c;border:none;border-radius:9px;cursor:pointer;font-size:0.9rem;font-weight:700"
@@ -255,17 +251,20 @@ function mensAbrirModalPlano(id = null) {
   const tipo = p ? _mensGetTipo(p) : 'un';
   const nota = p ? _mensGetNota(p) : '';
 
-  document.getElementById('mens-plano-id').value     = p?.id || '';
-  document.getElementById('mens-plano-cli-id').value  = p?.cliente_id || '';
-  document.getElementById('mens-plano-produto').value = p?.produto_nome || '';
-  document.getElementById('mens-plano-valor').value   = p?.valor_plano || '';
-  document.getElementById('mens-plano-ini').value     = p?.data_inicio || new Date().toISOString().split('T')[0];
-  document.getElementById('mens-plano-fim').value     = p?.data_fim || '';
-  document.getElementById('mens-plano-nota').value    = nota;
+  const _mset = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+  _mset('mens-plano-id',      p?.id || '');
+  _mset('mens-plano-cli-id',  p?.cliente_id || '');
+  _mset('mens-plano-produto', p?.produto_nome || '');
+  _mset('mens-plano-valor',   p?.valor_plano || '');
+  _mset('mens-plano-ini',     p?.data_inicio || new Date().toISOString().split('T')[0]);
+  _mset('mens-plano-fim',     p?.data_fim || '');
+  _mset('mens-plano-nota',    nota);
 
+  // Tipo
   const selTipo = document.getElementById('mens-plano-tipo');
   if (selTipo) selTipo.value = tipo;
 
+  // Quantidade — exibir em unidade display (kg ou int)
   const qtdInput = document.getElementById('mens-plano-qtd');
   if (qtdInput) {
     if (tipo === 'kg') {
@@ -279,6 +278,7 @@ function mensAbrirModalPlano(id = null) {
   const chkAtivo = document.getElementById('mens-plano-ativo');
   if (chkAtivo) chkAtivo.checked = p ? p.ativo : true;
 
+  // Popula select de clientes
   const selCli = document.getElementById('mens-plano-cli-sel');
   if (selCli) {
     selCli.innerHTML = `<option value="">${t('mens.selecione_cliente', '— Selecione o cliente —')}</option>` +
@@ -290,6 +290,7 @@ function mensAbrirModalPlano(id = null) {
     };
   }
 
+  // Popula select de produtos
   const selProd = document.getElementById('mens-plano-prod-sel');
   if (selProd) {
     selProd.innerHTML = `<option value="">${t('mens.selecione_cardapio', '— Selecione do cardápio —')}</option>` +
@@ -301,6 +302,7 @@ function mensAbrirModalPlano(id = null) {
     };
   }
 
+  // Info de renovação se editando
   const infoRenov = document.getElementById('mens-renov-info');
   if (infoRenov) {
     if (p) {
@@ -315,7 +317,8 @@ function mensAbrirModalPlano(id = null) {
     }
   }
 
-  document.getElementById('modal-mens-plano').style.display = 'flex';
+  const _mmp = document.getElementById('modal-mens-plano');
+  if (_mmp) { _mmp.style.cssText += ';position:fixed!important;top:0;left:0;width:100%;height:100%;z-index:9999;'; _mmp.style.display = 'flex'; }
   setTimeout(() => document.getElementById('mens-plano-cli-sel')?.focus(), 100);
 }
 
@@ -331,6 +334,7 @@ async function mensSalvarPlano() {
   const data_fim     = document.getElementById('mens-plano-fim').value || null;
   const ativo        = document.getElementById('mens-plano-ativo')?.checked ?? true;
 
+  // Converter para inteiro de armazenamento
   const qtd_total = tipo === 'kg'
     ? _mensKgToInt(qtdRaw)
     : (parseInt(qtdRaw) || 0);
@@ -388,10 +392,12 @@ function mensAbrirEntrega(planoId) {
   document.getElementById('mens-ent-produto').textContent  = p.produto_nome;
   document.getElementById('mens-ent-obs').value  = '';
 
+  // Saldo
   const fmtRest  = _mensFmtQtd(p.quantidade_restante, tipo);
   const fmtTotal = _mensFmtQtd(p.quantidade_total, tipo);
   document.getElementById('mens-ent-saldo').textContent = `${fmtRest} de ${fmtTotal} ${t('mens.disponiveis', 'disponíveis')}`;
 
+  // Input de quantidade
   const qtdInput = document.getElementById('mens-ent-qtd');
   const qtdLabel = document.getElementById('mens-ent-qtd-label');
   if (isKg) {
@@ -408,6 +414,7 @@ function mensAbrirEntrega(planoId) {
     if (qtdLabel) qtdLabel.textContent = t('mens.qtd_entregue', 'Quantidade entregue *');
   }
 
+  // Valor unitário
   const elValor = document.getElementById('mens-ent-valor-unit');
   if (elValor) {
     if (p.quantidade_total > 0) {
@@ -422,7 +429,8 @@ function mensAbrirEntrega(planoId) {
     }
   }
 
-  document.getElementById('modal-mens-entrega').style.display = 'flex';
+  const _mme = document.getElementById('modal-mens-entrega');
+  if (_mme) { _mme.style.cssText += ';position:fixed!important;top:0;left:0;width:100%;height:100%;z-index:9999;'; _mme.style.display = 'flex'; }
   setTimeout(() => document.getElementById('mens-ent-qtd')?.focus(), 100);
 }
 
@@ -436,6 +444,7 @@ async function mensSalvarEntrega() {
   const tipo = _mensGetTipo(p);
   const isKg = tipo === 'kg';
 
+  // Quantidade: se kg, converter input decimal → inteiro de armazenamento
   const qtdRaw = document.getElementById('mens-ent-qtd').value;
   const qtd    = isKg ? _mensKgToInt(qtdRaw) : (parseInt(qtdRaw) || 1);
 
@@ -464,15 +473,23 @@ async function mensSalvarEntrega() {
   if (errEnt) { alert(t('mens.erro_registrar', 'Erro ao registrar entrega: ') + errEnt.message); return; }
 
   const novoRestante = p.quantidade_restante - qtd;
+
+  // Desconta o valor proporcional ao que foi consumido
+  const valorPorUnidade = (p.quantidade_total || 0) > 0
+    ? (p.valor_plano || 0) / p.quantidade_total
+    : 0;
+  const novoValorRestante = Math.round(valorPorUnidade * novoRestante);
+
   const { error: errUp } = await supa
     .from('planos_mensalistas')
-    .update({ quantidade_restante: novoRestante })
+    .update({ quantidade_restante: novoRestante, valor_restante: novoValorRestante })
     .eq('id', planoId);
 
   if (errUp) { alert(t('mens.erro_saldo', 'Erro ao atualizar saldo: ') + errUp.message); return; }
 
   fecharModal('modal-mens-entrega');
   p.quantidade_restante = novoRestante;
+  p.valor_restante      = novoValorRestante;
   _mensRenderKPIs();
   mensRenderPlanos();
 
@@ -506,11 +523,6 @@ function mensImprimirComprovante(plano, qtd, obs, entregaId, dataEntrega, saldoA
   const totFmt   = _mensFmtQtd(plano.quantidade_total, tipo);
   const antFmt   = _mensFmtQtd(saldoAnt, tipo);
 
-  // Valor proporcional restante após entrega
-  const valorRestante = plano.quantidade_total > 0
-    ? Math.round((plano.valor_plano || 0) * ((saldoApos !== undefined ? saldoApos : plano.quantidade_restante) / plano.quantidade_total))
-    : 0;
-
   const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -530,7 +542,6 @@ function mensImprimirComprovante(plano, qtd, obs, entregaId, dataEntrega, saldoA
     .saldo-box { background:#f0fdf4; border:1.5px solid #86efac; border-radius:8px; padding:10px 12px; margin:8px 0; text-align:center; }
     .saldo-box .num { font-size:22px; font-weight:900; color:#1a7a2e; }
     .saldo-box .lab { font-size:10px; color:#555; }
-    .valor-rest { background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; padding:6px 10px; margin:4px 0; text-align:center; font-size:11px; color:#1e40af; }
     .assinatura { margin-top:24px; text-align:center; }
     .assinatura .linha { border-top:1px solid #000; margin:0 10px 5px; }
     .assinatura .leg { font-size:10px; color:#555; }
@@ -567,7 +578,6 @@ function mensImprimirComprovante(plano, qtd, obs, entregaId, dataEntrega, saldoA
     <div class="num">${restFmt}</div>
     <div class="lab">${t('mens.ticket_contratados', 'de {qtd} contratados').replace('{qtd}', totFmt)}</div>
   </div>
-  <div class="valor-rest">💰 Valor proporcional restante: <b>Gs ${valorRestante.toLocaleString('es-PY')}</b></div>
   <div class="center sm" style="margin-top:4px">${t('mens.ticket_saldo_anterior', 'Saldo anterior')}: ${antFmt}</div>
   <hr>
   <div class="assinatura">
@@ -581,8 +591,8 @@ function mensImprimirComprovante(plano, qtd, obs, entregaId, dataEntrega, saldoA
   <hr>
   <div class="center sm">*** ${t('geral.obrigado', 'OBRIGADO')} ***</div>
 </div>
-<button class="btn-print" onclick="window.print()">🖨️ IMPRIMIR COMPROVANTE</button>
-<script>setTimeout(()=>window.print(), 600);<\/script>
+<button class="btn-print" onclick="window.print()">${t('mens.ticket_imprimir', '🖨️ IMPRIMIR COMPROVANTE')}</button>
+<script>setTimeout(()=>window.print(), 600);</script>
 </body>
 </html>`;
 
@@ -634,7 +644,8 @@ async function mensVerHistorico(planoId) {
   document.getElementById('mens-hist-plano-rest').textContent  = _mensFmtQtd(p.quantidade_restante, tipo);
   document.getElementById('mens-hist-entregues').textContent   = _mensFmtQtd(entregasTotal, tipo);
   document.getElementById('mens-hist-tbody').innerHTML         = linhas;
-  document.getElementById('modal-mens-hist').style.display     = 'flex';
+  const _mmh = document.getElementById('modal-mens-hist');
+  if (_mmh) { _mmh.style.cssText += ';position:fixed!important;top:0;left:0;width:100%;height:100%;z-index:9999;'; _mmh.style.display = 'flex'; }
 }
 
 async function mensReimprimirEntrega(entregaId, planoId) {
@@ -664,6 +675,79 @@ async function mensReimprimirEntrega(entregaId, planoId) {
 // ──────────────────────────────────────────────────────────────
 function mensFiltrar() {
   mensRenderPlanos();
+}
+
+// ──────────────────────────────────────────────────────────────
+//  WHATSAPP — AVISO DE PLANO ACABANDO
+// ──────────────────────────────────────────────────────────────
+function mensEnviarWhatsAppAviso(planoId) {
+  const p = _mens_planos.find(p => p.id === planoId);
+  if (!p) return;
+
+  const tipo       = _mensGetTipo(p);
+  const nomeCliente = p.clientes?.nome || '';
+  const telefone   = (p.clientes?.telefone || '').replace(/\D/g, '');
+  const saldoFmt   = _mensFmtQtd(p.quantidade_restante, tipo);
+  const totalFmt   = _mensFmtQtd(p.quantidade_total, tipo);
+  const dataFim    = p.data_fim
+    ? new Date(p.data_fim + 'T12:00:00').toLocaleDateString('es-PY')
+    : null;
+  const vencimento = dataFim ? (window._lang === 'es'
+    ? `\nVencimiento del plan: ${dataFim}`
+    : `\nVencimento do plano: ${dataFim}`) : '';
+  const restaurante = _mens_nomeRestaurante || 'RESTAURANTE';
+
+  const msgs = {
+    pt: `Olá, *${nomeCliente}*! 👋\n\nPassando para avisar que o seu plano mensal de *${p.produto_nome}* está chegando ao fim.\n\n📦 Saldo restante: *${saldoFmt}* de ${totalFmt}${vencimento}\n\nRenove para continuar aproveitando sem interrupção! 😊\n\n_${restaurante}_`,
+    es: `Hola, *${nomeCliente}*! 👋\n\nTe avisamos que tu plan mensual de *${p.produto_nome}* está llegando a su fin.\n\n📦 Saldo restante: *${saldoFmt}* de ${totalFmt}${vencimento}\n\n¡Renovalo para seguir disfrutando sin interrupciones! 😊\n\n_${restaurante}_`,
+  };
+
+  // Modal de seleção de idioma
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:10000;display:flex;align-items:center;justify-content:center';
+
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:24px;max-width:340px;width:92%;box-shadow:0 8px 32px rgba(0,0,0,0.18)">
+      <div style="font-size:1.4rem;text-align:center;margin-bottom:4px">💬</div>
+      <div style="font-weight:700;font-size:1rem;text-align:center;margin-bottom:4px">WhatsApp — ${nomeCliente}</div>
+      <div style="font-size:0.82rem;color:#6b7280;text-align:center;margin-bottom:18px">
+        ${telefone ? '📱 ' + p.clientes.telefone : '⚠️ Telefone não cadastrado'}
+      </div>
+      <div style="font-size:0.8rem;font-weight:600;color:#374151;margin-bottom:8px">Escolha o idioma da mensagem:</div>
+      <div style="display:flex;gap:10px;margin-bottom:16px">
+        <button id="_wa_pt" style="flex:1;padding:11px;background:#25d366;color:#fff;border:none;border-radius:10px;cursor:pointer;font-weight:700;font-size:0.9rem">
+          🇧🇷 Português
+        </button>
+        <button id="_wa_es" style="flex:1;padding:11px;background:#25d366;color:#fff;border:none;border-radius:10px;cursor:pointer;font-weight:700;font-size:0.9rem">
+          🇵🇾 Español
+        </button>
+      </div>
+      <button id="_wa_cancel" style="width:100%;padding:9px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;cursor:pointer;font-size:0.85rem">
+        Cancelar
+      </button>
+    </div>`;
+
+  document.body.appendChild(overlay);
+
+  const abrir = (lang) => {
+    document.body.removeChild(overlay);
+    const msg = msgs[lang];
+    if (!telefone) {
+      alert('⚠️ Este cliente não possui telefone cadastrado.');
+      return;
+    }
+    // Formata número: se começar com 0, substitui pelo DDI 595 (Paraguai)
+    let num = telefone;
+    if (num.startsWith('0')) num = '595' + num.substring(1);
+    else if (!num.startsWith('595') && num.length <= 10) num = '595' + num;
+    const url = `https://wa.me/${num}?text=${encodeURIComponent(msg)}`;
+    window.open(url, '_blank');
+  };
+
+  overlay.querySelector('#_wa_pt').onclick = () => abrir('pt');
+  overlay.querySelector('#_wa_es').onclick = () => abrir('es');
+  overlay.querySelector('#_wa_cancel').onclick = () => document.body.removeChild(overlay);
+  overlay.onclick = (e) => { if (e.target === overlay) document.body.removeChild(overlay); };
 }
 
 // ──────────────────────────────────────────────────────────────

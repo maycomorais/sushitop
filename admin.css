@@ -834,11 +834,6 @@ select.form-control, select.input-modern {
     cursor: pointer; font-size: 0.8rem; padding: 0 1px; opacity: 0.7;
 }
 .pdv-item-remove:hover { opacity: 1; }
-.pdv-item-edit {
-    color: #2980b9; background: none; border: none;
-    cursor: pointer; font-size: 0.78rem; padding: 0 1px; opacity: 0.75;
-}
-.pdv-item-edit:hover { opacity: 1; }
 .pdv-item-existente td { color: #888; font-style: italic; }
 .pdv-item-entregue td { text-decoration: line-through; opacity: 0.5; }
 .pdv-lista-vazio { text-align: center; color: #bbb; padding: 16px; font-size: 0.8rem; }
@@ -3917,7 +3912,7 @@ hr.modal-divisor {
 .sidebar.collapsed .pdv-badge-mesas { display: inline !important; }
 
 body.sidebar-collapsed .main-content {
-  margin-left: 60px !important;
+  /* margin-left removed: body is display:flex, sidebar width handles spacing automatically */
 }
 
 /* ══════════════════════════════════════════════════════
@@ -4089,6 +4084,9 @@ body.sidebar-collapsed .main-content {
   }
 }
 
+/* ============================================================
+   COMBO FECHADO — Estilos
+   ============================================================ */
 /* ── Linha de sabor no builder admin ── */
 .cf-sabor-row {
   display: flex;
@@ -4099,7 +4097,6 @@ body.sidebar-collapsed .main-content {
   border-radius: 8px;
   padding: 8px 10px;
 }
- 
 .cf-sabor-row input[type="text"] {
   flex: 1;
   min-width: 0;
@@ -4110,11 +4107,9 @@ body.sidebar-collapsed .main-content {
   outline: none;
   transition: border 0.2s;
 }
- 
 .cf-sabor-row input[type="text"]:focus {
   border-color: #d97706;
 }
- 
 .cf-sabor-row .cf-remove-sabor {
   flex-shrink: 0;
   background: none;
@@ -4127,11 +4122,9 @@ body.sidebar-collapsed .main-content {
   line-height: 1;
   transition: background 0.15s;
 }
- 
 .cf-sabor-row .cf-remove-sabor:hover {
   background: #fee2e2;
 }
- 
 /* ── Stepper (usado no FRONT do cliente — pedido) ── */
 .cf-stepper {
   display: flex;
@@ -4142,7 +4135,6 @@ body.sidebar-collapsed .main-content {
   overflow: hidden;
   flex-shrink: 0;
 }
- 
 .cf-stepper button {
   width: 34px;
   height: 34px;
@@ -4155,17 +4147,14 @@ body.sidebar-collapsed .main-content {
   transition: background 0.15s;
   line-height: 1;
 }
- 
 .cf-stepper button:hover:not(:disabled) {
   background: #f1f5f9;
 }
- 
 .cf-stepper button:disabled {
   color: #cbd5e1;
   cursor: not-allowed;
   background: #f8fafc;
 }
- 
 .cf-stepper .cf-qty {
   min-width: 36px;
   text-align: center;
@@ -4178,7 +4167,6 @@ body.sidebar-collapsed .main-content {
   border-right: 1px solid #e5e7eb;
   line-height: 34px;
 }
- 
 /* ── Item de sabor no frontend do cliente ── */
 .cf-item-sabor {
   display: flex;
@@ -4188,18 +4176,15 @@ body.sidebar-collapsed .main-content {
   padding: 10px 14px;
   border-bottom: 1px solid #f1f5f9;
 }
- 
 .cf-item-sabor:last-child {
   border-bottom: none;
 }
- 
 .cf-item-sabor .cf-nome-sabor {
   flex: 1;
   font-size: 0.95rem;
   color: #1e293b;
   font-weight: 500;
 }
- 
 /* ── Contador global ── */
 #combo-contador {
   font-size: 0.85rem;
@@ -4213,13 +4198,11 @@ body.sidebar-collapsed .main-content {
   margin: 12px 0;
   transition: background 0.2s, color 0.2s, border-color 0.2s;
 }
- 
 #combo-contador.completo {
   background: #f0fdf4;
   border-color: #86efac;
   color: #166534;
 }
- 
 /* ── Botão Adicionar ao Carrinho do Combo Fechado ── */
 #btn-combo-adicionar {
   width: 100%;
@@ -4234,12 +4217,10 @@ body.sidebar-collapsed .main-content {
   transition: opacity 0.2s;
   margin-top: 4px;
 }
- 
 #btn-combo-adicionar:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
- 
 #btn-combo-adicionar:not(:disabled):hover {
   opacity: 0.88;
 }
