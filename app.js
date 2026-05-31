@@ -840,6 +840,11 @@ let _shakeConfig  = { tamanho: null, sabor: null };
 let _sorveteConfig = { tamanho: null, sabores: [], etapasSel: {} };
 let _acaiConfig   = { tamanho: null, etapasSel: {}, variacao: null };
 let _sucoConfig   = { tamanho: null, etapasSel: {} };
+let _comboFechadoConfig = {
+  limite: 0,       // limite_total do montagem_config
+  sabores: [],     // array de { id, nome }
+  selecao: {},     // { [id]: quantidade }
+};
 
 function abrirModal(item) {
   prodAtual = item;
@@ -856,6 +861,7 @@ function abrirModal(item) {
   _sorveteConfig = { tamanho: null, sabores: [], etapasSel: {} };
   _acaiConfig    = { tamanho: null, etapasSel: {}, variacao: null };
   _sucoConfig    = { tamanho: null, etapasSel: {} };
+  _comboFechadoConfig = { limite: 0, sabores: [], selecao: {} };
 
   document.getElementById("modal-title").innerText = item.nome;
   document.getElementById("modal-desc").innerText = item.desc || "";
@@ -897,7 +903,10 @@ function abrirModal(item) {
     _renderAcai(cfg, divOptions);
   } else if (tipo === "suco") {
     _renderSuco(cfg, divOptions);
+  } else if (tipo === "combo_fechado") {
+    _renderComboFechado(cfg, divOptions);
   }
+
 
   // Extras do produto específico
   const extras = cfg && cfg.extras ? cfg.extras : null;
@@ -1367,6 +1376,175 @@ function _precoBasePorTipo(tam) {
   const precos = tam.precos || {};
   const vals = Object.values(precos).filter(v => v > 0);
   return vals.length ? Math.min(...vals) : (tam.preco || 0);
+}
+
+function _renderComboFechado(cfg, container) {
+  if (!cfg || cfg.__tipo !== "combo_fechado") return;
+ 
+  const limite = cfg.limite_total || 0;
+  const sabores = cfg.sabores || [];
+ 
+  // Inicializa estado global
+  _comboFechadoConfig.limite  = limite;
+  _comboFechadoConfig.sabores = sabores;
+  _comboFechadoConfig.selecao = {};
+  sabores.forEach((s) => (_comboFechadoConfig.selecao[s.id] = 0));
+ 
+  // ── Wrapper principal ──────────────────────────────────────
+  const wrap = document.createElement("div");
+  wrap.style.cssText = "padding:4px 0";
+ 
+  // Instrução
+  const instrucao = document.createElement("p");
+  instrucao.style.cssText =
+    "font-size:0.85rem;color:#64748b;margin:0 0 12px;line-height:1.45";
+  instrucao.textContent = `Distribua ${limite} ${limite === 1 ? "item" : "itens"} entre os sabores disponíveis.`;
+  wrap.appendChild(instrucao);
+ 
+  // ── Contador global ────────────────────────────────────────
+  const contador = document.createElement("div");
+  contador.id = "combo-contador";
+  contador.style.cssText =
+    "font-size:0.85rem;font-weight:600;color:#475569;text-align:center;" +
+    "padding:8px 12px;background:#f8fafc;border:1.5px solid #e2e8f0;" +
+    "border-radius:8px;margin-bottom:12px;transition:background .2s,color .2s,border-color .2s";
+  contador.textContent = `0 / ${limite} selecionados`;
+  wrap.appendChild(contador);
+ 
+  // ── Lista de sabores ───────────────────────────────────────
+  const lista = document.createElement("div");
+  lista.style.cssText =
+    "border:1px solid #f1f5f9;border-radius:10px;overflow:hidden";
+ 
+  sabores.forEach((sabor) => {
+    const row = document.createElement("div");
+    row.style.cssText =
+      "display:flex;align-items:center;justify-content:space-between;" +
+      "gap:12px;padding:11px 14px;border-bottom:1px solid #f1f5f9;background:#fff";
+ 
+    // Nome do sabor
+    const nome = document.createElement("span");
+    nome.textContent = sabor.nome;
+    nome.style.cssText = "flex:1;font-size:0.95rem;color:#1e293b;font-weight:500";
+ 
+    // Stepper
+    const stepper = document.createElement("div");
+    stepper.style.cssText =
+      "display:flex;align-items:center;gap:0;border:1.5px solid #e5e7eb;" +
+      "border-radius:8px;overflow:hidden;flex-shrink:0";
+ 
+    const btnDec = document.createElement("button");
+    btnDec.type    = "button";
+    btnDec.dataset.btnDec = sabor.id;
+    btnDec.textContent = "−";
+    btnDec.style.cssText =
+      "width:34px;height:34px;background:#f8fafc;border:none;font-size:1.1rem;" +
+      "font-weight:700;cursor:pointer;color:#374151;line-height:1";
+    btnDec.disabled = true;
+    btnDec.onclick  = () => _cfDecrementar(sabor.id);
+ 
+    const qty = document.createElement("span");
+    qty.id = "cf-qty-" + sabor.id;
+    qty.textContent = "0";
+    qty.style.cssText =
+      "min-width:36px;text-align:center;font-size:0.95rem;font-weight:700;" +
+      "color:#1e293b;padding:0 4px;background:#fff;" +
+      "border-left:1px solid #e5e7eb;border-right:1px solid #e5e7eb;line-height:34px";
+ 
+    const btnInc = document.createElement("button");
+    btnInc.type    = "button";
+    btnInc.dataset.btnInc = sabor.id;
+    btnInc.textContent = "+";
+    btnInc.style.cssText =
+      "width:34px;height:34px;background:#f8fafc;border:none;font-size:1.1rem;" +
+      "font-weight:700;cursor:pointer;color:#374151;line-height:1";
+    btnInc.onclick = () => _cfIncrementar(sabor.id);
+ 
+    stepper.appendChild(btnDec);
+    stepper.appendChild(qty);
+    stepper.appendChild(btnInc);
+ 
+    row.appendChild(nome);
+    row.appendChild(stepper);
+    lista.appendChild(row);
+  });
+ 
+  // Remove borda inferior do último item
+  const lastRow = lista.lastElementChild;
+  if (lastRow) lastRow.style.borderBottom = "none";
+ 
+  wrap.appendChild(lista);
+  container.appendChild(wrap);
+ 
+  // Desabilita o botão "Adicionar" do modal até completar a seleção
+  _cfAtualizarUI();
+}
+
+/* Incrementa a quantidade de um sabor */
+function _cfIncrementar(id) {
+  const sel   = _comboFechadoConfig.selecao;
+  const total = Object.values(sel).reduce((a, b) => a + b, 0);
+  if (total >= _comboFechadoConfig.limite) return;
+  if (!(id in sel)) return;
+  sel[id]++;
+  _cfAtualizarUI();
+}
+
+/* Decrementa a quantidade de um sabor */
+function _cfDecrementar(id) {
+  const sel = _comboFechadoConfig.selecao;
+  if (!(id in sel) || sel[id] <= 0) return;
+  sel[id]--;
+  _cfAtualizarUI();
+}
+
+/* Sincroniza toda a UI do combo fechado */
+function _cfAtualizarUI() {
+  const sel    = _comboFechadoConfig.selecao;
+  const limite = _comboFechadoConfig.limite;
+  const total  = Object.values(sel).reduce((a, b) => a + b, 0);
+  const cheio  = total >= limite;
+  const exato  = total === limite;
+
+  Object.entries(sel).forEach(([id, qty]) => {
+    const el = document.getElementById("cf-qty-" + id);
+    if (el) el.textContent = qty;
+  });
+
+  const contador = document.getElementById("combo-contador");
+  if (contador) {
+    contador.textContent = `${total} / ${limite} selecionados`;
+    if (exato) {
+      contador.style.background  = "#f0fdf4";
+      contador.style.borderColor = "#86efac";
+      contador.style.color       = "#166534";
+    } else {
+      contador.style.background  = "#f8fafc";
+      contador.style.borderColor = "#e2e8f0";
+      contador.style.color       = "#475569";
+    }
+  }
+
+  document.querySelectorAll("[data-btn-inc]").forEach((btn) => {
+    btn.disabled = cheio;
+    btn.style.color  = cheio ? "#cbd5e1" : "#374151";
+    btn.style.cursor = cheio ? "not-allowed" : "pointer";
+  });
+
+  document.querySelectorAll("[data-btn-dec]").forEach((btn) => {
+    const id  = btn.dataset.btnDec;
+    const qty = sel[id] || 0;
+    btn.disabled = qty <= 0;
+    btn.style.color  = qty <= 0 ? "#cbd5e1" : "#374151";
+    btn.style.cursor = qty <= 0 ? "not-allowed" : "pointer";
+  });
+
+  const btnAdd = document.querySelector(".btn-add");
+  if (btnAdd) {
+    btnAdd.disabled      = !exato;
+    btnAdd.style.opacity = exato ? "1" : "0.45";
+    btnAdd.style.cursor  = exato ? "pointer" : "not-allowed";
+  }
 }
 
 function _atualizarPrecoPizza() {
@@ -2123,11 +2301,25 @@ function adicionarDoModal() {
   if (tipo === "sorvete" && !_sorveteConfig.tamanho) { alert("Selecione o tamanho!"); return; }
   if (tipo === "acai"    && !_acaiConfig.tamanho)    { alert("Selecione o tamanho!"); return; }
   if (tipo === "suco"    && !_sucoConfig.tamanho)    { alert("Selecione o tamanho!"); return; }
+  if (tipo === "combo_fechado") {
+    const total = Object.values(_comboFechadoConfig.selecao).reduce((a, b) => a + b, 0);
+    if (total !== _comboFechadoConfig.limite) {
+      alert(`Selecione exatamente ${_comboFechadoConfig.limite} itens para continuar.`);
+      return;
+    }
+  }
 
   // Monta descrição para o carrinho
   let montagem = [];
   let variacao = "";
   let precoFinal = prodAtual.preco;
+
+  if (tipo === "combo_fechado") {
+    const partes = _comboFechadoConfig.sabores
+      .filter((s) => (_comboFechadoConfig.selecao[s.id] || 0) > 0)
+      .map((s) => `${s.nome} ×${_comboFechadoConfig.selecao[s.id]}`);
+    montagem.push(partes.join(", "));
+  }
 
   if (tipo === "montavel") {
     const cfgEtapas = Array.isArray(cfg)
@@ -2276,6 +2468,7 @@ function adicionarDoModal() {
     bordaConfig: null,
   };
   _variacaoSelecionada = null;
+  _comboFechadoConfig = { limite: 0, sabores: [], selecao: {} };
   if (prodAtual) prodAtual._variacaoImg = null;
 
   updateUI();
@@ -3104,7 +3297,37 @@ function calcularDistancia(lat1, lon1, lat2, lon2) {
 // ==========================================
 // 8. ENVIO DO PEDIDO
 // ==========================================
+// ── Trava global anti-duplo-clique ──────────────────────────────
+let _enviandoPedido = false;
+
 async function enviarZap() {
+  // Bloqueia se já está processando
+  if (_enviandoPedido) return;
+  _enviandoPedido = true;
+
+  // Desabilita e sinaliza o botão visualmente
+  const _btnEnviar = document.querySelector("[onclick=\"enviarZap()\"]")
+                  || document.querySelector("[onclick='enviarZap()']");
+  const _textoOriginal = _btnEnviar ? _btnEnviar.innerHTML : "";
+  if (_btnEnviar) {
+    _btnEnviar.disabled     = true;
+    _btnEnviar.style.opacity = "0.6";
+    _btnEnviar.innerHTML    = "⏳ Processando...";
+  }
+
+  // Libera automaticamente após 60 s (garante que não trava para sempre)
+  const _liberarBotao = () => {
+    _enviandoPedido = false;
+    if (_btnEnviar) {
+      _btnEnviar.disabled     = false;
+      _btnEnviar.style.opacity = "1";
+      _btnEnviar.innerHTML    = _textoOriginal;
+    }
+  };
+  const _timerLiberar = setTimeout(_liberarBotao, 60000);
+
+  try {
+
   const nome = document.getElementById("cli-nome").value.trim();
   const ddi = document.getElementById("cli-ddi").value;
   const tel = document.getElementById("cli-tel").value.trim();
@@ -3551,6 +3774,14 @@ async function enviarZap() {
   // Hash anti-duplicata salvo APENAS na abertura do WhatsApp (em _abrirZapEFechar)
   // Modal de confirmação 5s antes de abrir WhatsApp
   await _mostrarModalEnvio(msg, numeroPedido);
+
+  } catch (err) {
+    console.error("[enviarZap] Erro inesperado:", err);
+    alert("Ocorreu um erro ao processar o pedido. Tente novamente.");
+  } finally {
+    clearTimeout(_timerLiberar);
+    _liberarBotao();
+  }
 }
 
 // Modal: "Seu pedido será validado somente após enviar no WhatsApp"

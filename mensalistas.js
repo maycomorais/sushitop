@@ -90,7 +90,6 @@ function _mensRenderKPIs() {
   const ativos  = _mens_planos.filter(p => p.ativo).length;
   const receita = _mens_planos.reduce((s, p) => s + (p.valor_plano || 0), 0);
 
-  // Itens restantes: soma de unidades + kg separados para exibição
   const itensPorTipo = _mens_planos.reduce((acc, p) => {
     const tipo = _mensGetTipo(p);
     if (tipo === 'kg') acc.kg += (p.quantidade_restante || 0);
@@ -156,6 +155,17 @@ function mensRenderPlanos() {
     const fmtTotal     = _mensFmtQtd(qtdTotal, tipo);
     const esgotado     = qtdRest <= 0 && p.ativo;
 
+    // Valor proporcional restante
+    const valorRestante = qtdTotal > 0
+      ? Math.round((p.valor_plano || 0) * (qtdRest / qtdTotal))
+      : 0;
+
+    // Telefone WhatsApp
+    const telClean = (p.clientes?.telefone || '').replace(/\D/g, '');
+    const whatsappUrl = telClean
+      ? `https://wa.me/595${telClean.replace(/^0/, '')}?text=${encodeURIComponent(`Olá ${p.clientes?.nome || ''}! Seu saldo no plano *${p.produto_nome}*: *${fmtRest}* restantes.`)}`
+      : null;
+
     return `
       <div style="background:#fff;border:1.5px solid ${p.ativo ? '#d1fae5' : '#e5e7eb'};border-radius:14px;padding:16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,0.05)">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
@@ -176,6 +186,7 @@ function mensRenderPlanos() {
             <div style="font-weight:700;color:#1a7a2e;font-size:0.95rem;margin-top:3px">
               Gs ${Math.round(p.valor_plano || 0).toLocaleString('es-PY')}
             </div>
+            ${qtdTotal > 0 ? `<div style="font-size:0.72rem;color:#6b7280;margin-top:1px">saldo ≈ Gs ${valorRestante.toLocaleString('es-PY')}</div>` : ''}
           </div>
         </div>
 
@@ -198,6 +209,12 @@ function mensRenderPlanos() {
           <div style="flex:2;padding:9px;background:#fef3c7;color:#92400e;border-radius:9px;font-size:0.82rem;font-weight:600;text-align:center;min-width:120px">
             ✅ ${t('mens.plano_esgotado', 'Plano esgotado')}
           </div>` : '')}
+          ${whatsappUrl ? `
+          <button onclick="window.open('${whatsappUrl}','_blank')"
+            style="flex:0 0 40px;padding:9px;background:#25D366;color:#fff;border:none;border-radius:9px;cursor:pointer;font-size:0.9rem;font-weight:700"
+            title="Enviar saldo via WhatsApp">
+            <i class="fab fa-whatsapp"></i>
+          </button>` : ''}
           <button onclick="mensAbrirModalPlano(${p.id})"
             style="flex:1;padding:9px;background:#3498db;color:#fff;border:none;border-radius:9px;cursor:pointer;font-size:0.83rem;font-weight:600;min-width:70px">
             ✏️
@@ -246,11 +263,9 @@ function mensAbrirModalPlano(id = null) {
   document.getElementById('mens-plano-fim').value     = p?.data_fim || '';
   document.getElementById('mens-plano-nota').value    = nota;
 
-  // Tipo
   const selTipo = document.getElementById('mens-plano-tipo');
   if (selTipo) selTipo.value = tipo;
 
-  // Quantidade — exibir em unidade display (kg ou int)
   const qtdInput = document.getElementById('mens-plano-qtd');
   if (qtdInput) {
     if (tipo === 'kg') {
@@ -264,7 +279,6 @@ function mensAbrirModalPlano(id = null) {
   const chkAtivo = document.getElementById('mens-plano-ativo');
   if (chkAtivo) chkAtivo.checked = p ? p.ativo : true;
 
-  // Popula select de clientes
   const selCli = document.getElementById('mens-plano-cli-sel');
   if (selCli) {
     selCli.innerHTML = `<option value="">${t('mens.selecione_cliente', '— Selecione o cliente —')}</option>` +
@@ -276,7 +290,6 @@ function mensAbrirModalPlano(id = null) {
     };
   }
 
-  // Popula select de produtos
   const selProd = document.getElementById('mens-plano-prod-sel');
   if (selProd) {
     selProd.innerHTML = `<option value="">${t('mens.selecione_cardapio', '— Selecione do cardápio —')}</option>` +
@@ -288,7 +301,6 @@ function mensAbrirModalPlano(id = null) {
     };
   }
 
-  // Info de renovação se editando
   const infoRenov = document.getElementById('mens-renov-info');
   if (infoRenov) {
     if (p) {
@@ -319,7 +331,6 @@ async function mensSalvarPlano() {
   const data_fim     = document.getElementById('mens-plano-fim').value || null;
   const ativo        = document.getElementById('mens-plano-ativo')?.checked ?? true;
 
-  // Converter para inteiro de armazenamento
   const qtd_total = tipo === 'kg'
     ? _mensKgToInt(qtdRaw)
     : (parseInt(qtdRaw) || 0);
@@ -377,12 +388,10 @@ function mensAbrirEntrega(planoId) {
   document.getElementById('mens-ent-produto').textContent  = p.produto_nome;
   document.getElementById('mens-ent-obs').value  = '';
 
-  // Saldo
   const fmtRest  = _mensFmtQtd(p.quantidade_restante, tipo);
   const fmtTotal = _mensFmtQtd(p.quantidade_total, tipo);
   document.getElementById('mens-ent-saldo').textContent = `${fmtRest} de ${fmtTotal} ${t('mens.disponiveis', 'disponíveis')}`;
 
-  // Input de quantidade
   const qtdInput = document.getElementById('mens-ent-qtd');
   const qtdLabel = document.getElementById('mens-ent-qtd-label');
   if (isKg) {
@@ -399,7 +408,6 @@ function mensAbrirEntrega(planoId) {
     if (qtdLabel) qtdLabel.textContent = t('mens.qtd_entregue', 'Quantidade entregue *');
   }
 
-  // Valor unitário
   const elValor = document.getElementById('mens-ent-valor-unit');
   if (elValor) {
     if (p.quantidade_total > 0) {
@@ -428,7 +436,6 @@ async function mensSalvarEntrega() {
   const tipo = _mensGetTipo(p);
   const isKg = tipo === 'kg';
 
-  // Quantidade: se kg, converter input decimal → inteiro de armazenamento
   const qtdRaw = document.getElementById('mens-ent-qtd').value;
   const qtd    = isKg ? _mensKgToInt(qtdRaw) : (parseInt(qtdRaw) || 1);
 
@@ -499,6 +506,11 @@ function mensImprimirComprovante(plano, qtd, obs, entregaId, dataEntrega, saldoA
   const totFmt   = _mensFmtQtd(plano.quantidade_total, tipo);
   const antFmt   = _mensFmtQtd(saldoAnt, tipo);
 
+  // Valor proporcional restante após entrega
+  const valorRestante = plano.quantidade_total > 0
+    ? Math.round((plano.valor_plano || 0) * ((saldoApos !== undefined ? saldoApos : plano.quantidade_restante) / plano.quantidade_total))
+    : 0;
+
   const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -518,6 +530,7 @@ function mensImprimirComprovante(plano, qtd, obs, entregaId, dataEntrega, saldoA
     .saldo-box { background:#f0fdf4; border:1.5px solid #86efac; border-radius:8px; padding:10px 12px; margin:8px 0; text-align:center; }
     .saldo-box .num { font-size:22px; font-weight:900; color:#1a7a2e; }
     .saldo-box .lab { font-size:10px; color:#555; }
+    .valor-rest { background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; padding:6px 10px; margin:4px 0; text-align:center; font-size:11px; color:#1e40af; }
     .assinatura { margin-top:24px; text-align:center; }
     .assinatura .linha { border-top:1px solid #000; margin:0 10px 5px; }
     .assinatura .leg { font-size:10px; color:#555; }
@@ -554,6 +567,7 @@ function mensImprimirComprovante(plano, qtd, obs, entregaId, dataEntrega, saldoA
     <div class="num">${restFmt}</div>
     <div class="lab">${t('mens.ticket_contratados', 'de {qtd} contratados').replace('{qtd}', totFmt)}</div>
   </div>
+  <div class="valor-rest">💰 Valor proporcional restante: <b>Gs ${valorRestante.toLocaleString('es-PY')}</b></div>
   <div class="center sm" style="margin-top:4px">${t('mens.ticket_saldo_anterior', 'Saldo anterior')}: ${antFmt}</div>
   <hr>
   <div class="assinatura">
@@ -567,8 +581,8 @@ function mensImprimirComprovante(plano, qtd, obs, entregaId, dataEntrega, saldoA
   <hr>
   <div class="center sm">*** ${t('geral.obrigado', 'OBRIGADO')} ***</div>
 </div>
-<button class="btn-print" onclick="window.print()">${t('mens.ticket_imprimir', '🖨️ IMPRIMIR COMPROVANTE')}</button>
-<script>setTimeout(()=>window.print(), 600);</script>
+<button class="btn-print" onclick="window.print()">🖨️ IMPRIMIR COMPROVANTE</button>
+<script>setTimeout(()=>window.print(), 600);<\/script>
 </body>
 </html>`;
 

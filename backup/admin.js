@@ -9063,7 +9063,6 @@ async function salvarPedidoBalcao() {
     nome: i.nome,
     preco: i.preco,
     qtd: i.qtd,
-    variacao: i.variacao || "",
     montagem: i.montagem || [],
     obs: i.obs || "",
     categoria_slug: i.categoria_slug || "",

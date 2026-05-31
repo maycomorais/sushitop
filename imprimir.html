@@ -8,7 +8,7 @@
 
     body {
       font-family: Arial, sans-serif;
-      font-size: 13px;
+      font-size: 14px;
       background: #d0d0d0;
       padding: 16px;
     }
@@ -34,13 +34,19 @@
     .tipo-entrega { font-weight: 700; font-size: 14px; text-align: center; margin: 3px 0; }
     .ref { font-size: 12px; margin-bottom: 3px; }
 
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; font-size: 15px; }
     th { text-align: left; border-bottom: 1px dashed #000; font-size: 12px; padding-bottom: 2px; }
     td { vertical-align: top; padding: 3px 0; }
     td.right { text-align: right; white-space: nowrap; }
 
-    .det { font-size: 13px; color: #444; display: block; line-height: 1.4; }
-    .det-obs { font-size: 13px; font-weight: 700; color: #c0392b; display: block; }
+    /* Nome do item: grande, negrito, preto */
+    .item-nome { font-size: 15px; font-weight: 900; color: #000; display: block; }
+
+    /* Variação: negrito, preto */
+    .det { font-size: 14px; font-weight: 700; color: #000; display: block; line-height: 1.5; }
+
+    /* Obs: negrito, preto (removido vermelho por pedido do cliente) */
+    .det-obs { font-size: 14px; font-weight: 900; color: #000; display: block; }
 
     .totais { text-align: right; font-size: 13px; line-height: 1.7; margin-top: 4px; }
     .total-final { font-size: 17px; font-weight: 900; }
@@ -59,7 +65,7 @@
     }
 
     @media print {
-      body { background: none; padding: 0; font-size: 13px; }
+      body { background: none; padding: 0; font-size: 14px; }
       .btn-print { display: none; }
       .ticket { box-shadow: none; max-width: 100%; width: 100%; padding: 1mm; }
       @page { margin: 2mm; size: 58mm auto; }
@@ -67,9 +73,11 @@
       .topo h3 { font-size: 15px; }
       .topo .num { font-size: 14px; }
       .tipo-entrega { font-size: 14px; }
-      table, td { font-size: 13px; }
+      table, td { font-size: 15px; }
       th { font-size: 12px; }
-      .det { font-size: 13px; }
+      .item-nome { font-size: 15px; }
+      .det { font-size: 14px; }
+      .det-obs { font-size: 14px; }
       .totais { font-size: 13px; }
       .total-final { font-size: 16px; }
       .pag { font-size: 13px; }
@@ -195,8 +203,10 @@
                : pesoG + 'g')
             : null;
 
-          // variação/tipo: campo t, tipo ou variacao
-          var variacao  = item.t || item.variacao || item.tipo || '';
+          // ── FIX: lê variação sem filtros desnecessários ──
+          // Prioridade: campo t > campo variacao > campo tipo
+          // Não filtra por nome nem por 'Armado'/'Estándar' — exibe tudo que vier preenchido
+          var variacao  = (item.t && item.t.trim()) || (item.variacao && item.variacao.trim()) || '';
           var preparo   = item.pr || item.preparo || '';
           // montagem: campo m, montagem — pode ser array de strings ou array de objetos
           var montagemRaw = item.m || item.montagem || [];
@@ -204,8 +214,8 @@
 
           var det = '';
 
-          // Variação (tamanho de pizza, size de shake, etc.)
-          if (variacao && variacao !== nome && variacao !== 'Estándar' && variacao !== 'Armado')
+          // Variação — exibe sempre que existir (sem filtros de nome/Armado/Estándar)
+          if (variacao)
             det += '<span class="det">▸ ' + variacao + '</span>';
 
           // Preparo
@@ -216,7 +226,7 @@
           if (Array.isArray(montagemRaw) && montagemRaw.length > 0) {
             montagemRaw.forEach(function(l) {
               var txt = (typeof l === 'object' && l !== null) ? (l.nome || JSON.stringify(l)) : String(l);
-              if (txt) det += '<span class="det">· ' + txt + '</span>';
+              if (txt && txt.trim()) det += '<span class="det">· ' + txt + '</span>';
             });
           }
 
@@ -228,9 +238,9 @@
 
           var tr = document.createElement('tr');
           tr.innerHTML =
-            '<td style="vertical-align:top">' + (isKg ? '<b>' + pesofmt + '</b>' : qtd + 'x') + '</td>' +
-            '<td>' + nome + det + '</td>' +
-            '<td class="right">Gs ' + totalItem + '</td>';
+            '<td style="vertical-align:top;font-weight:700">' + (isKg ? '<b>' + pesofmt + '</b>' : qtd + 'x') + '</td>' +
+            '<td><span class="item-nome">' + nome + '</span>' + det + '</td>' +
+            '<td class="right" style="font-weight:700">Gs ' + totalItem + '</td>';
           tbody.appendChild(tr);
         });
 
@@ -252,7 +262,7 @@
           document.getElementById('frete').textContent = 'Gs ' + frete.toLocaleString('es-PY');
         }
 
-        // ── SEÇÃO CORRIGIDA: Pagamento Seguro e Validação de Tipos ─────────
+        // ── Pagamento ─────────────────────────────────────────────────────────
         var pg  = p.pagamento || {};
         var met = pg.metodo || pg.forma_pagamento || 'No informado';
         var obsp = pg.obs   || pg.obs_pagamento   || '';
@@ -264,14 +274,12 @@
           document.getElementById('forma-pag').textContent = '🔀 Pago dividido:';
           try {
             var partes = JSON.parse(obsp);
-            
             if (Array.isArray(partes)) {
               deveAbrirGaveta = partes.some(function(x) {
                 return x && x.metodo && metodosValidos.some(function(m) {
                   return String(x.metodo).toLowerCase().includes(m);
                 });
               });
-
               document.getElementById('obs-pag').innerHTML = partes.map(function(x, i) {
                 var l = (i + 1) + '. ' + x.metodo + ': Gs ' + parseFloat(x.valor).toLocaleString('es-PY');
                 if (x.troco) l += ' (Vuelto p/ ' + x.troco + ')';
@@ -283,7 +291,7 @@
                 return String(obsp).toLowerCase().includes(m);
               });
             }
-          } catch(e) { 
+          } catch(e) {
             document.getElementById('obs-pag').textContent = obsp;
             deveAbrirGaveta = metodosValidos.some(function(m) {
               return String(obsp).toLowerCase().includes(m);
@@ -292,11 +300,11 @@
         } else {
           document.getElementById('forma-pag').textContent = met;
           document.getElementById('obs-pag').textContent   = obsp;
-
           deveAbrirGaveta = metodosValidos.some(function(m) {
             return String(met).toLowerCase().includes(m);
           });
         }
+
         if (deveAbrirGaveta) {
           fetch('http://127.0.0.1:9091/abrir', { method: 'POST', mode: 'cors' })
           .catch(function(err) { console.error('Erro ao chamar gaveta:', err); });
