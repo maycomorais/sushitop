@@ -495,20 +495,22 @@ async function mensSalvarEntrega() {
 
   const novoRestFmt = _mensFmtQtd(novoRestante, tipo);
   const qtdFmt      = _mensFmtQtd(qtd, tipo);
+  const novoValorFmt = Math.round(novoValorRestante).toLocaleString('es-PY');
   const imprimir = confirm(
-    t('mens.confirm_sucesso', '✅ Entrega registrada com sucesso!\nEntregue: {qtd}\nSaldo restante: {novoRestante}\n\nDeseja imprimir o comprovante para o cliente assinar?')
+    t('mens.confirm_sucesso', '✅ Entrega registrada!\nEntregue: {qtd}\nSaldo restante: {novoRestante}\nValor restante: Gs {valorRestante}\n\nImprimir comprovante?')
       .replace('{qtd}', qtdFmt)
       .replace('{novoRestante}', novoRestFmt)
+      .replace('{valorRestante}', novoValorFmt)
   );
   if (imprimir) {
-    mensImprimirComprovante(p, qtd, obs, entrega?.id, entrega?.created_at, novoRestante, tipo);
+    mensImprimirComprovante(p, qtd, obs, entrega?.id, entrega?.created_at, novoRestante, tipo, novoValorRestante);
   }
 }
 
 // ──────────────────────────────────────────────────────────────
 //  IMPRIMIR COMPROVANTE
 // ──────────────────────────────────────────────────────────────
-function mensImprimirComprovante(plano, qtd, obs, entregaId, dataEntrega, saldoApos, tipo) {
+function mensImprimirComprovante(plano, qtd, obs, entregaId, dataEntrega, saldoApos, tipo, valorRestante) {
   tipo = tipo || _mensGetTipo(plano);
   const cliente  = plano.clientes || {};
   const dataFmt  = dataEntrega
@@ -522,6 +524,15 @@ function mensImprimirComprovante(plano, qtd, obs, entregaId, dataEntrega, saldoA
   const restFmt  = _mensFmtQtd(saldoApos !== undefined ? saldoApos : plano.quantidade_restante, tipo);
   const totFmt   = _mensFmtQtd(plano.quantidade_total, tipo);
   const antFmt   = _mensFmtQtd(saldoAnt, tipo);
+  // Valor restante em dinheiro (pós-entrega)
+  const saldoRestanteInt = saldoApos !== undefined ? saldoApos : plano.quantidade_restante;
+  const valorRestanteGs = valorRestante != null
+    ? Math.round(valorRestante)
+    : (plano.quantidade_total > 0
+        ? Math.round((plano.valor_plano / plano.quantidade_total) * saldoRestanteInt)
+        : 0);
+  const valorRestanteFmt = valorRestanteGs.toLocaleString('es-PY');
+  const valorPlanoBefore = Math.round(plano.valor_plano || 0);
 
   const html = `<!DOCTYPE html>
 <html lang="es">
@@ -577,6 +588,11 @@ function mensImprimirComprovante(plano, qtd, obs, entregaId, dataEntrega, saldoA
     <div class="lab">${t('mens.ticket_saldo_restante', 'SALDO RESTANTE APÓS ESTA ENTREGA')}</div>
     <div class="num">${restFmt}</div>
     <div class="lab">${t('mens.ticket_contratados', 'de {qtd} contratados').replace('{qtd}', totFmt)}</div>
+  </div>
+  <div style="background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:8px;padding:8px 12px;margin:6px 0;text-align:center">
+    <div style="font-size:10px;color:#555;margin-bottom:2px">${t('mens.ticket_saldo_restante_val', 'VALOR RESTANTE')}</div>
+    <div style="font-size:20px;font-weight:900;color:#1d4ed8">Gs ${valorRestanteFmt}</div>
+    <div style="font-size:10px;color:#555">${t('mens.ticket_contratados', 'de {qtd} contratados').replace('{qtd}', 'Gs ' + valorPlanoBefore.toLocaleString('es-PY'))}</div>
   </div>
   <div class="center sm" style="margin-top:4px">${t('mens.ticket_saldo_anterior', 'Saldo anterior')}: ${antFmt}</div>
   <hr>
@@ -666,8 +682,12 @@ async function mensReimprimirEntrega(entregaId, planoId) {
 
   const qtdPosteriores = (posteriores || []).reduce((s, x) => s + (x.quantidade || 0), 0);
   const saldoApos = p.quantidade_restante + qtdPosteriores;
+  // Recalcula valor restante naquele momento histórico
+  const valorRestanteHistorico = p.quantidade_total > 0
+    ? Math.round((p.valor_plano / p.quantidade_total) * saldoApos)
+    : 0;
 
-  mensImprimirComprovante(p, e.quantidade, e.observacoes, e.id, e.created_at, saldoApos);
+  mensImprimirComprovante(p, e.quantidade, e.observacoes, e.id, e.created_at, saldoApos, undefined, valorRestanteHistorico);
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -697,9 +717,15 @@ function mensEnviarWhatsAppAviso(planoId) {
     : `\nVencimento do plano: ${dataFim}`) : '';
   const restaurante = _mens_nomeRestaurante || 'RESTAURANTE';
 
+  // Valor restante do plano
+  const valorRestGs = p.valor_restante != null
+    ? Math.round(p.valor_restante)
+    : (p.quantidade_total > 0 ? Math.round((p.valor_plano / p.quantidade_total) * p.quantidade_restante) : 0);
+  const valorRestFmt = valorRestGs.toLocaleString('es-PY');
+
   const msgs = {
-    pt: `Olá, *${nomeCliente}*! 👋\n\nPassando para avisar que o seu plano mensal de *${p.produto_nome}* está chegando ao fim.\n\n📦 Saldo restante: *${saldoFmt}* de ${totalFmt}${vencimento}\n\nRenove para continuar aproveitando sem interrupção! 😊\n\n_${restaurante}_`,
-    es: `Hola, *${nomeCliente}*! 👋\n\nTe avisamos que tu plan mensual de *${p.produto_nome}* está llegando a su fin.\n\n📦 Saldo restante: *${saldoFmt}* de ${totalFmt}${vencimento}\n\n¡Renovalo para seguir disfrutando sin interrupciones! 😊\n\n_${restaurante}_`,
+    pt: `Olá, *${nomeCliente}*! 👋\n\nPassando para avisar que o seu plano mensal de *${p.produto_nome}* está chegando ao fim.\n\n📦 Saldo restante: *${saldoFmt}* de ${totalFmt}\n💰 Valor restante: *Gs ${valorRestFmt}*${vencimento}\n\nRenove para continuar aproveitando sem interrupção! 😊\n\n_${restaurante}_`,
+    es: `Hola, *${nomeCliente}*! 👋\n\nTe avisamos que tu plan mensual de *${p.produto_nome}* está llegando a su fin.\n\n📦 Saldo restante: *${saldoFmt}* de ${totalFmt}\n💰 Valor restante: *Gs ${valorRestFmt}*${vencimento}\n\n¡Renovalo para seguir disfrutando sin interrupciones! 😊\n\n_${restaurante}_`,
   };
 
   // Modal de seleção de idioma

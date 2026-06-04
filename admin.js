@@ -174,7 +174,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   let lastTab = localStorage.getItem("app_lastTab");
   const _restrictedTabs = [
     "inventario",
-    "financeiro",
     "adminmaster",
     "estatisticas",
     "ficha-tecnica",
@@ -283,10 +282,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       const optDono = document.getElementById("opt-cargo-dono");
       if (optDono) optDono.style.display = "";
     }
-    if (perfilUsuario === "dono" || perfilUsuario === "adminMaster") {
-      const menuFin = document.getElementById("menu-financeiro");
-      if (menuFin) menuFin.style.display = "flex";
-    }
+    // Financeiro visível para todos (funcionário vê apenas o próprio caixa)
+    const menuFin = document.getElementById("menu-financeiro");
+    if (menuFin) menuFin.style.display = "flex";
     if (
       perfilUsuario === "dono" ||
       perfilUsuario === "gerente" ||
@@ -315,6 +313,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     carregarDashboard();
     carregarMotoboysSelect();
+    // Re-aplica traduções após auth (perfilUsuario e features já carregados)
+    if (typeof applyAdminI18n === "function") applyAdminI18n();
 
     // ── Controle de Assinatura (barra de aviso / bloqueio) ──
     if (typeof SubscriptionUI !== "undefined") {
@@ -490,7 +490,12 @@ function showTab(tabId, event) {
   if (realTabId === "cozinha") carregarCozinha();
   if (realTabId === "financeiro") calcularFinanceiro();
   if (realTabId === "dashboard") carregarDashboard();
-  if (realTabId === "pdv") carregarPDV();
+  if (realTabId === "pdv") {
+    carregarPDV().then(() => { if (typeof applyAdminI18n === "function") applyAdminI18n(); });
+  } else {
+    // Re-aplica traduções após renderizar qualquer aba
+    if (typeof applyAdminI18n === "function") setTimeout(applyAdminI18n, 30);
+  }
   if (realTabId === "equipe") carregarEquipe();
   if (realTabId === "adminmaster") {
     amCarregarUsuarios();
@@ -600,24 +605,24 @@ async function _carregarFeaturesGlobais() {
     TABELA_FRETE_ADMIN = data.tabela_frete;
 }
 
-// ── Filtra formas de pagamento no PDV conforme features_ativas.pagamentos ──────
+// ── Filtra formas de pagamento em todos os selects conforme features_ativas.pagamentos ──
 function _aplicarFormasPagamentoPDV(features) {
   const pags = features?.pagamentos;
-  const select = document.getElementById("balcao-pag");
-  if (!select) return;
-  Array.from(select.options).forEach((opt) => {
-    if (!opt.value) return;
-    if (!pags) {
-      opt.style.display = "";
-      return;
-    }
-    if (pags[opt.value] === false) {
-      opt.style.display = "none";
-      // Se a opção oculta estava selecionada, reset para Efetivo
-      if (select.value === opt.value) select.value = "Efetivo";
-    } else {
-      opt.style.display = "";
-    }
+  // Aplica nos selects do PDV e do filtro financeiro
+  ["balcao-pag", "fin-tipo"].forEach((sid) => {
+    const select = document.getElementById(sid);
+    if (!select) return;
+    Array.from(select.options).forEach((opt) => {
+      if (!opt.value || opt.value === "todos") return; // "todos" nunca some
+      if (!pags) { opt.style.display = ""; return; }
+      if (pags[opt.value] === false) {
+        opt.style.display = "none";
+        if (select.value === opt.value)
+          select.value = sid === "fin-tipo" ? "todos" : "Efetivo";
+      } else {
+        opt.style.display = "";
+      }
+    });
   });
 }
 
@@ -630,26 +635,73 @@ function _feat(categoria, chave) {
 
 function _aplicarVisibilidadeAbas() {
   const mapa = {
-    "menu-pedidos": "pedidos",
-    "menu-cozinha": "cozinha",
-    "menu-pdv": "pdv",
-    "menu-financeiro": "financeiro",
-    "menu-inventario": "inventario",
-    "menu-equipe": "equipe",
+    "menu-pedidos":       "pedidos",
+    "menu-cozinha":       "cozinha",
+    "menu-pdv":           "pdv",
+    "menu-financeiro":    "financeiro",
+    "menu-inventario":    "inventario",
+    "menu-equipe":        "equipe",
     "menu-configuracoes": "configuracoes",
-    "menu-dashboard": "dashboard",
-    "menu-estatisticas": "estatisticas",
+    "menu-dashboard":     "dashboard",
+    "menu-estatisticas":  "estatisticas",
     "menu-ficha-tecnica": "ficha-tecnica",
-    "menu-crm": "crm",
-    "menu-turnos": "turnos",
-    "menu-produtos": "produtos",
+    "menu-crm":           "crm",
+    "menu-turnos":        "turnos",
+    "menu-produtos":      "produtos",
+    "menu-mensalistas":   "mensalistas",
   };
-  // Só aplica restrições para cargos abaixo de adminMaster
+  // adminMaster nunca sofre restrições — ele define as regras
   if (perfilUsuario === "adminMaster") return;
   Object.entries(mapa).forEach(([menuId, chave]) => {
     const el = document.getElementById(menuId);
     if (el && !_feat("tabs", chave)) el.style.display = "none";
   });
+  _aplicarFuncionalidades();
+}
+
+/**
+ * Aplica restrições de funcionalidades na UI conforme features_ativas.
+ * Chamada após login e após salvar features (exceto para adminMaster).
+ */
+function _aplicarFuncionalidades() {
+  const f = FEATURES_ATIVAS?.funcionalidades;
+  if (!f) return; // sem config = tudo ativo
+
+  // Tipos de entrega no PDV
+  ["delivery", "retirada", "local", "balcao"].forEach((tipo) => {
+    if (f[tipo] === false) {
+      document.querySelectorAll(`.pdv-tipo-tab[data-tipo="${tipo}"]`)
+        .forEach((el) => { el.style.display = "none"; });
+    }
+  });
+
+  // Multipagamento: oculta a opção no select do PDV
+  if (f.multipagamento === false) {
+    const selPag = document.getElementById("balcao-pag");
+    if (selPag) {
+      Array.from(selPag.options).forEach((opt) => {
+        if (opt.value === "Multipagamento") {
+          opt.style.display = "none";
+          if (selPag.value === "Multipagamento") selPag.value = "Efetivo";
+        }
+      });
+    }
+  }
+
+  // Cupons: oculta card de cupons
+  if (f.cupons === false) {
+    const cupomCard = document.getElementById("card-cupons-cfg");
+    if (cupomCard) cupomCard.style.display = "none";
+    // Oculta botão de cupom no PDV também
+    document.querySelectorAll('[onclick*="cupom"], [onclick*="Cupom"]')
+      .forEach((el) => { el.style.display = "none"; });
+  }
+
+  // Factura: oculta campos de factura no checkout
+  if (f.factura === false) {
+    document.querySelectorAll('.box-factura, #box-factura, [data-feat-ui="factura"]')
+      .forEach((el) => { el.style.display = "none"; });
+  }
 }
 
 // Salva features (adminMaster only)
@@ -683,6 +735,13 @@ async function salvarFeatures() {
     .gt("id", 0);
   if (error) return alert("Erro: " + error.message);
   FEATURES_ATIVAS = features;
+
+  // Re-aplica imediatamente (sem reload)
+  _aplicarFormasPagamentoPDV(features);
+  if (perfilUsuario !== "adminMaster") {
+    _aplicarVisibilidadeAbas();
+  }
+
   alert(t("alert.features_salvas"));
 }
 
@@ -698,109 +757,101 @@ async function renderPainelFeatures() {
   const tipos = f.tipos_produto || {};
   const funcs = f.funcionalidades || {};
 
+  // Helper: gera um checkbox estilizado com borda dinâmica
+  const _chk = (attr, key, val, label, bg = "#f9f9f9") =>
+    `<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;
+        background:${bg};border-radius:8px;cursor:pointer;
+        border:1.5px solid ${val !== false ? "#27ae60" : "#ddd"};transition:border .2s">
+      <input type="checkbox" ${attr}="${key}" ${val !== false ? "checked" : ""}
+        onchange="this.closest('label').style.borderColor=this.checked?'#27ae60':'#ddd'"
+        style="width:17px;height:17px;accent-color:#27ae60;flex-shrink:0">
+      <span style="font-size:0.85rem">${label}</span></label>`;
+
+  // ── Abas (todas as 14 abas do sistema) ───────────────────────────
   const chkTabs = [
-    ["pedidos", "Pedidos"],
-    ["cozinha", "Cozinha/KDS"],
-    ["pdv", "PDV Balcão"],
-    ["financeiro", "Financeiro"],
-    ["inventario", "Inventário"],
-    ["equipe", "Equipe"],
-    ["configuracoes", "Configurações"],
-    ["dashboard", "Dashboard"],
-    ["turnos", "Painel Turnos/TV"],
-  ]
-    .map(
-      ([
-        k,
-        l,
-      ]) => `<label style="display:flex;align-items:center;gap:8px;padding:6px;background:#f9f9f9;border-radius:6px">
-    <input type="checkbox" data-feat-tab="${k}" ${tabs[k] !== false ? "checked" : ""} style="width:18px;height:18px">
-    <span>${l}</span></label>`,
-    )
-    .join("");
+    ["pedidos",       "📋 Pedidos"],
+    ["cozinha",       "👨‍🍳 Cozinha/KDS"],
+    ["pdv",           "🖥️ PDV Balcão"],
+    ["financeiro",    "💰 Financeiro"],
+    ["inventario",    "📦 Inventário"],
+    ["produtos",      "🍽️ Produtos"],
+    ["equipe",        "👥 Equipe"],
+    ["configuracoes", "⚙️ Configurações"],
+    ["dashboard",     "📊 Dashboard"],
+    ["estatisticas",  "📈 Estatísticas"],
+    ["ficha-tecnica", "📝 Ficha Técnica"],
+    ["crm",           "🤝 CRM Clientes"],
+    ["mensalistas",   "🗓️ Mensalistas"],
+    ["turnos",        "📺 Painel Turnos/TV"],
+  ].map(([k, l]) => _chk("data-feat-tab", k, tabs[k], l, "#f0f9ff")).join("");
 
+  // ── Tipos de produto (gastronomia + varejo) ───────────────────────
   const chkTipos = [
-    ["padrao", "Simples"],
-    ["bebida", "Bebida"],
-    ["lanche", "Lanche"],
-    ["pizza", "Pizza"],
-    ["acai", "Açaí"],
-    ["shake", "Shake"],
-    ["suco", "Suco"],
-    ["sorvete", "Sorvete"],
-    ["montavel", "Montável"],
-    ["combo", "Combo"],
-    ["variacoes", "Variações"],
-    ["kg", "⚖️ Venda Kg"],
-  ]
-    .map(
-      ([
-        k,
-        l,
-      ]) => `<label style="display:flex;align-items:center;gap:8px;padding:6px;background:#f9f9f9;border-radius:6px">
-    <input type="checkbox" data-feat-tipo="${k}" ${tipos[k] !== false ? "checked" : ""} style="width:18px;height:18px">
-    <span>${l}</span></label>`,
-    )
-    .join("");
+    ["padrao",     "📦 Simples"],
+    ["bebida",     "🥤 Bebida"],
+    ["lanche",     "🍔 Lanche"],
+    ["pizza",      "🍕 Pizza"],
+    ["acai",       "🍇 Açaí"],
+    ["shake",      "🥤 Shake"],
+    ["suco",       "🍊 Suco"],
+    ["sorvete",    "🍦 Sorvete"],
+    ["montavel",   "🥗 Montável"],
+    ["combo",      "⭐ Combo"],
+    ["variacoes",  "🎨 Multi-variação"],
+    ["kg",         "⚖️ Venda por Kg"],
+    ["roupa",      "👕 Roupa"],
+    ["eletronico", "🔌 Eletrônico"],
+    ["suplemento", "💪 Suplemento"],
+    ["pod",        "☁️ Pod/Tabacaria"],
+    ["mercado",    "🛒 Mercado"],
+  ].map(([k, l]) => _chk("data-feat-tipo", k, tipos[k], l, "#fdf9ff")).join("");
 
-  const chkFuncs = [
-    ["delivery", "Delivery"],
-    ["retirada", "Retirada"],
-    ["local", "Comer no Local"],
-    ["balcao", "Balcão/PDV"],
-    ["cupons", "Cupons"],
-    ["factura", "Factura"],
-    ["multipagamento", "Multipagamento"],
-    ["agendamento", "Agendamento"],
-  ]
-    .map(
-      ([
-        k,
-        l,
-      ]) => `<label style="display:flex;align-items:center;gap:8px;padding:6px;background:#f9f9f9;border-radius:6px">
-    <input type="checkbox" data-feat-func="${k}" ${funcs[k] !== false ? "checked" : ""} style="width:18px;height:18px">
-    <span>${l}</span></label>`,
-    )
-    .join("");
-
+  // ── Formas de pagamento ───────────────────────────────────────────
   const pags = f.pagamentos || {};
   const chkPags = [
-    ["Efetivo", "💵 Efectivo/Dinheiro"],
-    ["Cartao", "💳 Tarjeta PY"],
-    ["CartaoBR", "💳🇧🇷 Cartão Brasileiro (R$)"],
-    ["Pix", "🟢 Pix (BR)"],
-    ["Transferencia", "🏦 Alias/Transferência PY"],
-    ["QrPy", "📱 QR Paraguay"],
+    ["Efetivo",        "💵 Efectivo/Dinheiro"],
+    ["Cartao",         "💳 Tarjeta PY"],
+    ["CartaoBR",       "💳🇧🇷 Cartão BR (R$)"],
+    ["Pix",            "🟢 Pix (BR)"],
+    ["Transferencia",  "🏦 Alias/Transferência PY"],
+    ["QrPy",           "📱 QR Paraguay"],
     ["Multipagamento", "🔀 Dividir Pagamento"],
-  ]
-    .map(
-      ([k, l]) =>
-        `<label style="display:flex;align-items:center;gap:8px;padding:6px;background:#f9f9f9;border-radius:6px">
-      <input type="checkbox" data-feat-pag="${k}" ${pags[k] !== false ? "checked" : ""} style="width:18px;height:18px">
-      <span>${l}</span></label>`,
-    )
-    .join("");
+  ].map(([k, l]) => _chk("data-feat-pag", k, pags[k], l, "#f0fff4")).join("");
+
+  // ── Funcionalidades ───────────────────────────────────────────────
+  const chkFuncs = [
+    ["delivery",       "🛵 Delivery"],
+    ["retirada",       "🏃 Retirada"],
+    ["local",          "🍽️ Comer no Local"],
+    ["balcao",         "🏪 Balcão/PDV"],
+    ["cupons",         "🎟️ Cupons"],
+    ["factura",        "🧾 Factura PY"],
+    ["multipagamento", "🔀 Multipagamento"],
+    ["agendamento",    "📅 Agendamento"],
+  ].map(([k, l]) => _chk("data-feat-func", k, funcs[k], l, "#fffbf0")).join("");
+
+  const _sec = (title, subtitle, grid, bg = "#fff") =>
+    `<div style="background:${bg};border:1.5px solid #e8eaf6;border-radius:12px;padding:16px 18px">
+      <h4 style="margin:0 0 4px;color:#2c3e50;font-size:0.93rem;font-weight:700">${title}</h4>
+      ${subtitle ? `<p style="font-size:0.78rem;color:#999;margin:0 0 10px">${subtitle}</p>` : "<div style='height:10px'></div>"}
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:7px">${grid}</div>
+    </div>`;
 
   const html = `
-    <div style="display:grid;gap:20px">
-      <div>
-        <h4 style="margin-bottom:10px;color:#2c3e50">📂 Abas visíveis</h4>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px">${chkTabs}</div>
+    <div style="display:grid;gap:14px">
+      ${_sec("📂 Abas visíveis", "Controla o menu lateral para todos os cargos abaixo de adminMaster", chkTabs)}
+      ${_sec("💳 Formas de Pagamento", "App do cliente <strong>e</strong> PDV balcão + filtro financeiro", chkPags)}
+      ${_sec("🏷️ Tipos de Produto permitidos", "Quais tipos podem ser criados no cardápio", chkTipos)}
+      ${_sec("⚙️ Funcionalidades", "Oculta recursos específicos da interface", chkFuncs)}
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="salvarFeatures()" style="flex:1;min-width:160px">
+          <i class="fas fa-save"></i> Salvar Configurações
+        </button>
+        <button class="btn" onclick="renderPainelFeatures()"
+          style="background:#f0f4ff;color:#2c3e50;border:1.5px solid #c5cae9">
+          <i class="fas fa-sync"></i> Recarregar
+        </button>
       </div>
-      <div>
-        <h4 style="margin-bottom:10px;color:#2c3e50">💳 Formas de Pagamento</h4>
-        <p style="font-size:0.8rem;color:#888;margin-bottom:8px">Controla o que aparece no app do cliente <strong>e</strong> no PDV</p>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px">${chkPags}</div>
-      </div>
-      <div>
-        <h4 style="margin-bottom:10px;color:#2c3e50">🏷️ Tipos de produto permitidos</h4>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px">${chkTipos}</div>
-      </div>
-      <div>
-        <h4 style="margin-bottom:10px;color:#2c3e50">⚙️ Funcionalidades</h4>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px">${chkFuncs}</div>
-      </div>
-      <button class="btn btn-primary" onclick="salvarFeatures()"><i class="fas fa-save"></i> Salvar Features</button>
     </div>`;
   targets.forEach((el) => {
     el.innerHTML = html;
@@ -1644,6 +1695,14 @@ async function calcularFinanceiro() {
   const tipoFiltro    = elTipo.value;
   const facturaFiltro = elFactura ? elFactura.value : "todos";
 
+  // ── Oculta/exibe elementos exclusivos de gestor na UI ─────────────
+  const _elFiltrosGestor = document.getElementById("fin-filtros-gestor");
+  if (_elFiltrosGestor) _elFiltrosGestor.style.display = ehGestor ? "" : "none";
+  const _elSecDespesas = document.getElementById("secao-despesas-caixa");
+  if (_elSecDespesas) _elSecDespesas.style.display = ehGestor ? "" : "none";
+  const _elSecMotoboys = document.getElementById("secao-motoboys-financeiro");
+  if (_elSecMotoboys) _elSecMotoboys.style.display = ehGestor ? "" : "none";
+
   // ── 4. Busca pedidos dentro da janela da sessão ───────────────────
   let query = supa
     .from("pedidos")
@@ -1654,9 +1713,8 @@ async function calcularFinanceiro() {
 
   if (tipoFiltro !== "todos") query = query.eq("forma_pagamento", tipoFiltro);
 
-  // Funcionário: filtra apenas pedidos relacionados ao seu usuário
-  // (via mesa/operador, se seu schema tiver esse campo — ajuste o campo se necessário)
-  // if (!ehGestor) query = query.eq("operador_email", emailAtual);
+  // Funcionário: filtra apenas pedidos do próprio caixa via garcom_id (= _perfilId)
+  if (!ehGestor && _perfilId) query = query.eq("garcom_id", _perfilId);
 
   const { data: pedidos } = await query;
   let peds = pedidos || [];
@@ -2808,6 +2866,181 @@ function enviarRotaZap() {
 let _todosProdutos = [];
 let _produtosMap = {}; // mapa id→produto para onclick seguro sem JSON inline
 
+// ════════════════════════════════════════════════════════════════
+// EXPORT / IMPORT DE PRODUTOS
+// ════════════════════════════════════════════════════════════════
+
+/**
+ * Exporta todos os produtos em JSON (backup completo) ou CSV (planilha).
+ * @param {"json"|"csv"} formato
+ */
+async function exportarProdutos(formato = "json") {
+  const btnEl = document.getElementById("btn-exportar-produtos");
+  if (btnEl) { btnEl.disabled = true; btnEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Exportando...'; }
+
+  try {
+    const { data: prods, error } = await supa
+      .from("produtos")
+      .select("*")
+      .order("nome");
+
+    if (error) throw error;
+    if (!prods?.length) { alert("Nenhum produto encontrado para exportar."); return; }
+
+    const hoje = new Date();
+    const stamp = `${hoje.getFullYear()}${String(hoje.getMonth()+1).padStart(2,"0")}${String(hoje.getDate()).padStart(2,"0")}`;
+
+    if (formato === "json") {
+      // JSON completo — preserva montagem_config, adicionais, tudo
+      const payload = {
+        exportado_em: hoje.toISOString(),
+        total: prods.length,
+        produtos: prods.map(({ id, created_at, updated_at, ...p }) => p), // remove PKs
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `produtos_backup_${stamp}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      alert(`✅ ${prods.length} produtos exportados em JSON.`);
+
+    } else {
+      // CSV simplificado — campos planos para editar em planilha
+      const SEP = ";";
+      const cols = [
+        "nome","descricao","preco","categoria_slug","subcategoria_slug",
+        "ativo","pausado","destaque","somente_balcao","es_bebida",
+        "unidade_venda","promo_ativo","promo_tipo","promo_valor",
+        "ordem","montagem_config","adicionais"
+      ];
+      const header = cols.join(SEP);
+      const rows = prods.map(p =>
+        cols.map(c => {
+          let v = p[c];
+          if (v === null || v === undefined) return "";
+          if (typeof v === "object") v = JSON.stringify(v);
+          v = String(v).replace(/"/g, '""');
+          return v.includes(SEP) || v.includes('\n') || v.includes('"') ? `"${v}"` : v;
+        }).join(SEP)
+      );
+      const csv = "\uFEFF" + header + "\n" + rows.join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `produtos_${stamp}.csv`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      alert(`✅ ${prods.length} produtos exportados em CSV.\n\nDica: use o CSV para visualização/edição. Para restauração use o JSON.`);
+    }
+  } catch (e) {
+    console.error("exportarProdutos:", e);
+    alert("Erro ao exportar: " + (e.message || e));
+  } finally {
+    if (btnEl) { btnEl.disabled = false; btnEl.innerHTML = '<i class="fas fa-file-export"></i> Exportar'; }
+  }
+}
+
+/**
+ * Abre seletor de arquivo JSON e importa produtos.
+ * Modo: "inserir" (só novos) | "upsert" (atualiza pelo nome se já existir)
+ */
+function importarProdutos() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".json,application/json";
+  input.style.display = "none";
+  document.body.appendChild(input);
+
+  input.addEventListener("change", async () => {
+    const file = input.files?.[0];
+    document.body.removeChild(input);
+    if (!file) return;
+
+    const btnEl = document.getElementById("btn-importar-produtos");
+    if (btnEl) { btnEl.disabled = true; btnEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importando...'; }
+
+    try {
+      const texto = await file.text();
+      let payload;
+      try { payload = JSON.parse(texto); }
+      catch { throw new Error("Arquivo inválido — não é um JSON válido."); }
+
+      // Aceita tanto { produtos: [...] } quanto [...]
+      const lista = Array.isArray(payload) ? payload : (payload.produtos || []);
+      if (!lista.length) throw new Error("Nenhum produto encontrado no arquivo.");
+
+      const confirmMsg =
+        `📦 ${lista.length} produtos encontrados no arquivo.
+
+` +
+        `Escolha o modo de importação:
+` +
+        `• OK → Inserir apenas novos (não sobrescreve existentes)
+` +
+        `• Cancelar → Abortar importação`;
+
+      if (!confirm(confirmMsg)) return;
+
+      // Remove campos que não devem ser inseridos
+      const CAMPOS_IGNORAR = ["id", "created_at", "updated_at"];
+      const CAMPOS_VALIDOS = [
+        "nome","descricao","preco","imagem_url","categoria_slug","subcategoria_slug",
+        "ativo","pausado","somente_balcao","destaque","ordem","e_montavel","es_bebida",
+        "unidade_venda","montagem_config","adicionais","inventario_id","estoque_qtd",
+        "promo_ativo","promo_tipo","promo_valor"
+      ];
+
+      // Busca nomes existentes para evitar duplicatas
+      const { data: existentes } = await supa.from("produtos").select("nome");
+      const nomesExistentes = new Set((existentes || []).map(p => p.nome.toLowerCase().trim()));
+
+      const paraInserir = lista
+        .map(p => {
+          const limpo = {};
+          CAMPOS_VALIDOS.forEach(c => { if (p[c] !== undefined) limpo[c] = p[c]; });
+          // Garante campos obrigatórios com fallback
+          if (!limpo.nome) return null;
+          limpo.preco = limpo.preco || 0;
+          limpo.ativo = limpo.ativo !== false;
+          return limpo;
+        })
+        .filter(p => p && !nomesExistentes.has(p.nome.toLowerCase().trim()));
+
+      const ignorados = lista.length - paraInserir.length;
+
+      if (!paraInserir.length) {
+        alert(`⚠️ Todos os ${lista.length} produtos já existem (mesmo nome). Nada foi inserido.`);
+        return;
+      }
+
+      // Insere em lotes de 50 para não estourar o payload do Supabase
+      const LOTE = 50;
+      let inseridos = 0;
+      for (let i = 0; i < paraInserir.length; i += LOTE) {
+        const lote = paraInserir.slice(i, i + LOTE);
+        const { error } = await supa.from("produtos").insert(lote);
+        if (error) throw error;
+        inseridos += lote.length;
+      }
+
+      let msg = `✅ ${inseridos} produto(s) importado(s) com sucesso!`;
+      if (ignorados > 0) msg += `
+⏭️ ${ignorados} ignorado(s) por já existirem (mesmo nome).`;
+      alert(msg);
+      carregarProdutos();
+
+    } catch (e) {
+      console.error("importarProdutos:", e);
+      alert("Erro na importação: " + (e.message || e));
+    } finally {
+      if (btnEl) { btnEl.disabled = false; btnEl.innerHTML = '<i class="fas fa-file-import"></i> Importar'; }
+    }
+  });
+
+  input.click();
+}
+
 async function carregarProdutos() {
   const { data } = await supa.from("produtos").select("*").order("nome");
   _todosProdutos = data || [];
@@ -3384,6 +3617,61 @@ async function salvarProduto() {
   }
 }
 
+// ── Seletor visual de tipo de produto filtrado pelas features do AM ──
+function _renderSeletorTipoProduto(tipoAtual) {
+  const container = document.getElementById("prod-tipo-selector");
+  if (!container) return;
+
+  const TODOS_TIPOS = [
+    ["padrao",     "📦 Simples"],
+    ["bebida",     "🥤 Bebida"],
+    ["lanche",     "🍔 Lanche"],
+    ["pizza",      "🍕 Pizza"],
+    ["acai",       "🍇 Açaí"],
+    ["shake",      "🥤 Shake"],
+    ["suco",       "🍊 Suco"],
+    ["sorvete",    "🍦 Sorvete"],
+    ["montavel",   "🥗 Montável"],
+    ["combo",      "⭐ Combo"],
+    ["variacoes",  "🎨 Multi-variação"],
+    ["kg",         "⚖️ Kg"],
+    ["suplemento", "💪 Suplemento"],
+    ["combo_fechado", "📦 Combo Fechado"],
+  ];
+
+  const cfg = FEATURES_ATIVAS?.tipos_produto;
+  // Filtra bloqueados (sem config = tudo liberado)
+  let permitidos = TODOS_TIPOS.filter(([k]) => !cfg || cfg[k] !== false);
+
+  // Garante que o tipo atual (produto em edição) apareça mesmo se bloqueado
+  const tipoEfetivo = tipoAtual || "padrao";
+  if (!permitidos.some(([k]) => k === tipoEfetivo)) {
+    const label = Object.fromEntries(TODOS_TIPOS)[tipoEfetivo] || tipoEfetivo;
+    permitidos.unshift([tipoEfetivo, label + " ⚠️"]);
+  }
+
+  container.innerHTML = `
+    <div style="margin-bottom:12px">
+      <label style="font-size:0.8rem;font-weight:700;color:#666;display:block;margin-bottom:8px">
+        🏷️ Tipo de Produto
+      </label>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        ${permitidos.map(([k, l]) => `
+          <button type="button"
+            class="builder-type-btn${k === tipoEfetivo ? " active" : ""}"
+            data-tipo="${k}"
+            onclick="selecionarTipoBuilder('${k}')"
+            style="padding:6px 13px;border-radius:20px;font-size:0.82rem;cursor:pointer;
+              border:1.5px solid ${k === tipoEfetivo ? "#e74c3c" : "#ddd"};
+              background:${k === tipoEfetivo ? "#fff5f5" : "#fafafa"};
+              color:${k === tipoEfetivo ? "#c0392b" : "#555"};
+              font-weight:${k === tipoEfetivo ? "700" : "400"};transition:all .15s">
+            ${l}
+          </button>`).join("")}
+      </div>
+    </div>`;
+}
+
 async function abrirModalProduto(produto = null, tipoInicial = null) {
   const modal = document.getElementById("modal-produto");
 
@@ -3630,6 +3918,11 @@ async function abrirModalProduto(produto = null, tipoInicial = null) {
   await carregarSelectSubcategorias(catAtual, subcatAtual);
 
   modal.style.display = "flex";
+
+  // Seletor de tipo respeitando features do adminMaster
+  const _tipoParaSeletor = produto?.montagem_config?.__tipo || tipoInicial || null;
+  _renderSeletorTipoProduto(_tipoParaSeletor);
+  if (_tipoParaSeletor) selecionarTipoBuilder(_tipoParaSeletor);
 }
 
 // Mapa: tipo semântico → qual builder exibir
@@ -7117,7 +7410,7 @@ function pdvSelecionarTipo(tipo, btn) {
     .forEach((b) => b.classList.remove("active"));
   if (btn) btn.classList.add("active");
   const delivRow = document.getElementById("pdv-delivery-row");
-  if (delivRow) delivRow.style.display = tipo === "delivery" ? "" : "none";
+  if (delivRow) delivRow.style.display = tipo === "delivery" ? "block" : "none";
   atualizarCarrinhoPDV();
 }
 
@@ -7348,6 +7641,10 @@ function adicionarItemPDV(p) {
   }
   if (tipo === "montavel" && cfg.etapas?.length > 0) {
     _mostrarModalOpcoesPDV(p, "montavel");
+    return;
+  }
+  if (tipo === "combo_fechado" && cfg.sabores?.length > 0) {
+    _mostrarModalOpcoesPDV(p, "combo_fechado");
     return;
   }
 
@@ -7810,6 +8107,88 @@ function _mostrarModalOpcoesPDV(produto, tipo) {
       '<p style="color:#aaa;font-size:0.85rem">Nenhuma etapa configurada.</p>';
   }
 
+  // ── COMBO FECHADO ─────────────────────────────────────────────
+  else if (tipo === "combo_fechado") {
+    const limite = cfg.limite_total || 0;
+    const sabores = cfg.sabores || [];
+
+    // Contador global de itens selecionados
+    window._pdvCfContadores = {};
+    sabores.forEach((s) => { window._pdvCfContadores[s.id || s.nome] = 0; });
+
+    const _cfTotal = () => Object.values(window._pdvCfContadores).reduce((a, b) => a + b, 0);
+
+    const _cfAtualizarHeader = () => {
+      const tot = _cfTotal();
+      const headerEl = modal.querySelector("#_pdv_cf_header");
+      if (headerEl) {
+        headerEl.textContent = `${tot} / ${limite} selecionados`;
+        headerEl.style.color = tot === limite ? "#1a7a2e" : "#555";
+        headerEl.style.fontWeight = tot === limite ? "800" : "600";
+      }
+      // Botão Adicionar só habilita quando total === limite
+      const btn = modal.querySelector("#_pdv-modal-add");
+      if (btn) {
+        btn.disabled = tot !== limite;
+        btn.style.opacity = tot !== limite ? "0.45" : "1";
+      }
+    };
+
+    let html = `
+      <div id="_pdv_cf_header_wrap" style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:10px 14px;text-align:center;margin-bottom:14px">
+        <div id="_pdv_cf_header" style="font-size:1rem;font-weight:600;color:#555">0 / ${limite} selecionados</div>
+      </div>
+      <p style="font-size:0.82rem;font-weight:700;color:#1a7a2e;margin-bottom:10px">📦 Distribua ${limite} ${limite === 1 ? "item" : "itens"} entre os sabores:</p>
+      <div style="display:flex;flex-direction:column;gap:8px" id="_pdv_cf_sabores">
+        ${sabores.map((s) => {
+          const key = s.id || s.nome;
+          return `
+          <div style="display:flex;align-items:center;justify-content:space-between;border:1.5px solid #e5e7eb;border-radius:10px;padding:10px 12px;background:#fff" data-cf-key="${key}">
+            <div style="font-size:0.92rem;font-weight:600;color:#1a1a1a;flex:1">${s.nome}</div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <button type="button"
+                style="width:32px;height:32px;border-radius:50%;border:1.5px solid #d1d5db;background:#f3f4f6;font-size:1.1rem;font-weight:700;cursor:pointer;color:#374151;display:flex;align-items:center;justify-content:center;line-height:1"
+                onclick="(function(btn){
+                  var key='${key}';
+                  var cur=window._pdvCfContadores[key]||0;
+                  if(cur<=0)return;
+                  window._pdvCfContadores[key]=cur-1;
+                  btn.closest('[data-cf-key]').querySelector('.cf-qtd-val').textContent=window._pdvCfContadores[key];
+                  var row=btn.closest('[data-cf-key]');
+                  row.style.borderColor=window._pdvCfContadores[key]>0?'#1a7a2e':'#e5e7eb';
+                  row.style.background=window._pdvCfContadores[key]>0?'#f0fdf4':'#fff';
+                  if(typeof _pdvCfAtualizarHeader_${cacheKey}==='function')_pdvCfAtualizarHeader_${cacheKey}();
+                })(this)">−</button>
+              <span class="cf-qtd-val" style="font-size:1rem;font-weight:800;color:#1a1a1a;min-width:24px;text-align:center">0</span>
+              <button type="button"
+                style="width:32px;height:32px;border-radius:50%;border:1.5px solid #1a7a2e;background:#f0fdf4;font-size:1.1rem;font-weight:700;cursor:pointer;color:#1a7a2e;display:flex;align-items:center;justify-content:center;line-height:1"
+                onclick="(function(btn){
+                  var key='${key}';
+                  var total=${limite};
+                  var cur=window._pdvCfContadores[key]||0;
+                  var tot=Object.values(window._pdvCfContadores).reduce(function(a,b){return a+b;},0);
+                  if(tot>=total)return;
+                  window._pdvCfContadores[key]=cur+1;
+                  btn.closest('[data-cf-key]').querySelector('.cf-qtd-val').textContent=window._pdvCfContadores[key];
+                  var row=btn.closest('[data-cf-key]');
+                  row.style.borderColor='#1a7a2e';
+                  row.style.background='#f0fdf4';
+                  if(typeof _pdvCfAtualizarHeader_${cacheKey}==='function')_pdvCfAtualizarHeader_${cacheKey}();
+                })(this)">+</button>
+            </div>
+          </div>`;
+        }).join("")}
+      </div>`;
+
+    corpo().innerHTML = html;
+
+    // Expõe o updater com chave única para ser chamado pelos onclick inline
+    window[`_pdvCfAtualizarHeader_${cacheKey}`] = _cfAtualizarHeader;
+
+    // Estado inicial do botão (desabilitado até completar)
+    _cfAtualizarHeader();
+  }
+
   overlay.appendChild(modal);
   document.body.appendChild(overlay);
 }
@@ -7943,6 +8322,25 @@ function _pdvModalConfirmar(cacheKey) {
       if (item?.preco) preco += item.preco;
       montagem.push(nome);
     });
+  } else if (tipo === "combo_fechado") {
+    // Valida que o total bate com o limite
+    const limite = cfg.limite_total || 0;
+    const contadores = window._pdvCfContadores || {};
+    const totalSel = Object.values(contadores).reduce((a, b) => a + b, 0);
+    if (totalSel !== limite) {
+      alert(`⚠️ Distribua exatamente ${limite} ${limite === 1 ? "item" : "itens"} entre os sabores.`);
+      return;
+    }
+    // Monta a descrição: só sabores com qtd > 0
+    (cfg.sabores || []).forEach((s) => {
+      const key = s.id || s.nome;
+      const qtd = contadores[key] || 0;
+      if (qtd > 0) {
+        montagem.push(qtd > 1 ? `${s.nome} (×${qtd})` : s.nome);
+      }
+    });
+    // Usa o preço base do produto — sem acréscimo por sabor
+    preco = produto.preco || 0;
   }
 
   carrinhoPDV.push({
@@ -8649,6 +9047,76 @@ function pdvEditarObs(idx) {
   atualizarCarrinhoPDV();
 }
 
+// ── Limpa carrinho e reseta todos os campos do PDV ──────────────
+function limparCarrinhoPDV() {
+  if (carrinhoPDV.length > 0 && !confirm("Cancelar o pedido atual?")) return;
+
+  carrinhoPDV = [];
+  window._mesaAbertaId   = null;
+  window._mesaAbertaTotal = 0;
+  window._mesaAbertaPedido = null;
+
+  // Campos do cliente
+  const _set = (id, val = "") => { const el = document.getElementById(id); if (el) el.value = val; };
+  _set("balcao-cliente"); _set("balcao-mesa"); _set("balcao-telefone");
+  _set("balcao-endereco"); _set("balcao-geo-lat"); _set("balcao-geo-lng");
+  _set("balcao-frete"); _set("pdv-desconto-val"); _set("balcao-gmaps-link");
+  const _btnAbrirGmaps = document.getElementById("btn-abrir-gmaps");
+  if (_btnAbrirGmaps) { _btnAbrirGmaps.style.display = "none"; _btnAbrirGmaps.href = "#"; }
+  const descTipo = document.getElementById("pdv-desconto-tipo");
+  if (descTipo) descTipo.value = "fixo";
+
+  // Reset pagamento
+  const selPag = document.getElementById("balcao-pag");
+  if (selPag) { selPag.value = "Efetivo"; selPag.style.display = ""; }
+  const boxMulti = document.getElementById("box-multi-pdv");
+  if (boxMulti) boxMulti.style.display = "none";
+  const multiPartes = document.getElementById("multi-partes-pdv");
+  if (multiPartes) multiPartes.innerHTML = "";
+  if (typeof _multiContadorPDV !== "undefined") _multiContadorPDV = 0;
+
+  // Reset box efetivo / troco
+  _set("pdv-valor-recebido");
+  const trocoRow = document.getElementById("pdv-troco-row");
+  if (trocoRow) trocoRow.style.display = "none";
+  const efetivoBox = document.getElementById("pdv-efetivo-box");
+  if (efetivoBox) efetivoBox.style.display = "none";
+
+  // Reset delivery row
+  const delivRow = document.getElementById("pdv-delivery-row");
+  if (delivRow) delivRow.style.display = "none";
+  const freteMsg = document.getElementById("frete-msg-pdv");
+  if (freteMsg) freteMsg.innerHTML = "";
+
+  // Reset tipo entrega visual
+  document.querySelectorAll(".pdv-tipo-tab").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.tipo === "balcao");
+  });
+  const tipoHidden = document.getElementById("balcao-tipo-entrega");
+  if (tipoHidden) tipoHidden.value = "balcao";
+
+  // Atualiza UI do carrinho
+  atualizarCarrinhoPDV();
+  atualizarBarraMesasAtivas?.();
+}
+
+// ── Altera quantidade de item no carrinho PDV ────────────────────
+function pdvAlterarQtd(idx, delta) {
+  if (!carrinhoPDV[idx]) return;
+  const novaQtd = carrinhoPDV[idx].qtd + delta;
+  if (novaQtd <= 0) {
+    if (!confirm("Remover este item do pedido?")) return;
+    carrinhoPDV.splice(idx, 1);
+  } else {
+    carrinhoPDV[idx].qtd = novaQtd;
+    // Recalcular preço a partir do unitário original
+    if (carrinhoPDV[idx]._precoUnitario !== undefined) {
+      carrinhoPDV[idx].preco = carrinhoPDV[idx]._precoUnitario * novaQtd;
+    }
+  }
+  atualizarCarrinhoPDV();
+}
+
 function atualizarCarrinhoPDV() {
   const lista = document.getElementById("pdv-lista");
   const totalEl = document.getElementById("balcao-total");
@@ -8659,7 +9127,6 @@ function atualizarCarrinhoPDV() {
 
   const cashDesc = pdvGetCashbackDesconto(total);
   total = Math.max(0, total - cashDesc);
-  // Se quiser exibir linha de cashback no resumo, atualize o elemento:
   const elCash = document.getElementById("pdv-row-cashback");
   if (elCash) {
     elCash.style.display = cashDesc > 0 ? "flex" : "none";
@@ -8667,18 +9134,35 @@ function atualizarCarrinhoPDV() {
     if (elCashVal) elCashVal.textContent = cashDesc.toLocaleString("es-PY");
   }
 
+  // ── Helper: cria card de item ────────────────────────────────
+  const _fmtGs = (v) => "Gs " + v.toLocaleString("es-PY");
+  const _fmtPeso = (g) =>
+    g >= 1000 ? (g/1000).toFixed(3).replace(/\.?0+$/,"").replace(".",",")+" kg" : g+"g";
+
+  const _criarCard = (nome, sub, precoUnit, precoTotal, acoes, extraClass="") => {
+    const d = document.createElement("div");
+    d.className = "pdv-card-item" + (extraClass ? " "+extraClass : "");
+    d.innerHTML = `
+      <div class="pdv-card-topo">
+        <div class="pdv-card-nome">${nome}${sub ? `<span class="pdv-card-sub">${sub}</span>` : ""}</div>
+        <div class="pdv-card-preco-total">${_fmtGs(precoTotal)}</div>
+      </div>
+      ${precoUnit !== null ? `<div class="pdv-card-unit">${_fmtGs(precoUnit)} / un.</div>` : ""}
+      <div class="pdv-card-acoes">${acoes}</div>`;
+    return d;
+  };
+
   // ── Itens existentes da mesa (snapshot do DB) ──────────────────
   const itensExistentes = window._mesaAbertaPedido
     ? Array.isArray(window._mesaAbertaPedido.itens)
-      ? window._mesaAbertaPedido.itens
-      : []
+      ? window._mesaAbertaPedido.itens : []
     : [];
 
   if (itensExistentes.length > 0) {
-    const secTitle = document.createElement("tr");
-    secTitle.innerHTML =
-      '<td colspan="4" class="pdv-sec-title">Itens já lançados</td>';
-    lista.appendChild(secTitle);
+    const sec = document.createElement("div");
+    sec.className = "pdv-sec-title";
+    sec.textContent = "Itens já lançados";
+    lista.appendChild(sec);
 
     itensExistentes.forEach((item, idx) => {
       const entregue = item.status_item === "entregue";
@@ -8687,64 +9171,58 @@ function atualizarCarrinhoPDV() {
       const preco = item.preco || item.p || 0;
       total += preco * qtd;
 
-      const row = document.createElement("tr");
-      row.className =
-        "pdv-item-existente" + (entregue ? " pdv-item-entregue" : "");
-      row.innerHTML = `
-        <td class="pdv-item-nome">${nome}${entregue ? ' <span class="badge-entregue">✓</span>' : ""}</td>
-        <td class="tc">${qtd}</td>
-        <td class="tr" style="font-size:0.7rem;color:#666">Gs ${preco.toLocaleString("es-PY")}</td>
-        <td class="tr">Gs ${(preco * qtd).toLocaleString("es-PY")}
-          ${!entregue ? `<button class="pdv-item-remove" title="Baixar" onclick="baixarItemMesa(${window._mesaAbertaId},${idx})"><i class="fas fa-check" style="color:#27ae60"></i></button>` : ""}
-        </td>`;
-      lista.appendChild(row);
+      const acoes = entregue
+        ? `<span class="pdv-badge-entregue">✓ Entregue</span>`
+        : `<button class="pdv-card-btn pdv-card-btn-ok" onclick="baixarItemMesa(${window._mesaAbertaId},${idx})">
+            <i class="fas fa-check"></i> Baixar</button>`;
+
+      lista.appendChild(_criarCard(
+        nome + (entregue ? ' <span class="pdv-badge-entregue">✓</span>' : ""),
+        `${qtd}× un.`, preco, preco*qtd, acoes,
+        "pdv-card-existente" + (entregue ? " pdv-card-entregue" : "")
+      ));
     });
   }
 
-  // ── Novos itens sendo adicionados (carrinhoPDV) ────────────────
+  // ── Novos itens (carrinhoPDV) ──────────────────────────────────
   if (carrinhoPDV.length > 0) {
-    const secTitle2 = document.createElement("tr");
-    secTitle2.innerHTML = `<td colspan="4" class="pdv-sec-title pdv-sec-novo">${itensExistentes.length > 0 ? "+ Novos itens" : "Itens do pedido"}</td>`;
-    lista.appendChild(secTitle2);
+    const sec2 = document.createElement("div");
+    sec2.className = "pdv-sec-title pdv-sec-novo";
+    sec2.textContent = itensExistentes.length > 0 ? "+ Novos itens" : "Itens do pedido";
+    lista.appendChild(sec2);
 
     carrinhoPDV.forEach((item, idx) => {
       total += item.preco * item.qtd;
-      const row = document.createElement("tr");
-      const obsHtml = item.obs
-        ? `<div style="font-size:0.68rem;color:#6b7280;font-style:italic;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px">📝 ${item.obs}</div>`
-        : '';
+      const obsHtml = item.obs ? `<span class="pdv-card-obs">📝 ${item.obs}</span>` : "";
+      let sub, precoUnit, acoes;
+
       if (item._isKg) {
-        const g = item.peso_gramas || 0;
-        const pesofmt =
-          g >= 1000
-            ? (g / 1000)
-                .toFixed(3)
-                .replace(/\.?0+$/, "")
-                .replace(".", ",") + "kg"
-            : g + "g";
-        row.innerHTML = `
-          <td class="pdv-item-nome"><span style="color:#0891b2;font-size:0.72rem">⚖️ ${pesofmt}</span> ${item.nome}${obsHtml}</td>
-          <td class="tc" style="color:#0891b2;font-size:0.7rem">kg</td>
-          <td class="tr" style="font-size:0.7rem;color:#666">—</td>
-          <td class="tr" style="white-space:nowrap">Gs ${item.preco.toLocaleString("es-PY")}
-            <button class="pdv-item-edit" onclick="pdvEditarObs(${idx})" title="Observação">✏️</button>
-            <button class="pdv-item-remove" onclick="removerItemPDV(${idx})" title="Remover">✕</button></td>`;
+        sub = "⚖️ " + _fmtPeso(item.peso_gramas || 0);
+        precoUnit = null;
+        acoes = `<button class="pdv-card-btn pdv-card-btn-edit" onclick="pdvEditarObs(${idx})">✏️ Editar</button>
+                 <button class="pdv-card-btn pdv-card-btn-del" onclick="removerItemPDV(${idx})">🗑️ Excluir</button>`;
       } else {
-        row.innerHTML = `
-          <td class="pdv-item-nome">${item.nome}${obsHtml}</td>
-          <td class="tc pdv-item-qtd">${item.qtd}×</td>
-          <td class="tr" style="font-size:0.7rem;color:#666">Gs ${item.preco.toLocaleString("es-PY")}</td>
-          <td class="tr" style="white-space:nowrap">Gs ${(item.preco * item.qtd).toLocaleString("es-PY")}
-            <button class="pdv-item-edit" onclick="pdvEditarObs(${idx})" title="Observação">✏️</button>
-            <button class="pdv-item-remove" onclick="removerItemPDV(${idx})" title="Remover">✕</button></td>`;
+        sub = null;
+        precoUnit = item._precoUnitario !== undefined ? item._precoUnitario : item.preco / item.qtd;
+        acoes = `
+          <div class="pdv-card-qtd-ctrl">
+            <button class="pdv-card-qtd-btn" onclick="pdvAlterarQtd(${idx},-1)">−</button>
+            <span class="pdv-card-qtd-val">${item.qtd}</span>
+            <button class="pdv-card-qtd-btn" onclick="pdvAlterarQtd(${idx},+1)">+</button>
+          </div>
+          <button class="pdv-card-btn pdv-card-btn-edit" onclick="pdvEditarObs(${idx})">✏️ Editar</button>
+          <button class="pdv-card-btn pdv-card-btn-del" onclick="removerItemPDV(${idx})">🗑️ Excluir</button>`;
       }
-      lista.appendChild(row);
+
+      lista.appendChild(_criarCard(item.nome + obsHtml, sub, precoUnit, item.preco * item.qtd, acoes));
     });
   }
 
   if (itensExistentes.length === 0 && carrinhoPDV.length === 0) {
-    lista.innerHTML =
-      '<tr><td colspan="4" class="pdv-lista-vazio">Nenhum item adicionado.</td></tr>';
+    const vazio = document.createElement("div");
+    vazio.className = "pdv-lista-vazio";
+    vazio.textContent = "Nenhum item adicionado.";
+    lista.appendChild(vazio);
   }
 
   if (totalEl) totalEl.innerText = total.toLocaleString("es-PY");
@@ -8809,12 +9287,17 @@ function atualizarInfoPagPDV(total) {
 
   // Mostrar/ocultar box Efetivo (valor recebido + troco)
   const efetivoBox = document.getElementById("pdv-efetivo-box");
+  const recebidoInput = document.getElementById("pdv-valor-recebido");
+  const trocoRow = document.getElementById("pdv-troco-row");
   if (efetivoBox) {
     if (pag === "Efetivo") {
       efetivoBox.style.display = "block";
+      if (recebidoInput) recebidoInput.focus();
       pdvCalcTroco();
     } else {
       efetivoBox.style.display = "none";
+      if (recebidoInput) recebidoInput.value = "";
+      if (trocoRow) trocoRow.style.display = "none";
     }
   }
 
@@ -9283,6 +9766,13 @@ async function salvarPedidoBalcao() {
   document.getElementById("balcao-pag").style.display = "";
   const boxMultiPDV = document.getElementById("box-multi-pdv");
   if (boxMultiPDV) boxMultiPDV.style.display = "none";
+  // Reset box efetivo / troco
+  const _recEl = document.getElementById("pdv-valor-recebido");
+  const _trEl  = document.getElementById("pdv-troco-row");
+  const _efEl  = document.getElementById("pdv-efetivo-box");
+  if (_recEl) _recEl.value = "";
+  if (_trEl)  _trEl.style.display = "none";
+  if (_efEl)  _efEl.style.display = "none";
   atualizarCarrinhoPDV();
   atualizarBarraMesasAtivas();
   carregarMonitorMesas();
@@ -10997,8 +11487,12 @@ function toggleDeliveryRowPDV(tipo) {
   if (tipo !== "delivery") {
     const freteInput = document.getElementById("balcao-frete");
     const msg = document.getElementById("frete-msg-pdv");
+    const gmapsLink = document.getElementById("balcao-gmaps-link");
+    const btnAbrir = document.getElementById("btn-abrir-gmaps");
     if (freteInput) freteInput.value = "";
     if (msg) msg.innerHTML = "";
+    if (gmapsLink) gmapsLink.value = "";
+    if (btnAbrir) { btnAbrir.style.display = "none"; btnAbrir.href = "#"; }
   }
   atualizarCarrinhoPDV();
 }
@@ -11018,52 +11512,68 @@ async function obterDistanciaPelaRota(latDestino, lngDestino) {
   }
 }
 
+// ── Helper: extrai lat/lng de um link do Google Maps ─────────────────
+function _extrairCoordsGmaps(linkStr) {
+  if (!linkStr) return { lat: null, lng: null };
+  const patterns = [
+    /[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/,
+    /@(-?\d+\.?\d*),(-?\d+\.?\d*)/,
+    /\/place\/[^/@]*\/@(-?\d+\.?\d*),(-?\d+\.?\d*)/,
+    /maps\?.*ll=(-?\d+\.?\d*),(-?\d+\.?\d*)/,
+  ];
+  for (const rx of patterns) {
+    const m = linkStr.match(rx);
+    if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
+  }
+  return { lat: null, lng: null };
+}
+
+// ── Helper: chamado quando o usuario cola/digita no campo link gmaps ──
+function pdvOnGmapsLinkInput(val) {
+  const btnAbrir = document.getElementById("btn-abrir-gmaps");
+  const v = (val || "").trim();
+  if (!btnAbrir) return;
+  if (v.startsWith("http")) {
+    btnAbrir.href = v;
+    btnAbrir.style.display = "inline-flex";
+  } else {
+    btnAbrir.style.display = "none";
+  }
+}
+
 async function calcularFretePDV() {
   const btn = document.getElementById("btn-gps-pdv");
   const msg = document.getElementById("frete-msg-pdv");
   const freteInput = document.getElementById("balcao-frete");
 
   btn.disabled = true;
-  btn.innerText = "⏳";
+  btn.innerHTML = "⏳";
   msg.innerHTML = '<span style="color:#888">Localizando...</span>';
 
-  // ── Tenta extrair coordenadas do link colado no campo endereço ────────
+  // ── Tenta extrair coordenadas: primeiro do campo Google Maps Link,
+  //    depois do campo endereço (retro-compatibilidade)
+  const gmapsLinkVal = (
+    document.getElementById("balcao-gmaps-link")?.value || ""
+  ).trim();
   const endVal = (
     document.getElementById("balcao-endereco")?.value || ""
   ).trim();
-  let lat = null,
-    lng = null;
 
-  if (endVal) {
-    // Formatos comuns do Google Maps:
-    // https://maps.google.com/?q=-25.2867,-57.6471
-    // https://www.google.com/maps/@-25.2867,-57.6471,17z
-    // https://goo.gl/maps/... (encurtado — não parseable sem request)
-    // https://maps.app.goo.gl/... (novo encurtado)
-    // https://www.google.com/maps/place/.../@-25.2867,-57.6471,...
-    const patterns = [
-      /[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/,
-      /@(-?\d+\.?\d*),(-?\d+\.?\d*)/,
-      /\/place\/[^/@]*\/@(-?\d+\.?\d*),(-?\d+\.?\d*)/,
-      /maps\?.*ll=(-?\d+\.?\d*),(-?\d+\.?\d*)/,
-    ];
-    for (const rx of patterns) {
-      const m = endVal.match(rx);
-      if (m) {
-        lat = parseFloat(m[1]);
-        lng = parseFloat(m[2]);
-        break;
-      }
-    }
+  // Prioridade: campo gmaps-link → campo endereço (pode conter link tb)
+  let { lat, lng } = _extrairCoordsGmaps(gmapsLinkVal);
+  if (lat === null) {
+    const fromEnd = _extrairCoordsGmaps(endVal);
+    lat = fromEnd.lat;
+    lng = fromEnd.lng;
   }
 
   // ── Se não extraiu do link, usa GPS do dispositivo ────────────────────
   if (lat === null || lng === null) {
     if (!navigator.geolocation) {
       msg.innerHTML =
-        '<span style="color:#e74c3c">Cole um link do Google Maps ou use um celular com GPS</span>';
+        '<span style="color:#e74c3c">Cole um link do Google Maps no campo acima ou use um celular com GPS</span>';
       btn.disabled = false;
-      btn.innerText = "📍 Rota";
+      btn.innerHTML = "📍 Calcular";
       return;
     }
     let position;
@@ -11076,9 +11586,9 @@ async function calcularFretePDV() {
       );
     } catch {
       msg.innerHTML =
-        '<span style="color:#e74c3c">Cole um link do Google Maps no campo endereço, ou permita o GPS</span>';
+        '<span style="color:#e74c3c">Cole um link do Google Maps no campo acima, ou permita o GPS</span>';
       btn.disabled = false;
-      btn.innerText = "📍 Rota";
+      btn.innerHTML = "📍 Calcular";
       return;
     }
     lat = position.coords.latitude;
@@ -11129,7 +11639,7 @@ async function calcularFretePDV() {
     msg.innerHTML = `<span style="color:#e67e22">⚠️ ${dist.toFixed(1)}km (${nota}) — combinar frete</span>`;
     freteInput.value = "";
     btn.disabled = false;
-    btn.innerText = "📍 Rota";
+    btn.innerHTML = "📍 Calcular";
     atualizarCarrinhoPDV();
     return;
   }
@@ -11149,7 +11659,7 @@ async function calcularFretePDV() {
   const aviso = usouRota ? "" : ' <em style="color:#e67e22">(estimativa)</em>';
   msg.innerHTML = `<span style="color:#27ae60">✅ ${dist.toFixed(1)}km ${nota} → Gs ${frete.toLocaleString("es-PY")}</span>${aviso}`;
   btn.disabled = false;
-  btn.innerText = "📍 Rota";
+  btn.innerHTML = "📍 Calcular";
   atualizarCarrinhoPDV();
 }
 

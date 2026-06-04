@@ -3225,6 +3225,17 @@ function _executarGetPosition(btn, msg, boxErro) {
       }
 
       if (TABELA_FRETE && TABELA_FRETE[freteIndex] !== undefined) {
+        // Verifica se a faixa está marcada como "a combinar" no admin
+        if (TABELA_FRETE[freteIndex].acombinar === true) {
+          freteCalculado = -1; // sentinela: a combinar
+          msg.innerHTML = `<span style="color:#e67e22">⚠️ Distância: ${dist.toFixed(1)}km — Frete <strong>a combinar</strong> pelo WhatsApp.</span>`;
+          msg.style.color = "#e67e22";
+          boxErro.style.display = "none";
+          btn.innerText = "✅ Localização OK";
+          btn.disabled = false;
+          atualizarTotalCheckout();
+          return;
+        }
         freteCalculado = TABELA_FRETE[freteIndex].loja || 0;
         freteMotoboy = TABELA_FRETE[freteIndex].motoboy || 0;
       } else {
