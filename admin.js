@@ -9701,7 +9701,7 @@ async function salvarPedidoBalcao() {
     const dadosImpressao = {
       id: novoPedido.id,
       cliente: { nome: nomeFinal, tel: tel },
-      entrega: { tipo: "balcao", ref: pedido.endereco_entrega },
+      entrega: { tipo: tipoEntregaPDV, ref: pedido.endereco_entrega },
       itens: novosItens.map((i) => ({
         q: i.qtd || 1,
         n: i.nome,
