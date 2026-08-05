@@ -190,21 +190,30 @@
         <div class="menu-item" id="menu-cozinha" onclick="showTab('cozinha', event)">
           <i class="fas fa-fire"></i><span class="mobile-hide sidebar-label" data-i18n="sidebar.cozinha"> Cozinha</span>
         </div>
-
-        <div class="menu-item restrito-gerente" id="menu-equipe" onclick="showTab('equipe', event)">
-          <i class="fas fa-users"></i><span class="mobile-hide sidebar-label" data-i18n="sidebar.equipe"> Equipe</span>
-        </div>
-
+        
         <div class="menu-item" id="menu-produtos" onclick="showTab('produtos', event)">
-            <i class="fas fa-utensils"></i><span class="mobile-hide sidebar-label" data-i18n="sidebar.produtos"> Produtos</span>
+          <i class="fas fa-utensils"></i><span class="mobile-hide sidebar-label" data-i18n="sidebar.produtos"> Produtos</span>
         </div>
-
+        
         <div class="menu-item" onclick="showTab('categorias', event)">
             <i class="fas fa-tags"></i><span class="mobile-hide sidebar-label" data-i18n="sidebar.categorias"> Categorias</span>
         </div>
-        
-        <div class="menu-item" onclick="showTab('motoboys', event)">
-            <i class="fas fa-motorcycle"></i><span class="mobile-hide sidebar-label" data-i18n="sidebar.motoboys"> Motoboys</span>
+
+        <div class="menu-item" id="menu-crm" onclick="showTab('crm', event)" style="display:none">
+          <i class="fas fa-users"></i><span class="mobile-hide sidebar-label" data-i18n="sidebar.crm"> Clientes CRM</span>
+        </div>
+
+        <div class="menu-item" id="menu-mensalistas" onclick="showTab('mensalistas', event)" style="display:none">
+          <i class="fas fa-id-card"></i><span class="mobile-hide sidebar-label" data-i18n="sidebar.mensalistas"> Mensalistas</span>
+        </div>
+
+        <div class="menu-item" id="menu-notas" onclick="showTab('notas', event)" style="display:none">
+          <i class="fas fa-file-invoice-dollar"></i><span class="mobile-hide sidebar-label"> Na Nota</span>
+        </div>
+
+        <div class="menu-item" id="menu-facturacion" onclick="showTab('facturacion', event)">
+          <i class="fas fa-file-invoice"></i>
+          <span class="mobile-hide sidebar-label" data-i18n="sidebar.facturacion">Facturación</span>
         </div>
 
         <div class="menu-item restrito-gerente" id="menu-financeiro" onclick="showTab('financeiro', event)" style="display:none">
@@ -214,14 +223,17 @@
         <div class="menu-item" id="menu-estatisticas" onclick="showTab('estatisticas', event)" style="display:none">
           <i class="fas fa-chart-bar"></i><span class="mobile-hide sidebar-label" data-i18n="sidebar.estatisticas"> Estatísticas</span>
         </div>
+
         <div class="menu-item" id="menu-ficha-tecnica" onclick="showTab('ficha-tecnica', event)" style="display:none">
           <i class="fas fa-calculator"></i><span class="mobile-hide sidebar-label" data-i18n="sidebar.ficha_tecnica"> Ficha Técnica</span>
         </div>
-        <div class="menu-item" id="menu-crm" onclick="showTab('crm', event)" style="display:none">
-          <i class="fas fa-users"></i><span class="mobile-hide sidebar-label" data-i18n="sidebar.crm"> Clientes CRM</span>
+        
+        <div class="menu-item restrito-gerente" id="menu-equipe" onclick="showTab('equipe', event)">
+          <i class="fas fa-users"></i><span class="mobile-hide sidebar-label" data-i18n="sidebar.equipe"> Equipe</span>
         </div>
-        <div class="menu-item" id="menu-mensalistas" onclick="showTab('mensalistas', event)" style="display:none">
-          <i class="fas fa-id-card"></i><span class="mobile-hide sidebar-label" data-i18n="sidebar.mensalistas"> Mensalistas</span>
+        
+        <div class="menu-item" onclick="showTab('motoboys', event)">
+            <i class="fas fa-motorcycle"></i><span class="mobile-hide sidebar-label" data-i18n="sidebar.motoboys"> Motoboys</span>
         </div>
 
         <div class="menu-item restrito-func" id="menu-configuracoes" onclick="showTab('configuracoes', event)">
@@ -447,6 +459,13 @@
       </div>
 
       <div id="pdv" class="tab-content">
+
+        <!-- ===== MINI-PAINEL DE CAIXA (PDV) ===== -->
+        <!-- Visível para todos os perfis, mesmo com aba financeiro bloqueada -->
+        <div id="pdv-painel-caixa" style="margin-bottom:14px">
+          <!-- Preenchido por pdvCarregarPainelCaixa() -->
+        </div>
+
         <!-- PDV Header -->
         <div class="pdv-header-bar">
           <h2 class="section-title" style="margin:0" data-i18n="pdv.title">🏪 Venda Balcão (PDV)</h2>
@@ -534,24 +553,24 @@
                 <div>
                   <label class="pdv-dir-label" data-i18n="crm.tel_label">Telefone</label>
                   <input type="tel" id="balcao-telefone" class="form-control"
-  data-i18n-ph="pdv.telefone_ph" placeholder="Ex: 0981234567"
-  oninput="pdvTelefoneInput(this.value)" />
- 
-<!-- Box de cashback — aparece automaticamente quando cliente tem saldo -->
-<div id="pdv-cashback-box" style="display:none;background:#fff8e1;border:1.5px solid #ffd54f;
-  border-radius:10px;padding:10px 12px;margin-top:6px;font-size:0.85rem">
-  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
-    <div>
-      <div style="font-weight:700;color:#795548" data-i18n="pdv.cashback_disponivel">💰 Cashback disponível</div>
-      <div style="color:#555"><b id="pdv-cash-nome">—</b>: <span style="color:#1a7a2e;font-weight:700" id="pdv-cash-saldo">—</span></div>
-    </div>
-    <button id="pdv-btn-usar-cash" onclick="pdvToggleCashback()"
-      style="padding:7px 14px;background:#ff9800;color:#fff;border:none;border-radius:8px;
-             font-weight:700;cursor:pointer;font-size:0.82rem">
-      💰 <span data-i18n="pdv.usar_cashback">Usar Cashback</span>
-    </button>
-  </div>
-</div>
+                  data-i18n-ph="pdv.telefone_ph" placeholder="Ex: 0981234567"
+                  oninput="pdvTelefoneInput(this.value)" />
+                
+                <!-- Box de cashback — aparece automaticamente quando cliente tem saldo -->
+                <div id="pdv-cashback-box" style="display:none;background:#fff8e1;border:1.5px solid #ffd54f;
+                  border-radius:10px;padding:10px 12px;margin-top:6px;font-size:0.85rem">
+                  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+                    <div>
+                      <div style="font-weight:700;color:#795548" data-i18n="pdv.cashback_disponivel">💰 Cashback disponível</div>
+                      <div style="color:#555"><b id="pdv-cash-nome">—</b>: <span style="color:#1a7a2e;font-weight:700" id="pdv-cash-saldo">—</span></div>
+                    </div>
+                    <button id="pdv-btn-usar-cash" onclick="pdvToggleCashback()"
+                      style="padding:7px 14px;background:#ff9800;color:#fff;border:none;border-radius:8px;
+                            font-weight:700;cursor:pointer;font-size:0.82rem">
+                      💰 <span data-i18n="pdv.usar_cashback">Usar Cashback</span>
+                    </button>
+                  </div>
+                </div>
                 </div>
               </div>
 
@@ -629,6 +648,9 @@
                 <div id="pdv-lista" class="pdv-cards-lista"></div>
               </div>
 
+              <!-- Scroll wrapper: totais + pagamento — footer fica fora e sempre visível -->
+              <div class="pdv-dir-bottom-scroll">
+
               <!-- Totais -->
               <div class="pdv-dir-totais">
                 <div class="pdv-dir-total-row" id="pdv-row-desconto" style="display:none;color:#e67e22">
@@ -652,10 +674,13 @@
                   <option value="Efetivo">💵 Efectivo</option>
                   <option value="Cartao">💳 Tarjeta PY</option>
                   <option value="CartaoBR">💳🇧🇷 Cartão BR</option>
-                  <option value="Pix">🟢 Pix</option>
+                  <option value="Pix">✅ Pix</option>
                   <option value="Transferencia">🏦 Alias (PY)</option>
-                  <option value="QrPy">📱 QR Paraguay</option>
+                  <option value="QrMarina">📱 QR Maquina</option>
+                  <option value="QrCelular">📱 QR Celular</option>
                   <option value="Multipagamento">🔀 Dividir</option>
+                  <option value="Mensalista">🎫 Mensalista</option>
+                  <option value="NaNota">📋 Colocar na Nota</option>
                 </select>
                 <div id="balcao-pag-info" style="display:none;background:#e8f5e9;border:1px solid #4caf50;border-radius:5px;padding:5px 8px;font-size:0.82rem;color:#1b5e20;margin-top:3px"></div>
               </div>
@@ -697,6 +722,75 @@
                 </button>
                 <div id="multi-status-pdv" style="display:none;margin-top:5px;padding:7px 10px;border-radius:5px;background:#eafaf1;border:1.5px solid #27ae60">
                   <span id="multi-restante-pdv" style="font-weight:700;font-size:0.83rem"></span>
+                </div>
+              </div>
+
+              <!-- Box Mensalista -->
+              <div id="box-mensalista-pdv" style="display:none;padding:4px 8px 0">
+                <div style="font-size:0.72rem;font-weight:700;color:#1a7a2e;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">🎫 Selecionar Mensalista</div>
+                <input type="text" id="pdv-mens-busca" placeholder="Buscar cliente mensalista..."
+                  oninput="pdvFiltrarMensalistas()"
+                  style="width:100%;padding:6px 9px;border:1.5px solid #d1fae5;border-radius:6px;font-size:0.8rem;outline:none;margin-bottom:5px">
+                <div id="pdv-mens-lista" style="max-height:130px;overflow-y:auto;display:flex;flex-direction:column;gap:3px"></div>
+                <div id="pdv-mens-selecionado" style="display:none;background:#f0fdf4;border:1.5px solid #86efac;border-radius:7px;padding:7px 10px;margin-top:5px">
+                  <div style="display:flex;justify-content:space-between;align-items:center">
+                    <div>
+                      <div id="pdv-mens-sel-nome" style="font-weight:700;font-size:0.85rem"></div>
+                      <div id="pdv-mens-sel-saldo" style="font-size:0.75rem;color:#15803d;margin-top:1px"></div>
+                    </div>
+                    <button onclick="pdvDeselecionarMensalista()" style="background:#fee2e2;border:none;border-radius:5px;padding:3px 7px;cursor:pointer;font-size:0.75rem;color:#dc2626">✕</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Box Na Nota (fiado) -->
+              <div id="box-nanota-pdv" style="display:none;padding:4px 8px 0">
+                <div style="font-size:0.72rem;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">📋 Colocar na Nota do Cliente</div>
+                <input type="text" id="pdv-nota-busca" placeholder="Buscar cliente..."
+                  oninput="pdvFiltrarClientesNota()"
+                  style="width:100%;padding:6px 9px;border:1.5px solid #ede9fe;border-radius:6px;font-size:0.8rem;outline:none;margin-bottom:5px">
+                <div id="pdv-nota-lista" style="max-height:100px;overflow-y:auto;display:flex;flex-direction:column;gap:3px"></div>
+                <div id="pdv-nota-selecionado" style="display:none;background:#faf5ff;border:1.5px solid #c4b5fd;border-radius:7px;padding:7px 10px;margin-top:5px">
+                  <div style="display:flex;justify-content:space-between;align-items:center">
+                    <div>
+                      <div id="pdv-nota-sel-nome" style="font-weight:700;font-size:0.85rem"></div>
+                      <div id="pdv-nota-sel-tel" style="font-size:0.75rem;color:#7c3aed;margin-top:1px"></div>
+                    </div>
+                    <button onclick="pdvDeselecionarNota()" style="background:#fee2e2;border:none;border-radius:5px;padding:3px 7px;cursor:pointer;font-size:0.75rem;color:#dc2626">✕</button>
+                  </div>
+                </div>
+                <!-- Cadastrar novo cliente inline -->
+                <div id="pdv-nota-novo" style="display:none;border-top:1px dashed #c4b5fd;margin-top:8px;padding-top:8px">
+                  <div style="font-size:0.72rem;font-weight:700;color:#7c3aed;margin-bottom:5px">+ Novo cliente</div>
+                  <input type="text" id="pdv-nota-novo-nome" placeholder="Nome *"
+                    style="width:100%;padding:6px 9px;border:1.5px solid #ede9fe;border-radius:6px;font-size:0.8rem;outline:none;margin-bottom:4px">
+                  <input type="tel" id="pdv-nota-novo-tel" placeholder="Telefone *"
+                    style="width:100%;padding:6px 9px;border:1.5px solid #ede9fe;border-radius:6px;font-size:0.8rem;outline:none;margin-bottom:4px">
+                  <button onclick="pdvCadastrarClienteNota()"
+                    style="width:100%;padding:6px;background:#7c3aed;color:#fff;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:0.78rem">
+                    ✅ Cadastrar e Selecionar
+                  </button>
+                </div>
+                <button onclick="document.getElementById('pdv-nota-novo').style.display = document.getElementById('pdv-nota-novo').style.display==='none'?'block':'none'"
+                  style="width:100%;padding:5px;background:#f3f0ff;color:#7c3aed;border:1.5px dashed #c4b5fd;border-radius:6px;font-size:0.74rem;font-weight:600;cursor:pointer;margin-top:5px">
+                  + Cadastrar novo cliente
+                </button>
+              </div>
+
+              </div><!-- /pdv-dir-bottom-scroll -->
+
+              <!-- Factura Electrónica -->
+              <div style="padding: 4px 8px 0; border-top: 1px solid #f0f0f0; margin-top: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                  <input type="checkbox" id="pdv-check-factura" onchange="pdvToggleFactura()" style="width: 18px; height: 18px;">
+                  <label for="pdv-check-factura" style="font-weight: 700; font-size: 0.85rem; cursor: pointer;">
+                    📄 Necesito Factura Electrónica
+                  </label>
+                </div>
+                <div id="pdv-box-ruc" style="display: none; margin-top: 4px;">
+                  <input type="text" id="pdv-cli-ruc" class="pdv-dir-input" placeholder="RUC o CI (opcional)" style="margin-bottom: 4px;">
+                  <input type="text" id="pdv-cli-razao" class="pdv-dir-input" placeholder="Razón Social (opcional)">
+                  <small style="color: #888; font-size: 0.7rem;">Si no se ingresa RUC, se emitirá a Consumidor Final.</small>
                 </div>
               </div>
 
@@ -759,6 +853,8 @@
         <option value="Efetivo">Dinheiro</option>
         <option value="Cartao">Cartão</option>
         <option value="Pix">Pix</option>
+        <option value="QrMaquina">QR Maquina</option>
+        <option value="QrCelular">QR Celular</option>
         <option value="Transferencia">Transferência</option>
       </select>
     </div>
@@ -771,6 +867,14 @@
         <option value="com_factura">Com Factura</option>
         <option value="sem_factura">Sem Factura</option>
       </select>
+    </div>
+
+    <!-- NOVO FILTRO: somente despesas -->
+    <div class="filtro-group" style="align-self:flex-end;padding-bottom:11px">
+      <label style="display:flex;align-items:center;gap:6px;font-weight:600;cursor:pointer">
+        <input type="checkbox" id="fin-somente-despesas" onchange="calcularFinanceiro()" style="width:16px;height:16px;cursor:pointer">
+        🧾 Somente despesas
+      </label>
     </div>
 
     <button class="btn-filtrar" onclick="calcularFinanceiro()">
@@ -852,20 +956,35 @@
     <h3 style="margin-bottom: 15px; color: #555;">💳 Por Forma de Pagamento</h3>
     <div class="kpi-grid" style="margin: 0;">
       <div class="kpi-card" style="background: #fff3cd; border-left: 4px solid #ffc107;">
-        <h4 style="color: #856404;">Dinheiro</h4>
+        <h4 style="color: #856404;">💵 Dinheiro</h4>
         <div class="value" id="total-efetivo" style="color: #856404;">Gs 0</div>
+        <div style="font-size:0.7rem;color:#a07800;margin-top:4px" id="total-fundo-abertura-label">incl. fundo: <span id="total-fundo-abertura">Gs 0</span></div>
+        <div style="font-size:0.7rem;color:#a07800;margin-top:2px;display:none" id="total-efetivo-nanota-label">📋 incl. <span id="total-efetivo-nanota">Gs 0</span> de Nota quitada</div>
       </div>
       <div class="kpi-card" style="background: #d1ecf1; border-left: 4px solid #17a2b8;">
         <h4 style="color: #0c5460;">Cartão</h4>
         <div class="value" id="total-cartao" style="color: #0c5460;">Gs 0</div>
+        <div style="font-size:0.7rem;color:#0c5460;margin-top:4px;display:none" id="total-cartao-nanota-label">📋 incl. <span id="total-cartao-nanota">Gs 0</span> de Nota quitada</div>
       </div>
       <div class="kpi-card" style="background: #d4edda; border-left: 4px solid #28a745;">
         <h4 style="color: #155724;">Pix</h4>
         <div class="value" id="total-pix" style="color: #155724;">Gs 0</div>
+        <div style="font-size:0.7rem;color:#155724;margin-top:4px;display:none" id="total-pix-nanota-label">📋 incl. <span id="total-pix-nanota">Gs 0</span> de Nota quitada</div>
       </div>
       <div class="kpi-card" style="background: #e7e8ea; border-left: 4px solid #6c757d;">
         <h4 style="color: #383d41;">Transferência</h4>
         <div class="value" id="total-transf" style="color: #383d41;">Gs 0</div>
+        <div style="font-size:0.7rem;color:#383d41;margin-top:4px;display:none" id="total-transf-nanota-label">📋 incl. <span id="total-transf-nanota">Gs 0</span> de Nota quitada</div>
+      </div>
+      <div class="kpi-card" style="background: #f3e8ff; border-left: 4px solid #8b5cf6;">
+        <h4 style="color: #6b21a8;">📱 QR Celular</h4>
+        <div class="value" id="total-qr" style="color: #6b21a8;">Gs 0</div>
+        <div style="font-size:0.7rem;color:#6b21a8;margin-top:4px;display:none" id="total-qr-nanota-label">📋 incl. <span id="total-qr-nanota">Gs 0</span> de Nota quitada</div>
+      </div>
+      <div class="kpi-card" style="background: #fef3c7; border-left: 4px solid #d97706;">
+        <h4 style="color: #92400e;">📋 Na Nota</h4>
+        <div class="value" id="total-nanota" style="color: #92400e;">Gs 0</div>
+        <div style="font-size:0.7rem;color:#b45309;margin-top:4px">quitações antigas sem forma registrada</div>
       </div>
     </div>
   </div>
@@ -874,9 +993,12 @@
   <div id="secao-despesas-caixa" class="card" style="margin-top: 20px; padding: 0;">
     <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #f0f0f0">
       <h3 style="margin:0;color:#444;font-size:0.95rem">🧾 Despesas do Período</h3>
-      <button onclick="abrirModalCaixa('despesa')" class="btn btn-danger" style="font-size:0.83rem;padding:7px 14px">
-        <i class="fas fa-plus"></i> Nova Despesa
-      </button>
+      <div style="display:flex;align-items:center;gap:14px">
+        <span style="font-size:0.82rem;color:#a9660d;font-weight:600">💸 Sangria do período: <span id="total-sangria">Gs 0</span></span>
+        <button onclick="abrirModalCaixa('despesa')" class="btn btn-danger" style="font-size:0.83rem;padding:7px 14px">
+          <i class="fas fa-plus"></i> Nova Despesa
+        </button>
+      </div>
     </div>
     <div style="overflow-x:auto">
       <table class="table" style="margin:0;font-size:0.88rem">
@@ -949,6 +1071,7 @@
       </div>
 
 <div id="produtos" class="tab-content">
+
   
   <div class="header-title" style="flex-direction: column; align-items: flex-start; gap: 15px;">
     <h2 data-i18n="prod.estoque_equipe_title">Gestão de Estoque e Equipe</h2>
@@ -1054,6 +1177,159 @@
               <tbody id="lista-motos"></tbody>
           </table>
       </div>
+  </div>
+</div>
+
+<!-- ===== ABA FACTURACIÓN ELECTRÓNICA ===== -->
+<div id="facturacion" class="tab-content">
+  <h2 class="section-title">📄 Facturación Electrónica (e-kuatia)</h2>
+
+  <!-- Configurações do contribuinte -->
+  <div class="card cfg-card" style="margin-bottom:16px;">
+    <div class="cfg-section-title">
+      <i class="fas fa-building"></i> Datos del Contribuyente
+    </div>
+    <div class="cfg-grid">
+      <div class="form-group">
+        <label>API Key do Provedor</label>
+        <input type="text" id="fact-api-key" class="form-control" placeholder="LLave fornecida por el provedor (ex: SIFENDE, Neosystem)" />
+        <small style="color:#888;">La llave es fornecida por el provedor de facturacción electónica trás cadastro.</small>
+      </div>
+      <div class="form-group">
+        <label>RUC *</label>
+        <input type="text" id="fact-ruc" class="form-control" placeholder="80012345-6">
+      </div>
+      <div class="form-group">
+        <label>Razón Social *</label>
+        <input type="text" id="fact-razao" class="form-control" placeholder="Mi Empresa S.A.">
+      </div>
+      <div class="form-group">
+        <label>Nombre Fantasía</label>
+        <input type="text" id="fact-fantasia" class="form-control" placeholder="Mi Negocio">
+      </div>
+      <div class="form-group">
+        <label>Dirección</label>
+        <input type="text" id="fact-endereco" class="form-control" placeholder="Av. Mariscal López 1234">
+      </div>
+      <div class="form-group">
+        <label>Teléfono</label>
+        <input type="text" id="fact-telefone" class="form-control" placeholder="021 123 456">
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="fact-email" class="form-control" placeholder="admin@miempresa.com">
+      </div>
+      <div class="form-group">
+        <label>Actividad Económica</label>
+        <input type="text" id="fact-atividade" class="form-control" placeholder="5610-01 - Restaurantes">
+      </div>
+      <div class="form-group">
+        <label>Régimen Tributario</label>
+        <select id="fact-regime" class="form-control">
+          <option value="general">General</option>
+          <option value="simplificado">Simplificado</option>
+          <option value="micro">Microempresa</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Ambiente</label>
+        <select id="fact-ambiente" class="form-control">
+          <option value="homologacao">Homologación (Pruebas)</option>
+          <option value="producao">Producción</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>IVA Padrão</label>
+        <select id="fact-iva-default" class="form-control">
+          <option value="10">10% (Geral)</option>
+          <option value="5">5% (Reduzido)</option>
+          <option value="exento">Exento</option>
+        </select>
+        <small style="color:#888;">Aplicado a qualquer produto sem IVA específico definido abaixo.</small>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="salvarConfigFacturacion()" style="margin-top:12px;">
+      <i class="fas fa-save"></i> Guardar Configuración
+    </button>
+  </div>
+
+  <!-- IVA por Produto -->
+  <div class="card" style="margin-bottom:16px; padding:16px;">
+    <div class="cfg-section-title">
+      <i class="fas fa-percent"></i> IVA por Producto
+    </div>
+    <small style="color:#888; display:block; margin-bottom:10px;">
+      Defina o IVA de cada produto do cardápio. Produtos não listados aqui usam o IVA Padrão configurado acima.
+    </small>
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+      <select id="fact-iva-prod-sel" class="form-control" style="flex:2; min-width:200px;">
+        <option value="">— Selecione um produto —</option>
+      </select>
+      <select id="fact-iva-prod-valor" class="form-control" style="flex:1; min-width:140px;">
+        <option value="10">10% (Geral)</option>
+        <option value="5">5% (Reduzido)</option>
+        <option value="exento">Exento</option>
+      </select>
+      <button class="btn btn-success" onclick="factAdicionarIvaProduto()">
+        <i class="fas fa-plus"></i> Agregar
+      </button>
+    </div>
+    <div style="overflow-x:auto; margin-top:14px;">
+      <table class="table" style="margin:0;">
+        <thead>
+          <tr>
+            <th>Producto</th>
+            <th>IVA</th>
+            <th style="text-align:center;">—</th>
+          </tr>
+        </thead>
+        <tbody id="fact-iva-produtos-tbody">
+          <tr><td colspan="3" style="text-align:center;color:#aaa;padding:14px;">Carregando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Emitir factura a partir de pedido -->
+  <div class="card" style="margin-bottom:16px; padding:16px;">
+    <div class="cfg-section-title">
+      <i class="fas fa-receipt"></i> Emitir Factura desde Pedido
+    </div>
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+      <input type="number" id="fact-pedido-id" class="form-control" placeholder="Nº del Pedido" style="max-width:200px;">
+      <button class="btn btn-success" onclick="emitirFacturaDoPedido(parseInt(document.getElementById('fact-pedido-id').value))">
+        <i class="fas fa-file-invoice"></i> Emitir Factura
+      </button>
+    </div>
+    <small style="color:#888; display:block; margin-top:8px;">
+      💡 El pedido debe estar cerrado (entregue) para emitir la factura.
+    </small>
+  </div>
+
+  <!-- Lista de documentos emitidos -->
+  <div class="card" style="padding:0;">
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 16px; border-bottom:1px solid #f0f0f0;">
+      <h4 style="margin:0;">📋 Documentos Emitidos</h4>
+      <button class="btn btn-sm btn-info" onclick="carregarDocumentos()">
+        <i class="fas fa-sync-alt"></i> Actualizar
+      </button>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="table" style="margin:0;">
+        <thead>
+          <tr>
+            <th>KUDE</th>
+            <th>Fecha</th>
+            <th>Cliente</th>
+            <th>Total</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody id="fact-documentos-tbody">
+          <tr><td colspan="5" style="text-align:center;color:#aaa;padding:20px;">Carregando...</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -1496,11 +1772,12 @@
               <label><i class="fas fa-percentage"></i> <span data-i18n="cfg.tipo_desconto">Tipo de Desconto</span></label>
               <select id="cupom-tipo" class="input-modern" onchange="alterarTipoCupom()">
                 <option value="percentual" data-i18n="cfg.desconto_percentual_opcao">Desconto Percentual (%)</option>
+                <option value="fixo" data-i18n="cfg.desconto_fixo_opcao">Valor Fixo (Gs)</option>
                 <option value="frete" data-i18n="cfg.frete_gratis_opcao">Frete Grátis</option>
               </select>
             </div>
             <div class="form-group-modern" id="box-valor-cupom">
-              <label><i class="fas fa-percent"></i> <span data-i18n="cfg.valor_desconto_pct">Valor do Desconto (%)</span></label>
+              <label><i class="fas fa-percent" id="icon-valor-cupom"></i> <span id="label-valor-cupom" data-i18n="cfg.valor_desconto_pct">Valor do Desconto (%)</span></label>
               <input type="number" id="cupom-valor" class="input-modern" placeholder="Ex: 10" min="0" max="100">
             </div>
             <div class="form-group-modern">
@@ -1876,6 +2153,67 @@
           <div id="mens-lista-planos"></div>
         </div>
       </div><!-- /mensalistas -->
+
+      <!-- ══════════════════════════════════════════════════════
+           ABA: CONTAS NA NOTA (FIADO)
+      ══════════════════════════════════════════════════════ -->
+      <div id="notas" class="tab-content">
+        <div style="padding:16px">
+
+          <!-- Cabeçalho -->
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px">
+            <div>
+              <h2 style="font-size:1.25rem;font-weight:800;color:#111">📋 Contas na Nota</h2>
+              <p style="font-size:0.83rem;color:#6b7280;margin-top:2px">Pedidos fiado — visualize, cobre e quite as contas dos clientes</p>
+            </div>
+            <button onclick="notasCarregar()" style="padding:10px 18px;background:#f3f4f6;color:#374151;border:1.5px solid #e5e7eb;border-radius:10px;font-weight:600;font-size:0.85rem;cursor:pointer">
+              🔄 Atualizar
+            </button>
+          </div>
+
+          <!-- KPIs -->
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:20px">
+            <div style="background:#fff;border-radius:12px;padding:14px 16px;border:1px solid #e5e7eb">
+              <div style="font-size:0.72rem;color:#6b7280;text-transform:uppercase;font-weight:600;margin-bottom:4px">Clientes</div>
+              <div id="notas-kpi-clientes" style="font-size:1.5rem;font-weight:800;color:#111">0</div>
+            </div>
+            <div style="background:#fff;border-radius:12px;padding:14px 16px;border:1px solid #fecaca">
+              <div style="font-size:0.72rem;color:#dc2626;text-transform:uppercase;font-weight:600;margin-bottom:4px">Total em Aberto</div>
+              <div id="notas-kpi-aberto" style="font-size:1.1rem;font-weight:800;color:#dc2626">Gs 0</div>
+            </div>
+            <div style="background:#fff;border-radius:12px;padding:14px 16px;border:1px solid #bbf7d0">
+              <div style="font-size:0.72rem;color:#16a34a;text-transform:uppercase;font-weight:600;margin-bottom:4px">Já Quitado</div>
+              <div id="notas-kpi-quitado" style="font-size:1.1rem;font-weight:800;color:#16a34a">Gs 0</div>
+            </div>
+            <div style="background:#fff;border-radius:12px;padding:14px 16px;border:1px solid #fde68a">
+              <div style="font-size:0.72rem;color:#92400e;text-transform:uppercase;font-weight:600;margin-bottom:4px">Clientes Pendentes</div>
+              <div id="notas-kpi-pendentes" style="font-size:1.5rem;font-weight:800;color:#92400e">0</div>
+            </div>
+          </div>
+
+          <!-- Filtros -->
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+            <input id="notas-busca" type="search" placeholder="🔍 Buscar por cliente ou telefone..."
+              oninput="notasRenderLista()"
+              style="flex:1;min-width:200px;padding:9px 13px;border:1.5px solid #e5e7eb;border-radius:9px;font-size:0.88rem;outline:none">
+            <select id="notas-filtro-status" onchange="notasFiltrar()"
+              style="padding:9px 13px;border:1.5px solid #e5e7eb;border-radius:9px;font-size:0.88rem;outline:none;background:#fff">
+              <option value="pendente">⏳ Em aberto</option>
+              <option value="quitado">✅ Quitados</option>
+              <option value="todos">📋 Todos</option>
+            </select>
+          </div>
+
+          <!-- Loading -->
+          <div id="notas-loading" style="display:none;justify-content:center;padding:30px">
+            <div style="width:32px;height:32px;border:3px solid #e5e7eb;border-top-color:#dc2626;border-radius:50%;animation:spin 0.8s linear infinite"></div>
+          </div>
+
+          <!-- Lista de clientes com contas -->
+          <div id="notas-lista"></div>
+
+        </div>
+      </div><!-- /notas -->
 
       <!-- ═══════════════════════════════════════════════════════ -->
       <!-- TAB: ASSINATURA — somente adminMaster                   -->
@@ -2503,53 +2841,85 @@
     </div>
 
     <!-- MODAL RELATÓRIO DETALHADO DE PEDIDOS -->
-<div id="modal-relatorio" class="modal-overlay" style="display:none; align-items:flex-start; padding:10px; overflow-y:auto;">
-  <div class="modal-content" style="max-width:95vw; width:100%; margin:auto; max-height:90vh; overflow-y:auto;">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; position:sticky; top:0; background:white; padding:8px 0; z-index:10; border-bottom:1px solid #eee;">
-      <h3 style="margin:0"><i class="fas fa-clipboard-list" style="color:#3498db"></i> <span data-i18n="rel.titulo">Relatório de Pedidos</span></h3>
-      <button onclick="fecharModal('modal-relatorio')" style="background:#e74c3c;color:white;border:none;border-radius:50%;width:32px;height:32px;font-size:1.1rem;cursor:pointer">×</button>
-    </div>
-    
-    <!-- Filtros -->
-    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; background:#f8f9fa; padding:12px; border-radius:8px;">
-      <div class="form-group" style="margin:0; flex:0 0 auto;">
-        <label style="font-size:0.8rem;font-weight:600" data-i18n="rel.num_pedido">Nº do Pedido</label>
-        <input type="number" id="rel-filtro-numero" class="form-control" placeholder="Ex: 91" style="width:120px;" oninput="this.value ? (document.getElementById('rel-filtro-inicio').disabled=true, document.getElementById('rel-filtro-fim').disabled=true) : (document.getElementById('rel-filtro-inicio').disabled=false, document.getElementById('rel-filtro-fim').disabled=false)">
-      </div>
-      <div class="form-group" style="margin:0; flex:0 0 auto;">
-        <label style="font-size:0.8rem;font-weight:600" data-i18n="rel.de">De</label>
-        <input type="date" id="rel-filtro-inicio" class="form-control">
-      </div>
-      <div class="form-group" style="margin:0; flex:0 0 auto;">
-        <label style="font-size:0.8rem;font-weight:600" data-i18n="rel.ate">Até</label>
-        <input type="date" id="rel-filtro-fim" class="form-control">
-      </div>
-      <div class="form-group" style="margin:0; display:flex; align-items:flex-end;">
-        <button class="btn btn-primary" onclick="carregarRelatorio()"><i class="fas fa-search"></i> <span data-i18n="rel.filtrar">Filtrar</span></button>
-      </div>
-      <div style="display:flex; align-items:flex-end; margin-left:auto;">
-        <span id="rel-total-count" style="font-size:0.85rem;color:#666;"></span>
+    <div id="modal-relatorio" class="modal-overlay" style="display:none; align-items:flex-start; padding:10px; overflow-y:auto;">
+      <div class="modal-content" style="max-width:95vw; width:100%; margin:auto; max-height:90vh; overflow-y:auto;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; position:sticky; top:0; background:white; padding:8px 0; z-index:10; border-bottom:1px solid #eee;">
+          <h3 style="margin:0"><i class="fas fa-clipboard-list" style="color:#3498db"></i> <span data-i18n="rel.titulo">Relatório de Pedidos</span></h3>
+          <button onclick="fecharModal('modal-relatorio')" style="background:#e74c3c;color:white;border:none;border-radius:50%;width:32px;height:32px;font-size:1.1rem;cursor:pointer">×</button>
+        </div>
+        
+        <!-- Filtros -->
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; background:#f8f9fa; padding:12px; border-radius:8px;">
+          <div class="form-group" style="margin:0; flex:0 0 auto;">
+            <label style="font-size:0.8rem;font-weight:600" data-i18n="rel.num_pedido">Nº do Pedido</label>
+            <input type="number" id="rel-filtro-numero" class="form-control" placeholder="Ex: 91" style="width:120px;" oninput="this.value ? (document.getElementById('rel-filtro-inicio').disabled=true, document.getElementById('rel-filtro-fim').disabled=true) : (document.getElementById('rel-filtro-inicio').disabled=false, document.getElementById('rel-filtro-fim').disabled=false)">
+          </div>
+          <div class="form-group" style="margin:0; flex:0 0 auto;">
+            <label style="font-size:0.8rem;font-weight:600" data-i18n="rel.de">De</label>
+            <input type="date" id="rel-filtro-inicio" class="form-control">
+          </div>
+          <div class="form-group" style="margin:0; flex:0 0 auto;">
+            <label style="font-size:0.8rem;font-weight:600" data-i18n="rel.ate">Até</label>
+            <input type="date" id="rel-filtro-fim" class="form-control">
+          </div>
+          <div class="form-group" style="margin:0; display:flex; align-items:flex-end;">
+            <button class="btn btn-primary" onclick="carregarRelatorio()"><i class="fas fa-search"></i> <span data-i18n="rel.filtrar">Filtrar</span></button>
+          </div>
+          <div style="display:flex; align-items:flex-end; margin-left:auto;">
+            <span id="rel-total-count" style="font-size:0.85rem;color:#666;"></span>
+          </div>
+        </div>
+
+        <!-- Tabela -->
+        <div class="table-container" style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:0.83rem;border-radius:10px;overflow:hidden;">
+            <thead>
+              <tr style="background:linear-gradient(135deg,#1a1a2e,#2c3e50);color:white;font-size:0.78rem;letter-spacing:0.5px;text-transform:uppercase;">
+                <th style="padding:12px 10px;text-align:left;width:70px" data-i18n="rel.id_data">#ID / Data</th>
+                <th style="padding:12px 10px;text-align:left" data-i18n="pedidos.cliente">Cliente</th>
+                <th style="padding:12px 10px;text-align:left" data-i18n="rel.itens">Itens</th>
+                <th style="padding:12px 10px;text-align:left;width:130px" data-i18n="pedidos.status">Status</th>
+                <th style="padding:12px 10px;text-align:right;width:110px" data-i18n="rel.total">Total</th>
+                <th style="padding:12px 10px;text-align:left;width:200px" data-i18n="rel.timeline">⏱ Timeline</th>
+                <th style="padding:12px 10px;text-align:center;width:60px">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="rel-tbody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
-    <!-- Tabela -->
-    <div class="table-container" style="overflow-x:auto;">
-      <table style="width:100%;border-collapse:collapse;font-size:0.83rem;border-radius:10px;overflow:hidden;">
-        <thead>
-          <tr style="background:linear-gradient(135deg,#1a1a2e,#2c3e50);color:white;font-size:0.78rem;letter-spacing:0.5px;text-transform:uppercase;">
-            <th style="padding:12px 10px;text-align:left;width:70px" data-i18n="rel.id_data">#ID / Data</th>
-            <th style="padding:12px 10px;text-align:left" data-i18n="pedidos.cliente">Cliente</th>
-            <th style="padding:12px 10px;text-align:left" data-i18n="rel.itens">Itens</th>
-            <th style="padding:12px 10px;text-align:left;width:130px" data-i18n="pedidos.status">Status</th>
-            <th style="padding:12px 10px;text-align:right;width:110px" data-i18n="rel.total">Total</th>
-            <th style="padding:12px 10px;text-align:left;width:200px" data-i18n="rel.timeline">⏱ Timeline</th>
-          </tr>
-        </thead>
-        <tbody id="rel-tbody"></tbody>
-      </table>
+    <!-- MODAL: Editar Pedido (Relatório) -->
+    <div id="modal-editar-pedido" class="modal-overlay" style="display:none; align-items:flex-start; padding:10px; overflow-y:auto;">
+      <div class="modal-content" style="max-width:540px; margin:auto; max-height:90vh; overflow-y:auto;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h3 style="margin:0;"><i class="fas fa-edit"></i> Editar Pedido #<span id="edit-pedido-id">---</span></h3>
+          <button onclick="fecharModal('modal-editar-pedido')" style="background:#e74c3c;color:white;border:none;border-radius:50%;width:32px;height:32px;font-size:1.1rem;cursor:pointer;">×</button>
+        </div>
+
+        <div id="edit-pedido-cliente" style="margin-bottom:12px; font-weight:600; color:#333;"></div>
+
+        <!-- Lista de itens -->
+        <div style="margin-bottom:16px; border:1px solid #eee; border-radius:8px; padding:10px; max-height:200px; overflow-y:auto;">
+          <div id="edit-pedido-itens"></div>
+        </div>
+
+        <!-- Total geral -->
+        <div class="form-group">
+          <label style="font-weight:600;">Total Geral (Gs)</label>
+          <input type="number" id="edit-pedido-total" class="form-control" min="0" step="100" style="font-size:1.1rem; font-weight:700; border:2px solid #1a7a2e;">
+        </div>
+
+        <!-- Botões -->
+        <div style="display:flex; gap:10px; margin-top:18px;">
+          <button class="btn btn-secondary" onclick="fecharModal('modal-editar-pedido')" style="flex:1; background-color: red">Cancelar</button>
+          <button class="btn btn-primary" onclick="salvarEdicaoPedidoRelatorio()" style="flex:2;">
+            <i class="fas fa-save"></i> Salvar Alterações
+          </button>
+        </div>
+      </div>
     </div>
-  </div>
-</div>
 
     <script src="supabaseClient.js"></script>
     <script src="admin-i18n.js"></script>
@@ -2563,17 +2933,20 @@
     <script src="crm.js"></script>
     <script src="filiais.js"></script>
     <script src="mensalistas.js"></script>
+    <script src="notas.js"></script>
+    <script src="facturacion.js"></script>
 
-<!-- Modal: Novo/Editar Plano -->
+<!-- Modal: Novo/Editar/Renovar Plano -->
 <div id="modal-mens-plano"
   style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;padding:16px">
   <div style="background:#fff;border-radius:18px;padding:28px;width:100%;max-width:520px;max-height:92vh;overflow-y:auto;box-shadow:0 24px 60px rgba(0,0,0,0.25)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-      <h3 style="font-size:1.1rem;font-weight:700">📋 <span data-i18n="mens.plano_mensalista">Plano Mensalista</span></h3>
+      <h3 style="font-size:1.1rem;font-weight:700" id="mens-plano-titulo">📋 <span data-i18n="mens.plano_mensalista">Plano Mensalista</span></h3>
       <button onclick="fecharModal('modal-mens-plano')" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#6b7280">×</button>
     </div>
     <input type="hidden" id="mens-plano-id">
     <input type="hidden" id="mens-plano-cli-id">
+    <input type="hidden" id="mens-plano-renovacao">
     <div id="mens-renov-info"></div>
     <div style="display:grid;gap:14px">
       <div>
@@ -2632,7 +3005,7 @@
     </div>
     <div style="display:flex;gap:10px;margin-top:22px">
       <button onclick="fecharModal('modal-mens-plano')" style="flex:1;padding:11px;border:1.5px solid #e5e7eb;background:#fff;border-radius:9px;font-weight:600;cursor:pointer;font-size:0.9rem;color:#4b5563" data-i18n="geral.cancelar">Cancelar</button>
-      <button onclick="mensSalvarPlano()" style="flex:2;padding:11px;background:#1a7a2e;color:#fff;border:none;border-radius:9px;font-weight:700;cursor:pointer;font-size:0.9rem" data-i18n="mens.salvar_plano">Salvar Plano</button>
+      <button onclick="mensSalvarPlano()" id="mens-plano-btn-salvar" style="flex:2;padding:11px;background:#1a7a2e;color:#fff;border:none;border-radius:9px;font-weight:700;cursor:pointer;font-size:0.9rem" data-i18n="mens.salvar_plano">Salvar Plano</button>
     </div>
   </div>
 </div>
@@ -2655,24 +3028,39 @@
         <div style="font-size:0.8rem;color:#2980b9;font-weight:600" id="mens-ent-valor-unit"></div>
       </div>
     </div>
-    <div style="display:grid;gap:14px">
-      <div>
-        <label style="font-size:0.78rem;font-weight:600;color:#4b5563;display:block;margin-bottom:5px;text-transform:uppercase" data-i18n="mens.qtd_entregue">Quantidade entregue *</label>
-        <input type="number" id="mens-ent-qtd" value="1" min="1"
-          style="width:100%;padding:12px 14px;border:1.5px solid #e5e7eb;border-radius:9px;font-size:1.1rem;font-weight:700;outline:none;text-align:center">
-      </div>
-      <div>
-        <label style="font-size:0.78rem;font-weight:600;color:#4b5563;display:block;margin-bottom:5px;text-transform:uppercase" data-i18n="mens.obs_opcional">Observação (opcional)</label>
-        <input type="text" id="mens-ent-obs" data-i18n-ph="mens.ex_almoco" placeholder="Ex: Almoço, sem sal..."
-          style="width:100%;padding:10px 13px;border:1.5px solid #e5e7eb;border-radius:9px;font-size:0.9rem;outline:none">
+    <input type="hidden" id="mens-ent-valor-unit-preco">
+    <div id="mens-ent-campos-kg" style="display:grid;gap:10px">
+      <!-- Kg e Valor lado a lado (só para planos kg) -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px" id="mens-ent-row-bidir">
+        <div>
+          <label id="mens-ent-qtd-label" style="font-size:0.78rem;font-weight:600;color:#4b5563;display:block;margin-bottom:5px;text-transform:uppercase">Peso (kg) *</label>
+          <input type="number" id="mens-ent-qtd" value="0.500" min="0.001" step="0.001"
+            oninput="_mensAtualizarValorEntrega()"
+            style="width:100%;padding:11px 10px;border:1.5px solid #e5e7eb;border-radius:9px;font-size:1rem;font-weight:700;outline:none;text-align:center">
+        </div>
+        <div>
+          <label style="font-size:0.78rem;font-weight:600;color:#4b5563;display:block;margin-bottom:5px;text-transform:uppercase">Valor (Gs)</label>
+          <input type="number" id="mens-ent-valor-input" placeholder="Automático" min="0" step="1"
+            oninput="_mensAtualizarPesoEntrega()"
+            style="width:100%;padding:11px 10px;border:1.5px solid #e5e7eb;border-radius:9px;font-size:1rem;font-weight:700;outline:none;text-align:center;color:#1a7a2e">
+        </div>
       </div>
     </div>
-    <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 14px;font-size:0.8rem;color:#92400e;margin-top:14px" data-i18n="mens.aviso_entrega">
-      💡 Esta entrega <b>não entra no financeiro</b> — apenas desconta do saldo do plano.
+    <div id="mens-ent-campos-un" style="display:none">
+      <label id="mens-ent-qtd-label-un" style="font-size:0.78rem;font-weight:600;color:#4b5563;display:block;margin-bottom:5px;text-transform:uppercase" data-i18n="mens.qtd_entregue">Quantidade entregue *</label>
+      <input type="number" id="mens-ent-qtd-un" value="1" min="1" step="1"
+        style="width:100%;padding:12px 14px;border:1.5px solid #e5e7eb;border-radius:9px;font-size:1.1rem;font-weight:700;outline:none;text-align:center">
     </div>
+    <div style="margin-top:10px">
+      <label style="font-size:0.78rem;font-weight:600;color:#4b5563;display:block;margin-bottom:5px;text-transform:uppercase" data-i18n="mens.obs_opcional">Observação (opcional)</label>
+      <input type="text" id="mens-ent-obs" data-i18n-ph="mens.ex_almoco" placeholder="Ex: Almoço, sem sal..."
+        style="width:100%;padding:10px 13px;border:1.5px solid #e5e7eb;border-radius:9px;font-size:0.9rem;outline:none">
+    </div>
+    <!-- Itens adicionais (desconto do saldo) -->
+    <div id="mens-ent-itens-extras-cont"></div>
     <div style="display:flex;gap:10px;margin-top:20px">
       <button onclick="fecharModal('modal-mens-entrega')" style="flex:1;padding:11px;border:1.5px solid #e5e7eb;background:#fff;border-radius:9px;font-weight:600;cursor:pointer;font-size:0.9rem;color:#4b5563" data-i18n="geral.cancelar">Cancelar</button>
-      <button onclick="mensSalvarEntrega()" style="flex:2;padding:11px;background:#1a7a2e;color:#fff;border:none;border-radius:9px;font-weight:700;cursor:pointer;font-size:0.9rem" data-i18n="mens.confirmar_entrega">✅ Confirmar Entrega</button>
+      <button onclick="mensSalvarEntrega()" class="btn-lancar" style="flex:2;padding:11px;background:#1a7a2e;color:#fff;border:none;border-radius:9px;font-weight:700;cursor:pointer;font-size:0.9rem" data-i18n="mens.confirmar_entrega">✅ Confirmar Entrega</button>
     </div>
   </div>
 </div>

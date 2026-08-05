@@ -118,6 +118,10 @@
     .cart-form input,.cart-form select{width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:8px;font-size:.92rem;font-family:Arial,sans-serif}
     .cart-form input:focus,.cart-form select:focus{outline:none;border-color:var(--primary)}
     .cart-total-row{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-top:2px solid var(--border);font-size:1.05rem;font-weight:800}
+
+    /* MESA ABERTA (comanda em andamento) */
+    #mesa-aberta-banner{display:none;margin:10px 14px 0;padding:10px 12px;background:#eef4ff;border:1.5px solid #2980b9;border-radius:10px;font-size:.82rem;color:#1c5a85;font-weight:600;line-height:1.4}
+    #mesa-aberta-banner b{display:block;font-size:.88rem;color:#154a70;margin-bottom:2px}
     .btn-lancar{margin:0 14px 14px;width:calc(100% - 28px);padding:14px;background:var(--primary);color:#fff;border:none;border-radius:14px;font-size:.97rem;font-weight:800;cursor:pointer}
     .btn-lancar:disabled{opacity:.5}
 
@@ -272,11 +276,13 @@
     <div class="sheet-header"><h3>Pedido</h3><button class="btn-close" onclick="fecharCarrinho()">x</button></div>
     <div id="cart-lista"></div>
     <div class="cart-total-row"><span>Total</span><span id="cart-total-val">Gs 0</span></div>
+    <div id="mesa-aberta-banner"></div>
     <div class="cart-form">
       <label>Mesa / Comanda <small style="font-weight:400;color:#aaa">(opcional)</small></label>
-      <input type="text" id="cart-mesa" placeholder="Nº de mesa o comanda" inputmode="numeric">
+      <input type="text" id="cart-mesa" placeholder="Nº de mesa o comanda" inputmode="numeric" oninput="cartMesaChanged()">
       <label>Cliente <small style="font-weight:400;color:#aaa">(opcional)</small></label>
       <input type="text" id="cart-cliente" placeholder="Nombre del cliente">
+      <div id="cart-pag-wrap">
       <label>Pago</label>
       <select id="cart-pag" onchange="cartPagChange()">
         <option value="Efectivo">Efectivo</option>
@@ -289,6 +295,7 @@
         <div id="multi-partes-atend" style="margin-top:7px"></div>
         <button type="button" onclick="cartAddParte()" style="width:100%;padding:8px;background:#f8f9fa;color:#555;border:1.5px dashed #ccc;border-radius:8px;font-weight:600;cursor:pointer;font-size:.8rem;margin-top:4px">+ Agregar forma</button>
         <div id="multi-status-atend" style="display:none;padding:8px 12px;border-radius:8px;margin-top:6px;font-weight:700;font-size:.83rem"></div>
+      </div>
       </div>
     </div>
     <button class="btn-lancar" id="btn-lancar" onclick="lancarPedido()">🚀 ENVIAR A LA COCINA</button>
@@ -327,6 +334,7 @@ var _multiCont = 0, _scanBuffer = '', _scanTimer = null;
 var _garcomId = null, _garcomNome = null;
 var _prontoVisto = new Set(), _prontoLoop = null;
 var _audioOk = false, _alarmeProntoLoop = null;
+var _pedidoAbertoMesa = null; // pedido em andamento da mesa atual, se houver
 
 // =========================================================
 // AUTH
@@ -614,12 +622,59 @@ function atualizarCartBar(){
     else btn.textContent='🚀 ENVIAR A LA COCINA';
   }
 }
+// =========================================================
+// MESA ABERTA (comanda em andamento) — churrasquinho -> jantinha
+// =========================================================
+// Busca um pedido dessa mesa que ainda está em andamento (não entregue/
+// cancelado). Se existir, o próximo "Enviar" vira um COMPLEMENTO desse
+// pedido em vez de criar um pedido novo e separado.
+async function buscarPedidoAbertoMesa(mesa) {
+  if (!mesa) return null;
+  var ref = 'Mesa ' + mesa;
+  var res = await supa.from('pedidos')
+    .select('id, itens, subtotal, total_geral, status, forma_pagamento, cliente_nome')
+    .eq('endereco_entrega', ref)
+    .eq('tipo_entrega', 'balcao')
+    .not('status', 'in', '(entregue,cancelado)')
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (res.error || !res.data || !res.data.length) return null;
+  return res.data[0];
+}
+
+async function cartMesaChanged() {
+  var mesa = document.getElementById('cart-mesa').value.trim();
+  _pedidoAbertoMesa = mesa ? await buscarPedidoAbertoMesa(mesa) : null;
+  renderMesaAbertaBanner();
+}
+
+function renderMesaAbertaBanner() {
+  var banner = document.getElementById('mesa-aberta-banner');
+  var pagWrap = document.getElementById('cart-pag-wrap');
+  var btn = document.getElementById('btn-lancar');
+  if (_pedidoAbertoMesa) {
+    var totAnterior = _pedidoAbertoMesa.total_geral || 0;
+    banner.style.display = 'block';
+    banner.innerHTML = '<b>🍽️ Esta mesa ya tiene un pedido en curso</b>'
+      + 'Ya lanzado: Gs ' + totAnterior.toLocaleString('es-PY') + '. '
+      + 'Lo que agregue ahora se sumará como <b>complemento</b> a ese mismo pedido — no se creará uno nuevo.';
+    // Pago só se decide no fechamento da mesa, não a cada rodada extra
+    if (pagWrap) pagWrap.style.display = 'none';
+    if (btn) btn.textContent = '➕ AGREGAR AL PEDIDO';
+  } else {
+    banner.style.display = 'none';
+    if (pagWrap) pagWrap.style.display = '';
+    if (btn) atualizarCartBar(); // restaura o texto padrão do botão
+  }
+}
+
 function abrirCarrinho(){
   if (!carrinho.length) return;
   renderCartLista();
   var m=document.getElementById('inp-comanda').value.trim();
   if (m) document.getElementById('cart-mesa').value=m;
   document.getElementById('modal-cart').classList.add('active');
+  cartMesaChanged();
 }
 function fecharCarrinho(){ document.getElementById('modal-cart').classList.remove('active'); }
 function renderCartLista(){
@@ -648,7 +703,7 @@ function cartPagChange(){
   box.style.display=pag==='Multipagamento'?'block':'none';
   if(pag==='Multipagamento'&&!document.querySelectorAll('[id^="mpa-parte-"]').length){ cartAddParte(); cartAddParte(); cartAtualizarMulti(); }
 }
-function cartVoltarUnico(){ document.getElementById('cart-pag').value='Efetivo'; document.getElementById('box-multi-atend').style.display='none'; document.getElementById('multi-partes-atend').innerHTML=''; _multiCont=0; }
+function cartVoltarUnico(){ document.getElementById('cart-pag').value='Efectivo'; document.getElementById('box-multi-atend').style.display='none'; document.getElementById('multi-partes-atend').innerHTML=''; _multiCont=0; }
 function cartAddParte(){
   _multiCont++;
   var id=_multiCont;
@@ -698,7 +753,12 @@ async function lancarPedido(){
   var _soKg=carrinho.every(function(i){return i._isKg;});
   var _soBebida=carrinho.every(ehBebida);
   var obsPag='Atendimento';
-  if (pag==='Multipagamento') {
+
+  // Reconfirma na hora de enviar (evita agir sobre um estado desatualizado
+  // se o garçom demorou no carrinho e o pedido da mesa mudou nesse meio tempo)
+  var pedidoAberto = mesa ? await buscarPedidoAbertoMesa(mesa) : null;
+
+  if (!pedidoAberto && pag==='Multipagamento') {
     var partes=cartColetarMulti();
     if (!partes.length){ toast('Adicione formas de pagamento'); btn.disabled=false; btn.textContent='🚀 LANÇAR NA COZINHA'; return; }
     var totalPed=carrinho.reduce(function(a,i){return a+i.preco*i.qtd;},0);
@@ -714,30 +774,73 @@ async function lancarPedido(){
   var novosItens=carrinho.map(function(i){
     return Object.assign({ id:i._id+'_'+Date.now()+Math.random(), nome:i.nome, preco:i.preco, qtd:i.qtd, variacao:i.variacao||'', obs:i.obs||'', categoria_slug:i.categoria_slug||'', montagem:[], status_item:'pendente', lancado_em:agora }, i._isKg?{peso_gramas:i.peso_gramas,preco_kg:i.preco_kg,_isKg:true}:{});
   });
-  var pedido={
-    uid_temporal:'AT-'+Math.floor(Math.random()*9999),
-    status:statusFinal, tipo_entrega:'balcao',
-    total_geral:total, subtotal:total, frete_cobrado_cliente:0,
-    forma_pagamento:pag, obs_pagamento:obsPag,
-    itens:novosItens,
-    endereco_entrega:mesa?'Mesa '+mesa:(_soKg?'Balcao - Venda Kg':'Balcao'),
-    cliente_nome:nomeFinal, cliente_telefone:'',
-    garcom_id:_garcomId, garcom_nome:_garcomNome,
-    tempo_recebido:agora, tempo_confirmado:agora, tempo_preparo_iniciado:agora
-  };
-  if (_soKg){ pedido.tempo_pronto=agora; pedido.tempo_entregue=agora; }
+
   try {
-    var res=await supa.from('pedidos').insert([pedido]).select('id').single();
-    if (res.error) throw res.error;
-    if (res.data&&res.data.id) {
-      // Se o pedido foi lançado diretamente como pronto_entrega (bebidas ou kg),
-      // marcar como "já visto" para não disparar o banner desnecessariamente
-      if (statusFinal === 'pronto_entrega' || statusFinal === 'entregue') {
-        _prontoVisto.add(res.data.id);
-      }
-      var dadosImp={id:res.data.id,cliente:{nome:nomeFinal,tel:''},entrega:{tipo:'balcao',ref:pedido.endereco_entrega},
+    var pedidoId, dadosImp, msgSucesso;
+
+    if (pedidoAberto) {
+      // ═══ COMPLEMENTO: soma os itens novos ao pedido já em andamento ═══
+      // (ex.: churrasquinho inicial que agora ganha entradas/bebidas extras
+      // e vira uma jantinha — tudo na mesma comanda, um só pedido no admin)
+      var itensFinais = (pedidoAberto.itens || []).concat(novosItens);
+      var totalFinal  = itensFinais.reduce(function(a,i){ return a + (i.preco*(i.qtd||1)); }, 0);
+      // Itens novos sempre "reabrem" a cozinha se não forem só kg/bebida —
+      // mesmo que o pedido já estivesse mais adiantado (ex.: pronto_entrega),
+      // os itens antigos mantêm seu status_item individual (já preparados),
+      // só os novos entram como 'pendente'.
+      var novoStatus = pedidoAberto.status;
+      if (!_soKg && !_soBebida) novoStatus = 'em_preparo';
+
+      var upd = await supa.from('pedidos').update({
+        itens: itensFinais,
+        subtotal: totalFinal,
+        total_geral: totalFinal,
+        status: novoStatus
+      }).eq('id', pedidoAberto.id);
+      if (upd.error) throw upd.error;
+
+      pedidoId = pedidoAberto.id;
+      // Imprime só o COMPLEMENTO (os itens novos), não o pedido inteiro de novo
+      dadosImp={id:pedidoId,cliente:{nome:pedidoAberto.cliente_nome||nomeFinal,tel:''},
+        entrega:{tipo:'balcao',ref:'Mesa '+mesa},
         itens:novosItens.map(function(i){return{q:i.qtd,n:i.nome,p:i.preco,t:i.variacao||'',pr:'',m:i.montagem||[],o:i.obs||'',peso_gramas:i.peso_gramas,_isKg:i._isKg};}),
-        valores:{sub:total,frete:0,total:total},pagamento:{metodo:pag,obs:obsPag},garcom:_garcomNome,data:new Date().toLocaleString('es-PY')};
+        valores:{sub:total,frete:0,total:total},
+        pagamento:{metodo:pedidoAberto.forma_pagamento||'A definir',obs:'COMPLEMENTO'},
+        observacao:'PEDIDO COMPLEMENTAR — Mesa '+mesa,
+        garcom:_garcomNome,data:new Date().toLocaleString('es-PY')};
+      msgSucesso = '➕ ¡Complemento agregado a la Mesa '+mesa+'!';
+    } else {
+      // ═══ NUEVO pedido ═══
+      var pedido={
+        uid_temporal:'AT-'+Math.floor(Math.random()*9999),
+        status:statusFinal, tipo_entrega:'balcao',
+        total_geral:total, subtotal:total, frete_cobrado_cliente:0,
+        forma_pagamento:pag, obs_pagamento:obsPag,
+        itens:novosItens,
+        endereco_entrega:mesa?'Mesa '+mesa:(_soKg?'Balcao - Venda Kg':'Balcao'),
+        cliente_nome:nomeFinal, cliente_telefone:'',
+        garcom_id:_garcomId, garcom_nome:_garcomNome,
+        tempo_recebido:agora, tempo_confirmado:agora, tempo_preparo_iniciado:agora
+      };
+      if (_soKg){ pedido.tempo_pronto=agora; pedido.tempo_entregue=agora; }
+      var res=await supa.from('pedidos').insert([pedido]).select('id').single();
+      if (res.error) throw res.error;
+      pedidoId = res.data && res.data.id;
+      if (pedidoId) {
+        // Se o pedido foi lançado diretamente como pronto_entrega (bebidas ou kg),
+        // marcar como "já visto" para não disparar o banner desnecessariamente
+        if (statusFinal === 'pronto_entrega' || statusFinal === 'entregue') {
+          _prontoVisto.add(pedidoId);
+        }
+        dadosImp={id:pedidoId,cliente:{nome:nomeFinal,tel:''},entrega:{tipo:'balcao',ref:pedido.endereco_entrega},
+          itens:novosItens.map(function(i){return{q:i.qtd,n:i.nome,p:i.preco,t:i.variacao||'',pr:'',m:i.montagem||[],o:i.obs||'',peso_gramas:i.peso_gramas,_isKg:i._isKg};}),
+          valores:{sub:total,frete:0,total:total},pagamento:{metodo:pag,obs:obsPag},garcom:_garcomNome,data:new Date().toLocaleString('es-PY')};
+      }
+      var msgs={entregue:'¡Venta por Kg registrada!',pronto_entrega:'¡Solo bebidas - directo al mostrador!',em_preparo:'¡Enviado a la Cocina!'};
+      msgSucesso = msgs[statusFinal]||'¡Pedido enviado!';
+    }
+
+    if (pedidoId && dadosImp) {
       var b64=btoa(unescape(encodeURIComponent(JSON.stringify(dadosImp)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
       window.open('imprimir.html?d='+b64,'PrintAtend','width=400,height=600');
     }
@@ -748,8 +851,8 @@ async function lancarPedido(){
     document.getElementById('box-multi-atend').style.display='none';
     document.getElementById('multi-partes-atend').innerHTML='';
     _multiCont=0;
-    var msgs={entregue:'¡Venta por Kg registrada!',pronto_entrega:'¡Solo bebidas - directo al mostrador!',em_preparo:'¡Enviado a la Cocina!'};
-    toast(msgs[statusFinal]||'¡Pedido enviado!');
+    _pedidoAbertoMesa=null;
+    toast(msgSucesso);
   } catch(e) {
     toast('Error: '+e.message); console.error(e);
   } finally {
