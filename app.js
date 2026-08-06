@@ -561,22 +561,111 @@ function _scrollModalParaElemento(el, delay = 0) {
 }
 
 // ── Filtra opções de pagamento no checkout conforme features_ativas.pagamentos ──
+// Cache das features para poder reaplicar o filtro depois (ex: quando o carrinho muda)
+let _featuresPagamentoAtivas = null;
+
 function _aplicarFormasPagamentoCliente(features) {
-  const pags = features?.pagamentos;
-  if (!pags) return; // sem config = tudo visível
+  _featuresPagamentoAtivas = features?.pagamentos || null;
+  _atualizarDisponibilidadePagamento();
+}
+
+// ==========================================
+// RESTRIÇÃO DE PAGAMENTO: Promoção do Dia e Combos
+// ==========================================
+// Produtos em promoção ou combo só podem ser pagos em Efetivo, Pix ou Transferência
+// (bandeiras/QR ficam de fora pois normalmente não há repasse de taxa nesses itens).
+const FORMAS_PAGAMENTO_LIMITADAS = ["Efetivo", "Pix", "Transferencia"];
+
+// Verifica se um produto (registro do MENU) deve ter o pagamento restrito
+function _produtoTemPagamentoRestrito(produto) {
+  if (!produto) return false;
+
+  // 1) Checkbox "🔥 Promoção do Dia" marcada no admin (independe da categoria)
+  if (produto.promocao_dia) return true;
+
+  // 2) Produto está na categoria legada "promocoes_do_dia"
+  if (produto.categoria_slug === "promocoes_do_dia") return true;
+
+  // 3) Produto é um Combo (aberto ou fechado)
+  const cfg = produto.montagem;
+  const tipoMontagem =
+    cfg && typeof cfg === "object" && !Array.isArray(cfg) ? cfg.__tipo : null;
+  return tipoMontagem === "combo" || tipoMontagem === "combo_fechado";
+}
+
+// Localiza o produto de origem (no MENU) de um item do carrinho
+function _buscarProdutoDoItem(item) {
+  for (const key in MENU) {
+    const encontrado = (MENU[key] || []).find(
+      (p) =>
+        p.id === item.produto_id || p.id === item.id || p.nome === item.nome,
+    );
+    if (encontrado) return encontrado;
+  }
+  return null;
+}
+
+// Verifica se o carrinho atual contém algum item de Promoção do Dia ou Combo
+function _carrinhoTemItemPagamentoRestrito() {
+  return carrinho.some((item) =>
+    _produtoTemPagamentoRestrito(_buscarProdutoDoItem(item)),
+  );
+}
+
+// Mensagem de aviso (mesmo idioma usado no restante do checkout)
+function _textoAvisoPagamentoRestrito() {
+  const lang = localStorage.getItem("language") || "es";
+  const msgs = {
+    es: "Tu pedido contiene producto(s) en Promoción o Combo. Para estos artículos aceptamos solo: 💵 Efectivo, 🟢 Pix o 🏦 Transferencia.",
+    pt: "Seu pedido contém item(ns) em Promoção ou Combo. Para esses produtos aceitamos apenas: 💵 Efetivo, 🟢 Pix ou 🏦 Transferência.",
+    en: "Your order contains Promo or Combo item(s). For these products we only accept: 💵 Cash, 🟢 Pix or 🏦 Bank Transfer.",
+    de: "Ihre Bestellung enthält Aktions- oder Combo-Artikel. Für diese Produkte akzeptieren wir nur: 💵 Bar, 🟢 Pix oder 🏦 Überweisung.",
+  };
+  return msgs[lang] || msgs.es;
+}
+
+// Reaplica o filtro de opções do select #forma-pag combinando:
+//   1) as features de pagamento ativas na loja (_featuresPagamentoAtivas)
+//   2) a restrição de Promoção/Combo, quando o carrinho contém esse tipo de item
+// Chamar sempre que o carrinho mudar (adicionar/remover/alterar qtd).
+function _atualizarDisponibilidadePagamento() {
   const select = document.getElementById("forma-pag");
   if (!select) return;
+
+  const restrito = _carrinhoTemItemPagamentoRestrito();
+
   Array.from(select.options).forEach((opt) => {
     if (!opt.value) return; // placeholder
-    // CartaoBR é nova feature — oculta se explicitamente false
-    if (opt.value === "CartaoBR") {
-      opt.style.display = pags["CartaoBR"] === false ? "none" : "";
-    } else if (pags[opt.value] === false) {
-      opt.style.display = "none";
-    } else {
-      opt.style.display = "";
-    }
+
+    const bloqueadoPelaLoja =
+      _featuresPagamentoAtivas &&
+      (opt.value === "CartaoBR"
+        ? _featuresPagamentoAtivas["CartaoBR"] === false
+        : _featuresPagamentoAtivas[opt.value] === false);
+
+    // Com item restrito no carrinho, só Efetivo/Pix/Transferencia ficam disponíveis.
+    // Multipagamento também fica oculto (evita dividir o pagamento usando um método não permitido).
+    const bloqueadoPeloCarrinho =
+      restrito && !FORMAS_PAGAMENTO_LIMITADAS.includes(opt.value);
+
+    opt.style.display = bloqueadoPelaLoja || bloqueadoPeloCarrinho ? "none" : "";
   });
+
+  // Se a forma de pagamento selecionada deixou de ser válida, reseta a seleção
+  const opcaoAtual = select.options[select.selectedIndex];
+  if (opcaoAtual && opcaoAtual.value && opcaoAtual.style.display === "none") {
+    select.value = "";
+    if (typeof verificarPagamento === "function") verificarPagamento();
+  }
+
+  const aviso = document.getElementById("aviso-pagamento-restrito");
+  if (aviso) {
+    aviso.style.display = restrito ? "flex" : "none";
+    if (restrito) {
+      const texto = document.getElementById("aviso-pagamento-restrito-texto");
+      if (texto) texto.textContent = _textoAvisoPagamentoRestrito();
+    }
+  }
 }
 
 // Renderiza o Menu (Categories + Produtos com subcategorias)
@@ -688,6 +777,7 @@ async function renderMenu() {
       categoria_slug: cat || null, // ← necessário para filtro de bebidas no motoboy
       subcategoria_slug: sub || null,
       es_bebida: p.es_bebida || false,
+      promocao_dia: p.promocao_dia || false, // ← restringe forma de pagamento (ver _produtoTemPagamentoRestrito)
     };
 
     if (sub) {
@@ -2710,6 +2800,7 @@ function renderCarrinho() {
   });
 
   atualizarTotalCheckout();
+  _atualizarDisponibilidadePagamento();
 }
 
 function mudarQtdCarrinho(idx, delta) {
@@ -3403,23 +3494,22 @@ async function enviarZap() {
     document.getElementById("troco-valor").style.borderColor = "";
   }
 
-  // Promoções do dia: bloquear pagamento com Cartão
-  const temPromoItem = carrinho.some((item) => {
-    // Verifica se algum item do carrinho pertence a categoria promocoes_do_dia
-    for (const key in MENU) {
-      if (key === "promocoes_do_dia") {
-        const found = MENU[key].find(
-          (m) => m.id === item.id || m.nome === item.nome,
-        );
-        if (found) return true;
-      }
+  // Promoções do dia e Combos: pagamento restrito a Efetivo, Pix ou Transferência.
+  // (Camada de segurança — a UI já filtra as opções em _atualizarDisponibilidadePagamento,
+  // isso aqui garante a regra mesmo se o select for manipulado fora do fluxo normal.)
+  if (_carrinhoTemItemPagamentoRestrito()) {
+    const pagamentoValido =
+      pag === "Multipagamento"
+        ? _coletarMultiPagamento().every((p) =>
+            FORMAS_PAGAMENTO_LIMITADAS.includes(p.metodo),
+          )
+        : FORMAS_PAGAMENTO_LIMITADAS.includes(pag);
+
+    if (!pagamentoValido) {
+      return alert(
+        "⚠️ Seu pedido contém item(ns) em Promoção ou Combo.\nPara esses produtos aceitamos apenas: 💵 Efetivo, 🟢 Pix ou 🏦 Transferência.",
+      );
     }
-    return false;
-  });
-  if (temPromoItem && pag === "Cartao") {
-    return alert(
-      '⚠️ Produtos da "Promoção do Dia" não aceitam pagamento com Cartão.',
-    );
   }
 
   // Pedido duplo: bloqueia se mesmo carrinho enviado no último 1h

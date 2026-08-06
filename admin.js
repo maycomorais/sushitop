@@ -3234,7 +3234,7 @@ async function exportarProdutos(formato = "json") {
       const SEP = ";";
       const cols = [
         "nome","descricao","preco","categoria_slug","subcategoria_slug",
-        "ativo","pausado","destaque","somente_balcao","es_bebida",
+        "ativo","pausado","destaque","somente_balcao","es_bebida","promocao_dia",
         "unidade_venda","promo_ativo","promo_tipo","promo_valor",
         "ordem","montagem_config","adicionais"
       ];
@@ -3311,7 +3311,7 @@ function importarProdutos() {
       const CAMPOS_VALIDOS = [
         "nome","descricao","preco","imagem_url","categoria_slug","subcategoria_slug",
         "ativo","pausado","somente_balcao","destaque","ordem","e_montavel","es_bebida",
-        "unidade_venda","montagem_config","adicionais","inventario_id","estoque_qtd",
+        "promocao_dia","unidade_venda","montagem_config","adicionais","inventario_id","estoque_qtd",
         "promo_ativo","promo_tipo","promo_valor"
       ];
 
@@ -3925,6 +3925,8 @@ async function salvarProduto() {
       somente_balcao:
         document.getElementById("prod-somente-balcao")?.checked || false,
       es_bebida: document.getElementById("prod-es-bebida")?.checked || false,
+      promocao_dia:
+        document.getElementById("prod-promocao-dia")?.checked || false,
       inventario_id: inventarioId,
     };
 
@@ -4010,6 +4012,8 @@ async function abrirModalProduto(produto = null, tipoInicial = null) {
   document.getElementById("prod-somente-balcao").checked = false;
   const _esBebidaEl = document.getElementById("prod-es-bebida");
   if (_esBebidaEl) _esBebidaEl.checked = false;
+  const _promoDiaEl = document.getElementById("prod-promocao-dia");
+  if (_promoDiaEl) _promoDiaEl.checked = false;
   document.getElementById("prod-tem-extras").checked = false;
   const _pkgEl = document.getElementById("prod-preco-kg");
   if (_pkgEl) _pkgEl.value = "";
@@ -4080,6 +4084,8 @@ async function abrirModalProduto(produto = null, tipoInicial = null) {
       produto.somente_balcao || false;
     const _esBebidaLoad = document.getElementById("prod-es-bebida");
     if (_esBebidaLoad) _esBebidaLoad.checked = produto.es_bebida || false;
+    const _promoDiaLoad = document.getElementById("prod-promocao-dia");
+    if (_promoDiaLoad) _promoDiaLoad.checked = produto.promocao_dia || false;
     if (produto.inventario_id) {
       const _te = document.getElementById("prod-tem-estoque");
       const _ea = document.getElementById("estoque-area");
@@ -8757,6 +8763,7 @@ function _pdvModalConfirmar(cacheKey) {
     img: produto.imagem_url,
     categoria_slug: produto.categoria_slug || "",
     es_bebida: produto.es_bebida || false,
+    promocao_dia: produto.promocao_dia || false,
     preco,
     qtd: 1,
     variacao: variacaoLabel,
@@ -9139,6 +9146,7 @@ function _mostrarModalPesoPDV(produto, precoKg) {
       img: produto.imagem_url || "",
       categoria_slug: produto.categoria_slug || "",
       es_bebida: produto.es_bebida || false,
+      promocao_dia: produto.promocao_dia || false,
       montagem: [],
       obs: "",
     });
@@ -9286,6 +9294,7 @@ function _mostrarModalVariacaoPDV(produto, variacoes) {
           img: p.imagem_url,
           categoria_slug: p.categoria_slug || "",
           es_bebida: p.es_bebida || false,
+          promocao_dia: p.promocao_dia || false,
           preco: v.preco || p.preco || 0,
           qtd: 1,
           variacao: v.nome,
@@ -10150,6 +10159,7 @@ async function salvarPedidoBalcao() {
     obs: i.obs || "",
     categoria_slug: i.categoria_slug || "",
     es_bebida: i.es_bebida || false,
+    promocao_dia: i.promocao_dia || false,
     ...(i._isKg
       ? { peso_gramas: i.peso_gramas, preco_kg: i.preco_kg, _isKg: true }
       : {}),
