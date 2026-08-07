@@ -3309,19 +3309,47 @@ async function calcularFrete() {
   }
 }
 
+// Consulta distância pela rota real (OSRM público). Retorna km ou null se falhar.
+// Mesma função usada no PDV (admin.js) — mantém o frete do cliente tão preciso quanto o do balcão.
+async function obterDistanciaPelaRota(latDestino, lngDestino) {
+  const origem = `${COORD_LOJA.lng},${COORD_LOJA.lat}`;
+  const destino = `${lngDestino},${latDestino}`;
+  const url = `https://router.project-osrm.org/route/v1/driving/${origem};${destino}?overview=false`;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // não trava o checkout se a OSRM estiver lenta
+    const r = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    const d = await r.json();
+    if (d.code === "Ok") return d.routes[0].distance / 1000;
+    return null;
+  } catch {
+    return null; // qualquer falha (timeout, rede, CORS) => quem chamou cai no fallback Haversine
+  }
+}
+
 function _executarGetPosition(btn, msg, boxErro) {
   navigator.geolocation.getCurrentPosition(
-    (position) => {
+    async (position) => {
       localCliente = {
         lat: position.coords.latitude,
         lng: position.coords.longitude,
       };
-      const dist = calcularDistancia(
-        COORD_LOJA.lat,
-        COORD_LOJA.lng,
-        localCliente.lat,
-        localCliente.lng,
-      );
+
+      msg.innerHTML = `<span style="color:#888">📍 Calculando rota até você...</span>`;
+
+      // 1ª tentativa: distância real pela rota (ruas), igual ao PDV.
+      // Se a OSRM falhar/demorar, cai para a linha reta (Haversine) como antes.
+      let dist = await obterDistanciaPelaRota(localCliente.lat, localCliente.lng);
+      let distEhRotaReal = dist !== null;
+      if (dist === null) {
+        dist = calcularDistancia(
+          COORD_LOJA.lat,
+          COORD_LOJA.lng,
+          localCliente.lat,
+          localCliente.lng,
+        );
+      }
 
       // === TABELA DE FRETE DINÂMICA (configurada no admin) ===
       // ATENÇÃO: deve ser IDÊNTICO ao index.ts (Edge Function) e admin.js calcularFretePDV
@@ -3376,7 +3404,7 @@ function _executarGetPosition(btn, msg, boxErro) {
         freteMotoboy = freteCalculado; // sem tabela, assume igual ao loja
       }
 
-      msg.innerHTML = `<span style="color:#27ae60">✅ Distância: ${dist.toFixed(1)}km - Frete: Gs ${freteCalculado.toLocaleString("es-PY")}</span>`;
+      msg.innerHTML = `<span style="color:#27ae60">✅ Distância${distEhRotaReal ? " (rota)" : ""}: ${dist.toFixed(1)}km - Frete: Gs ${freteCalculado.toLocaleString("es-PY")}</span>`;
       msg.style.color = "#27ae60";
       boxErro.style.display = "none";
 
