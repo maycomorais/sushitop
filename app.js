@@ -1729,7 +1729,7 @@ let _variacaoSelecionada = null; // { nome, preco, img }
 
 function _renderVariacoes(item, cfg, container) {
   _variacaoSelecionada = null;
-  const variacoes = cfg && cfg.variacoes ? cfg.variacoes : [];
+  const variacoes = (cfg && cfg.variacoes ? cfg.variacoes : []).filter(v => v.ativo !== false);
 
   const sec = document.createElement("div");
   sec.className = "var-section";
