@@ -44,7 +44,7 @@ async function crmCarregarClientes() {
       .from('clientes')
       .select('*')
       .order('nome');
-    if (error) { console.warn('crmCarregarClientes (rode a migração SQL):', error.message); return; }
+    if (error) { console.warn('crmCarregarClientes (ejecute la migración SQL):', error.message); return; }
     _crm_clientes = data || [];
     _crmExpirarCashback();
     crmRenderClientes();
@@ -372,10 +372,69 @@ async function _crmBuscarPorTelefone(telefone) {
 let _pdvCashbackDebounce = null;
 let _pdvCashbackDisponivel = 0;
 let _pdvCashbackUsando    = false;
+let _pdvCadastroClienteDebounce = null;
 
 function pdvTelefoneInput(valor) {
   clearTimeout(_pdvCashbackDebounce);
   _pdvCashbackDebounce = setTimeout(() => buscarClientePDV(valor), 600);
+  _pdvAgendarCadastroAutomatico();
+}
+
+// Disparado também ao digitar o nome (balcao-cliente oninput="pdvNomeInput()")
+// — cobre o caso do telefone já ter sido digitado antes do nome.
+function pdvNomeInput() {
+  _pdvAgendarCadastroAutomatico();
+}
+
+function _pdvAgendarCadastroAutomatico() {
+  clearTimeout(_pdvCadastroClienteDebounce);
+  _pdvCadastroClienteDebounce = setTimeout(_pdvCadastrarClienteAuto, 900);
+}
+
+/**
+ * Cadastro automático de cliente no PDV: assim que nome + telefone (válido)
+ * estiverem preenchidos, cria (ou atualiza o nome de) o registro em `clientes`
+ * — sem precisar finalizar a venda. Silencioso: não interrompe o atendimento
+ * com alerts, só loga no console.
+ */
+async function _pdvCadastrarClienteAuto() {
+  const nomeEl = document.getElementById("balcao-cliente");
+  const telEl  = document.getElementById("balcao-telefone");
+  if (!nomeEl || !telEl) return;
+
+  const nome = nomeEl.value.trim();
+  const tel  = telEl.value.trim();
+  if (!nome || !tel) return;
+
+  const telDigits = tel.replace(/\D/g, "");
+  if (telDigits.length < 7) return; // telefone incompleto — aguarda mais dígitos
+
+  try {
+    const existente = await _crmBuscarPorTelefone(tel);
+    if (existente) {
+      // Se o cliente só existia com o nome genérico gerado pelo cashback
+      // ("Cliente PDV"), atualiza para o nome real digitado agora.
+      if (existente.nome === "Cliente PDV" && nome !== "Cliente PDV") {
+        await supa.from("clientes").update({ nome }).eq("id", existente.id);
+        existente.nome = nome;
+        if (typeof crmCarregarClientes === "function") crmCarregarClientes();
+      }
+      return;
+    }
+
+    const { error } = await supa.from("clientes").insert([{
+      nome,
+      telefone: tel,
+      saldo_cashback: 0,
+      total_gasto: 0,
+    }]);
+    if (error) { console.warn("Registro automático de cliente falló:", error.message); return; }
+
+    console.log(`✅ Cliente cadastrado automaticamente: ${nome} (${tel})`);
+    if (typeof crmCarregarClientes === "function") crmCarregarClientes();
+  } catch (e) {
+    console.warn("Registro automático de cliente — error:", e.message);
+  }
 }
 
 async function buscarClientePDV(tel) {

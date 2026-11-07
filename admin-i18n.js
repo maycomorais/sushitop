@@ -12,6 +12,8 @@ const ADMIN_LANGS = {
   // PORTUGUÊS (padrão)
   // ══════════════════════════════════════════════════════════
   pt: {
+    'pdv.lancar_pedido': 'Lançar Pedido',
+    'pdv.baixar': 'Baixar Item',
     // ── Sidebar ────────────────────────────────────────────
     'sidebar.visao':        'Visão',
     'sidebar.pdv':          'PDV Balcão',
@@ -24,6 +26,8 @@ const ADMIN_LANGS = {
     'sidebar.estoque':      'Estoque',
     'sidebar.turnos':       'Turnos',
     'sidebar.sair':         'Sair',
+    'sidebar.facturacion': 'Faturação',
+    'sidebar.na_nota':      'Na Nota',
 
     // ── Dashboard ──────────────────────────────────────────
     'dash.title':           'Painel de Controle',
@@ -40,6 +44,25 @@ const ADMIN_LANGS = {
     'dash.mes':             'Este mês',
     'dash.personalizado':   'Personalizado',
     'dash.nenhuma_venda':   'Nenhuma venda no período',
+
+    'mesas.abrir_comanda': 'Abrir Comanda',
+    'mesas.finalizar': 'Finalizar',
+    'mesas.pendente_singular': 'pendente',
+    'mesas.pendente_plural': 'pendentes',
+    'mesas.total': 'Total',
+    'mesas.status_pendente': 'PENDENTE',
+
+    'mesas.abrir_comanda': 'Abrir Comanda',
+    'mesas.finalizar': 'Finalizar',
+    'mesas.pendente_singular': 'pendente',
+    'mesas.pendente_plural': 'pendentes',
+    'mesas.total': 'Total',
+    'mesas.status_pendente': 'PENDENTE',
+    'mesas.mesa_prefixo': 'Mesa',
+    'mesas.nenhuma': 'Nenhuma mesa ativa no momento.',
+    'mesas.editando_mesa': 'Editando Mesa',
+    'mesas.adicione_itens': 'adicione os NOVOS itens e clique em "Lançar Pedido"',
+    'mesas.outros': 'outros',
 
     // ── Pedidos ────────────────────────────────────────────
     'pedidos.title':        'Pedidos',
@@ -104,6 +127,7 @@ const ADMIN_LANGS = {
     'fin.transferencia':    'Transferência',
     'fin.cartao':           'Cartão',
     'fin.dinheiro':         'Dinheiro',
+    'fin.na_nota':          'Na Nota',
     'fin.motoboys':         '🏍️ Relatório Motoboys',
     'fin.filtrar':          'Filtrar',
     'fin.exportar_csv':     '📊 CSV / Power BI',
@@ -311,6 +335,7 @@ const ADMIN_LANGS = {
     'pdv.desconto_label':   '– Desconto',
     'pdv.valor_total':      'Total',
     'pdv.receber_finalizar':'✅ Receber e Finalizar',
+    'pdv.finalizar_pedido': '🏁 Finalizar Pedido',
     'pdv.endereco':         'Endereço',
     'pdv.endereco_ph':      'Rua, nº, bairro...',
     'pdv.link_gmaps':       'Link Google Maps',
@@ -323,6 +348,7 @@ const ADMIN_LANGS = {
     'pdv.buscar_produto':   '🔍 Buscar produto...',
     'pdv.cashback_disponivel': 'Cashback disponível',
     'pdv.usar_cashback':    'Usar cashback',
+    'pdv.taxa_servico_label': 'Taxa de Serviço',
 
     // ── CRM ────────────────────────────────────────────────────────
     'crm.title':            '🤝 CRM Clientes',
@@ -361,6 +387,7 @@ const ADMIN_LANGS = {
     'sidebar.mensalistas':  'Mensalistas',
     'sidebar.motoboys':     'Motoboys',
     'sidebar.produtos':     'Produtos',
+    'sidebar.na_nota':      'Na Nota',
 
     // ── Produtos (chaves faltando) ─────────────────────────────────
     'prod.produtos_title':  'Produtos',
@@ -833,6 +860,25 @@ const ADMIN_LANGS = {
     'dash.personalizado':   'Personalizado',
     'dash.nenhuma_venda':   'Sin ventas en el período',
 
+    'mesas.abrir_comanda': 'Abrir Comanda', // ou 'Abrir Comanda' (mantém)
+    'mesas.finalizar': 'Finalizar',
+    'mesas.pendente_singular': 'pendiente',
+    'mesas.pendente_plural': 'pendientes',
+    'mesas.total': 'Total',
+    'mesas.status_pendente': 'PENDIENTE',
+
+    'mesas.abrir_comanda': 'Abrir Comanda',
+    'mesas.finalizar': 'Finalizar',
+    'mesas.pendente_singular': 'pendiente',
+    'mesas.pendente_plural': 'pendientes',
+    'mesas.total': 'Total',
+    'mesas.status_pendente': 'PENDIENTE',
+    'mesas.mesa_prefixo': 'Mesa',
+    'mesas.nenhuma': 'Ninguna mesa activa en este momento.',
+    'mesas.editando_mesa': 'Editando Mesa',
+    'mesas.adicione_itens': 'añada los NUEVOS items y haga clic en "Lanzar Pedido"',
+    'mesas.outros': 'otros',
+
     // ── Pedidos ────────────────────────────────────────────
     'pedidos.title':        'Pedidos',
     'pedidos.cliente':      'Cliente',
@@ -883,6 +929,8 @@ const ADMIN_LANGS = {
     'pdv.mesas_andamento':  'Pedidos en Curso',
     'pdv.entregar':         'Entregar / Cerrar',
     'pdv.na_cozinha':       '🔥 En Cocina',
+    'pdv.baixar':           'Bajar Iten',
+
 
     // ── Financeiro ─────────────────────────────────────────
     'fin.title':            '💰 Control Financiero',
@@ -933,6 +981,7 @@ const ADMIN_LANGS = {
     'prod.somente_balcao':  'Solo Mostrador',
     'prod.extras':          '¿Tiene adicionales?',
     'prod.estoque':         'Vincular al stock',
+    'sidebar.facturacion': 'Facturación',
 
     // ── Categorias ─────────────────────────────────────────
     'cat.title':            '🏷️ Categorías del Menú',
@@ -1092,6 +1141,7 @@ const ADMIN_LANGS = {
     'geral.hoje':           'Hoy',
 
     // ── PDV (chaves faltando) ──────────────────────────────────────
+    'pdv.taxa_servico_label': 'Propina',
     'pdv.novo_pedido':      'Nuevo Pedido',
     'pdv.tipo_balcao':      'Mostrador',
     'pdv.tipo_delivery':    'Delivery',
@@ -1103,6 +1153,7 @@ const ADMIN_LANGS = {
     'pdv.desconto_label':   '– Descuento',
     'pdv.valor_total':      'Total',
     'pdv.receber_finalizar':'✅ Cobrar y Finalizar',
+    'pdv.finalizar_pedido': '🏁 Finalizar Pedido',
     'pdv.endereco':         'Dirección',
     'pdv.endereco_ph':      'Calle, nº, barrio...',
     'pdv.link_gmaps':       'Link Google Maps',
@@ -1151,8 +1202,9 @@ const ADMIN_LANGS = {
     'sidebar.ficha_tecnica':'Ficha Técnica',
     'sidebar.filiais':      'Sucursales',
     'sidebar.mensalistas':  'Mensualistas',
-    'sidebar.motoboys':     'Repartidores',
+    'sidebar.motoboys':     'Delivery / Repartidores',
     'sidebar.produtos':     'Productos',
+    'sidebar.na_nota':      'Al Fiado',
 
     // ── Produtos (chaves faltando) ─────────────────────────────────
     'prod.produtos_title':  'Productos',
@@ -1566,6 +1618,9 @@ const ADMIN_LANGS = {
     'geral.vencimento':     'Vencimiento',
     'ft.erro':              'Error: ',
 
+    'pdv.lancar_pedido': 'Lanzar Pedido',
+
+
     // ── Filiais ───────────────────────────────────────────────────
     'filiais.nova_sucursal':     'Nueva Sucursal',
     'filiais.nome_label':        'Nombre de la Sucursal',
@@ -1627,21 +1682,51 @@ function applyAdminI18n() {
 
 // Troca idioma e re-aplica
 function setAdminLang(lang) {
-  if (!ADMIN_LANGS[lang]) return;
+  if (!ADMIN_LANGS[lang]) {
+    console.warn('[i18n] Idioma inválido:', lang);
+    return;
+  }
+
   _adminLang = lang;
-  localStorage.setItem('admin_lang', lang);
-  applyAdminI18n();
-  // Atualiza botões do seletor
-  document.querySelectorAll('.lang-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.lang === lang);
+  try { localStorage.setItem('admin_lang', lang); } catch (_) {}
+
+  // 1) Aplica traduções — protegido contra erro pra não impedir a marcação dos botões
+  try {
+    applyAdminI18n();
+  } catch (err) {
+    console.error('[i18n] applyAdminI18n falhou:', err);
+  }
+
+  // 2) Marca botão ativo — com estilos inline (à prova de CSS quebrado)
+  const btns = document.querySelectorAll('.lang-btn');
+  btns.forEach(btn => {
+    const btnLang = btn.dataset.lang || btn.getAttribute('data-lang');
+    const isActive = String(btnLang) === String(lang);
+
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+
+    // Fallback visual forte (independe de CSS externo)
+    btn.style.background = isActive ? '#ffffff' : 'rgba(255,255,255,0.12)';
+    btn.style.color      = isActive ? '#1a7a2e'  : 'rgba(255,255,255,0.7)';
+    btn.style.boxShadow  = isActive ? '0 0 0 2px rgba(255,255,255,0.35)' : 'none';
   });
+
+  console.log(`[i18n] Idioma alterado para: ${lang} (${btns.length} botão(ões) atualizado(s))`);
 }
 
 // Auto-aplica ao carregar
 document.addEventListener('DOMContentLoaded', () => {
-  applyAdminI18n();
-  // Marca botão ativo
+  // Aplica traduções iniciais
+  try { applyAdminI18n(); } catch (e) { console.error('[i18n] init:', e); }
+
+  // Marca o botão do idioma atual (fallback duplo)
   document.querySelectorAll('.lang-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.lang === _adminLang);
+    const btnLang = btn.dataset.lang || btn.getAttribute('data-lang');
+    const isActive = String(btnLang) === String(_adminLang);
+    btn.classList.toggle('active', isActive);
+    btn.style.background = isActive ? '#ffffff' : 'rgba(255,255,255,0.12)';
+    btn.style.color      = isActive ? '#1a7a2e'  : 'rgba(255,255,255,0.7)';
+    btn.style.boxShadow  = isActive ? '0 0 0 2px rgba(255,255,255,0.35)' : 'none';
   });
 });

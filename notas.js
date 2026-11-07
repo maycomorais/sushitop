@@ -82,7 +82,7 @@ function notasAgrupar() {
 
 // ── KPIs ──────────────────────────────────────────────────────
 function notasRenderKPIs() {
-  const clientes = Object.values(_notas_clientes);
+  const clientes = _notasClientesComPeriodoEBusca();
   const totalAberto = clientes.reduce((s, c) => s + c.total, 0);
   const totalQuit   = clientes.reduce((s, c) => s + c.quitado, 0);
   const qtdAbertos  = clientes.filter(c => c.total > 0).length;
@@ -100,25 +100,73 @@ function notasFiltrar() {
   notasRenderLista();
 }
 
+// Reaplica os filtros de período (data inicial/final) — dispara recálculo
+// dos KPIs (que também respeitam o período) e da lista.
+function notasAplicarFiltroPeriodo() {
+  notasRenderKPIs();
+  notasRenderLista();
+}
+
+function notasLimparFiltroPeriodo() {
+  const ini = document.getElementById('notas-filtro-inicio');
+  const fim = document.getElementById('notas-filtro-fim');
+  if (ini) ini.value = '';
+  if (fim) fim.value = '';
+  notasAplicarFiltroPeriodo();
+}
+
+// Aplica período (data do pedido) + busca (nome/telefone) sobre
+// _notas_clientes, recalculando total/quitado de cada cliente só com
+// os pedidos que caem dentro da janela filtrada. Não aplica o filtro de
+// status (pendente/quitado/todos) — esse é usado só para decidir quais
+// linhas exibir na lista, os KPIs continuam representando o período todo.
+function _notasClientesComPeriodoEBusca() {
+  const busca = (document.getElementById('notas-busca')?.value || '').toLowerCase().trim();
+  const dtIni = document.getElementById('notas-filtro-inicio')?.value || '';
+  const dtFim = document.getElementById('notas-filtro-fim')?.value || '';
+
+  let clientes = Object.entries(_notas_clientes).map(([chave, c]) => ({
+    chave, ...c, pedidos: [...c.pedidos],
+  }));
+
+  if (dtIni || dtFim) {
+    const iniMs = dtIni ? new Date(dtIni + 'T00:00:00').getTime() : -Infinity;
+    const fimMs = dtFim ? new Date(dtFim + 'T23:59:59').getTime() : Infinity;
+    clientes = clientes
+      .map(c => {
+        const pedidos = c.pedidos.filter(p => {
+          const t = new Date(p.created_at).getTime();
+          return t >= iniMs && t <= fimMs;
+        });
+        const total   = pedidos.filter(p => !p.quitado).reduce((s, p) => s + (p.total_geral || 0), 0);
+        const quitado = pedidos.filter(p => p.quitado).reduce((s, p) => s + (p.total_geral || 0), 0);
+        return { ...c, pedidos, total, quitado };
+      })
+      .filter(c => c.pedidos.length > 0);
+  }
+
+  if (busca) {
+    clientes = clientes.filter(c =>
+      c.nome.toLowerCase().includes(busca) || c.telefone.includes(busca)
+    );
+  }
+
+  return clientes;
+}
+
 function notasRenderLista() {
   const cont = document.getElementById('notas-lista');
   if (!cont) return;
 
-  const busca = (document.getElementById('notas-busca')?.value || '').toLowerCase().trim();
-  let clientes = Object.entries(_notas_clientes).map(([chave, c]) => ({ chave, ...c }));
+  let clientes = _notasClientesComPeriodoEBusca();
 
   // Filtro status
   if (_notas_filtro === 'pendente') clientes = clientes.filter(c => c.total > 0);
   if (_notas_filtro === 'quitado')  clientes = clientes.filter(c => c.total === 0 && c.quitado > 0);
 
-  // Filtro busca
-  if (busca) clientes = clientes.filter(c =>
-    c.nome.toLowerCase().includes(busca) || c.telefone.includes(busca)
-  );
-
   if (!clientes.length) {
     cont.innerHTML = `<div style="text-align:center;color:#aaa;padding:40px;font-size:0.9rem">
-      ${_notas_filtro === 'pendente' ? '✅ Nenhuma conta aberta no momento!' : 'Nenhum resultado encontrado.'}
+      ${_notas_filtro === 'pendente' ? '✅ ¡Ninguna cuenta abierta por el momento!' : 'Ningún resultado encontrado.'}
     </div>`;
     return;
   }
@@ -131,12 +179,12 @@ function notasRenderLista() {
     const chaveSanitizada = c.chave.replace(/[^a-zA-Z0-9]/g, '');
     return `
     <div style="background:#fff;border-radius:14px;border:1.5px solid ${temAberto ? '#fca5a5' : '#bbf7d0'};margin-bottom:12px;overflow:hidden">
-      <!-- Cabeçalho do cliente -->
+      <!-- Encabezado del cliente -->
       <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;cursor:pointer;background:${temAberto ? '#fff5f5' : '#f0fdf4'}"
            onclick="notasToggleCliente('${chaveSanitizada}')">
         <div>
           <div style="font-weight:800;font-size:0.95rem;color:#111">${c.nome}</div>
-          <div style="font-size:0.78rem;color:#6b7280;margin-top:2px">${c.telefone || 'Sem telefone'} · ${c.pedidos.length} pedido(s)</div>
+          <div style="font-size:0.78rem;color:#6b7280;margin-top:2px">${c.telefone || 'Sin teléfono'} · ${c.pedidos.length} pedido(s)</div>
         </div>
         <div style="text-align:right">
           ${temAberto
@@ -147,7 +195,7 @@ function notasRenderLista() {
         </div>
       </div>
 
-      <!-- Detalhe (pedidos) — oculto por padrão -->
+      <!-- Detalle (pedidos) — oculto por defecto -->
       <div id="notas-det-${chaveSanitizada}" style="display:none;padding:0 16px 14px">
         ${abertos.length > 0 ? `
         <div style="margin-top:12px">
@@ -175,7 +223,7 @@ function notasRenderLista() {
         ${quitados.length > 0 ? `
         <div style="margin-top:${abertos.length > 0 ? '14px' : '12px'}">
           <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:#16a34a;letter-spacing:.5px;margin-bottom:6px">
-            ✅ Já quitados
+            ✅ Ya saldados
           </div>
           ${quitados.map(p => _notasPedidoRow(p, true)).join('')}
         </div>` : ''}
@@ -267,11 +315,11 @@ async function notasQuitarPedido(pedidoId, event) {
 
   // 1. Verifica se há caixa aberto
   if (!_sessaoCaixaAtiva) {
-    alert('⚠️ Não há caixa aberto. Abra o caixa antes de quitar uma nota.');
+    alert('⚠️ No hay caja abierta. Abra la caja antes de saldar una cuenta.');
     return;
   }
 
-  const ok = confirm('Marcar este pedido como QUITADO?');
+  const ok = confirm('¿Marcar este pedido como PAGADO?');
   if (!ok) return;
 
   // 2. Escolhe a forma de pagamento
@@ -293,14 +341,14 @@ async function notasQuitarPedido(pedidoId, event) {
     .eq('id', pedidoId);
 
   if (error) {
-    alert('Erro ao quitar: ' + error.message);
+    alert('Error al saldar: ' + error.message);
     return;
   }
 
   // 4. Busca o pedido para obter o valor total
   const p = _notas_pedidos.find(x => x.id === pedidoId);
   if (!p) {
-    alert('Pedido não encontrado.');
+    alert('Pedido no encontrado.');
     return;
   }
 
@@ -309,14 +357,14 @@ async function notasQuitarPedido(pedidoId, event) {
   const sucesso = await registrarMovimentacaoCaixa({
     tipo: 'entrada',
     valor: p.total_geral || 0,
-    descricao: `Quitação de nota - Pedido #${pedidoId} - Forma: ${formaPag}`,
+    descricao: `Pago de cuenta - Pedido #${pedidoId} - Forma: ${formaPag}`,
     usuario_email,
     sessao_id: _sessaoCaixaAtiva.id,
     forma_pagamento: formaPag
   });
 
   if (!sucesso) {
-    alert('⚠️ Pedido quitado, mas houve erro ao registrar no caixa. Verifique manualmente.');
+    alert('⚠️ Pedido saldado, pero hubo un error al registrar en la caja. Verifique manualmente.');
   }
 
   // 6. Atualiza a lista local e UI (mantém objeto local coerente com o banco)
@@ -347,11 +395,11 @@ async function notasQuitarTodos(chaveSanitizada) {
 
   // 1. Verifica caixa aberto
   if (!_sessaoCaixaAtiva) {
-    alert('⚠️ Não há caixa aberto. Abra o caixa antes de quitar.');
+    alert('⚠️ No hay caja abierta. Abra la caja antes de saldar.');
     return;
   }
 
-  const ok = confirm(`Quitar TODOS os pedidos de ${c.nome}?\nTotal: Gs ${Math.round(c.total).toLocaleString('es-PY')}`);
+  const ok = confirm(`¿Saldar TODOS los pedidos de ${c.nome}?\nTotal: Gs ${Math.round(c.total).toLocaleString('es-PY')}`);
   if (!ok) return;
 
   // 2. Escolhe forma de pagamento
@@ -373,7 +421,7 @@ async function notasQuitarTodos(chaveSanitizada) {
     .in('id', ids);
 
   if (error) {
-    alert('Erro ao quitar: ' + error.message);
+    alert('Error al saldar: ' + error.message);
     return;
   }
 
@@ -382,14 +430,14 @@ async function notasQuitarTodos(chaveSanitizada) {
   const sucesso = await registrarMovimentacaoCaixa({
     tipo: 'entrada',
     valor: c.total,
-    descricao: `Quitação em lote - Cliente ${c.nome} (${ids.length} pedidos) - Forma: ${formaPag}`,
+    descricao: `Pago en lote - Cliente ${c.nome} (${ids.length} pedidos) - Forma: ${formaPag}`,
     usuario_email,
     sessao_id: _sessaoCaixaAtiva.id,
     forma_pagamento: formaPag
   });
 
   if (!sucesso) {
-    alert('⚠️ Pedidos quitados, mas houve erro ao registrar no caixa. Verifique manualmente.');
+    alert('⚠️ Pedidos saldados, pero hubo un error al registrar en la caja. Verifique manualmente.');
   }
 
   // 5. Atualiza UI (mantém objetos locais coerentes com o banco)
@@ -413,7 +461,7 @@ function notasAvisarCliente(chaveSanitizada) {
 
   const tel = (c.telefone || '').replace(/\D/g, '');
   if (!tel) {
-    alert('Este cliente não tem telefone registrado.');
+    alert('Este cliente no tiene teléfono registrado.');
     return;
   }
 
@@ -422,12 +470,12 @@ function notasAvisarCliente(chaveSanitizada) {
   const totalFmt = Math.round(c.total).toLocaleString('es-PY');
   const primeiroNome = (c.nome || 'Cliente').split(' ')[0];
 
-  const msg = `Oi, ${primeiroNome}! 👋\n\n`
-    + `Somos do *${nomeRestaurante}* e passamos para te lembrar, que você tem `
-    + `${abertos.length > 1 ? `${abertos.length} pedidos` : 'un pedido'} abertos na nota, `
-    + `com um total de *Gs ${totalFmt}*.\n\n`
-    + `Aguardamos a quitação e Agradecemos desde já! 🙏\n`
-    + `Qualquer dúvida, estamos à disposição.`;
+  const msg = `¡Hola, ${primeiroNome}! 👋\n\n`
+    + `Somos de *${nomeRestaurante}* y te escribimos para recordarte que tienes `
+    + `${abertos.length > 1 ? `${abertos.length} pedidos` : 'un pedido'} pendientes en tu cuenta, `
+    + `por un total de *Gs ${totalFmt}*.\n\n`
+    + `¡Esperamos tu pago y desde ya te agradecemos! 🙏\n`
+    + `Cualquier duda, estamos a tu disposición.`;
 
   const foneDestino = tel.startsWith('595') ? tel : `595${tel.replace(/^0/, '')}`;
   window.open(`https://wa.me/${foneDestino}?text=${encodeURIComponent(msg)}`, '_blank');
@@ -440,11 +488,11 @@ function notasAvisarTodosPendentes() {
     .filter(c => c.total > 0 && c.telefone);
 
   if (!pendentes.length) {
-    alert('Nenhum cliente com telefone e conta em aberto.');
+    alert('Ningún cliente con teléfono y cuenta abierta.');
     return;
   }
 
-  const ok = confirm(`Isso abrirá ${pendentes.length} conversa(s) no WhatsApp, uma por cliente. Continuar?`);
+  const ok = confirm(`Esto abrirá ${pendentes.length} conversación(es) en WhatsApp, una por cliente. ¿Continuar?`);
   if (!ok) return;
 
   pendentes.forEach((c, i) => {
@@ -480,7 +528,7 @@ function notasImprimirConta(chaveSanitizada) {
 
   const win = window.open('', '_blank', 'width=400,height=600');
   win.document.write(`<!DOCTYPE html><html><head>
-    <meta charset="UTF-8"><title>Conta — ${c.nome}</title>
+    <meta charset="UTF-8"><title>Cuenta — ${c.nome}</title>
     <style>
       * { margin:0;padding:0;box-sizing:border-box; }
       body { font-family:Arial,sans-serif;font-size:13px;padding:12px; }
@@ -489,7 +537,7 @@ function notasImprimirConta(chaveSanitizada) {
   </head><body>
     <div style="text-align:center;margin-bottom:8px">
       <b style="font-size:16px">${nomeRestaurante.toUpperCase()}</b><br>
-      <span style="font-size:12px">CONTA DO CLIENTE</span>
+      <span style="font-size:12px">CUENTA DEL CLIENTE</span>
     </div>
     <hr style="border-top:1px dashed #000;margin:6px 0">
     <div style="margin-bottom:8px">
@@ -502,7 +550,7 @@ function notasImprimirConta(chaveSanitizada) {
     <div style="text-align:right;font-size:16px;font-weight:900">
       TOTAL: Gs ${Math.round(c.total).toLocaleString('es-PY')}
     </div>
-    <div style="text-align:center;margin-top:10px;font-size:11px">*** OBRIGADO ***</div>
+    <div style="text-align:center;margin-top:10px;font-size:11px">*** GRACIAS ***</div>
     <br>
     <button onclick="window.print()" style="width:100%;padding:12px;background:#16a34a;color:#fff;border:none;font-size:14px;font-weight:700;border-radius:8px;cursor:pointer">
       🖨️ IMPRIMIR

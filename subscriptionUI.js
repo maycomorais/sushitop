@@ -1,6 +1,14 @@
 // subscriptionUI.js
 // Barra de alerta global + tela de bloqueio + inicialização.
 // Depende de: subscriptionDateUtils.js, subscriptionService.js
+//
+// ── ALTERAÇÕES NESTA REVISÃO ─────────────────────────────────
+// Adicionado suporte visual ao novo status 'liberado_manual'
+// (cor, ícone e mensagem da barra), gerado quando o botão
+// "Liberar +1 dia" está ativo (ver subscriptionDateUtils.js).
+// Nenhuma mudança de lógica em inicializar() foi necessária:
+// como 'liberado_manual' !== 'bloqueado', ele já cai naturalmente
+// no branch "else { renderizarBarra(statusObj) }".
 
 'use strict';
 
@@ -12,6 +20,7 @@ const SubscriptionUI = (() => {
 
   const CORES = {
     em_dia:          null,                              // sem barra
+    liberado_manual: { bg: '#dbeafe', borda: '#60a5fa', texto: '#1e3a8a', icone: '🕐' },
     alerta_verde:    { bg: '#d1fae5', borda: '#34d399', texto: '#065f46', icone: '✅' },
     alerta_amarelo:  { bg: '#fef9c3', borda: '#facc15', texto: '#78350f', icone: '⚠️' },
     alerta_laranja:  { bg: '#ffedd5', borda: '#fb923c', texto: '#7c2d12', icone: '🔔' },
@@ -24,13 +33,15 @@ const SubscriptionUI = (() => {
   // ─────────────────────────────────────────────────────────────
 
   function _mensagem(statusObj) {
-    const { status, diasParaVenc, diasParaBloc, dataVenc } = statusObj;
+    const { status, diasParaVenc, diasParaBloc, dataVenc, liberadoAte } = statusObj;
     const { formatarData } = window.SubscriptionDateUtils;
     const dataFmt = formatarData(dataVenc);
 
     const translate = (key, fallback) => (typeof t !== 'undefined' ? t(key, fallback) : fallback);
 
     switch (status) {
+      case 'liberado_manual':
+        return translate('sub.barra_liberado', `Acesso liberado manualmente até <strong>{data}</strong>.`).replace('{data}', formatarData(liberadoAte));
       case 'alerta_verde':
         return translate('sub.barra_vence', `O pagamento da mensalidade vence no dia <strong>{data}</strong>.`).replace('{data}', dataFmt);
       case 'alerta_amarelo':
@@ -217,9 +228,20 @@ const SubscriptionUI = (() => {
   function exibirTelaBloqueio(contatoFone = '', contatoNome = 'Suporte') {
     _injetarEstilos();
 
-    // Oculta todo o conteúdo existente
+    // Oculta todo o conteúdo existente — mas primeiro guarda o display
+    // inline original de cada elemento, pra poder devolver exatamente
+    // esse valor depois (ver removerTelaBloqueio). Sem essa guarda,
+    // qualquer overlay que já estava escondido via JS (ex: o overlay
+    // de contrato, escondido com `overlay.style.display = 'none'`
+    // logo após ser assinado) reaparecia sozinho no desbloqueio,
+    // porque "zerar" o style inline faz o elemento cair no display
+    // padrão do CSS — que pra um modal costuma ser 'flex'/'block'.
     document.querySelectorAll('body > *').forEach(el => {
-      if (el.id !== 'subscription-block-screen') el.style.display = 'none';
+      if (el.id === 'subscription-block-screen') return;
+      if (el.dataset._subDisplayOriginal === undefined) {
+        el.dataset._subDisplayOriginal = el.style.display || '__unset__';
+      }
+      el.style.display = 'none';
     });
 
     // Remove tela anterior se existir
@@ -262,8 +284,14 @@ const SubscriptionUI = (() => {
   function removerTelaBloqueio() {
     const screen = document.getElementById('subscription-block-screen');
     if (screen) screen.remove();
+    // Restaura o display EXATO de antes (guardado em exibirTelaBloqueio),
+    // não um valor em branco — é isso que evita reabrir overlays que já
+    // estavam ocultos por conta própria (ex: contrato já assinado).
     document.querySelectorAll('body > *').forEach(el => {
-      el.style.display = '';
+      const original = el.dataset._subDisplayOriginal;
+      if (original === undefined) return; // elemento não foi tocado por nós
+      el.style.display = (original === '__unset__') ? '' : original;
+      delete el.dataset._subDisplayOriginal;
     });
   }
 
